@@ -1,0 +1,10 @@
+# TradingAgents agents-service dependencies.
+# Core LangGraph stack is installed from the repository root pyproject.toml.
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+python-dotenv>=1.0.0
+pydantic>=2.10.0
+
+# Install parent package in editable mode when building locally:
+# pip install -e ../.. && pip install -r requirements.txt

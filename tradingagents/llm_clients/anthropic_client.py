@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -5,6 +6,8 @@ from langchain_anthropic import ChatAnthropic
 
 from .base_client import BaseLLMClient, normalize_content
 from .validators import validate_model
+
+logger = logging.getLogger(__name__)
 
 _PASSTHROUGH_KWARGS = (
     "timeout", "max_retries", "api_key", "max_tokens", "temperature",
@@ -65,6 +68,10 @@ class AnthropicClient(BaseLLMClient):
             if key not in self.kwargs:
                 continue
             if key == "effort" and not _supports_effort(self.model):
+                logger.debug(
+                    "Skipping effort for %s: model does not support the parameter",
+                    self.model,
+                )
                 continue
             llm_kwargs[key] = self.kwargs[key]
 

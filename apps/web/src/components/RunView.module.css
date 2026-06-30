@@ -1,0 +1,597 @@
+/**
+ * @file apps/web/src/components/RunView.module.css
+ * Styles for the live analysis run page.
+ */
+
+.runLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: calc(100vh - 120px);
+}
+
+.runHeader {
+  margin-bottom: -0.25rem;
+}
+
+.backLink {
+  color: #7d8fa3;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: #6eb6ff;
+}
+
+.upperRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.activityPanel {
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  background: #151c24;
+  overflow: hidden;
+}
+
+.activityToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: #121820;
+  color: #b8c5d3;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.activityToggle:hover {
+  background: #1a2330;
+}
+
+.activityToggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: #e8eef4;
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #7d8fa3;
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.activitySummary {
+  font-size: 0.8rem;
+  color: #7d8fa3;
+  white-space: nowrap;
+}
+
+.activityBody {
+  padding: 0.5rem 0.75rem 0.75rem;
+  max-height: 280px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid #2a3848;
+}
+
+.feedItem {
+  border-bottom: 1px solid #243041;
+  font-size: 0.85rem;
+}
+
+.feedItem:last-child {
+  border-bottom: none;
+}
+
+.feedSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.25rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.feedSummary::-webkit-details-marker {
+  display: none;
+}
+
+.feedPreview {
+  color: #7d8fa3;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feedContent {
+  padding: 0 0.25rem 0.6rem 0.25rem;
+  color: #d1dbe6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.feedItem[open] .feedPreview {
+  display: none;
+}
+
+.panel {
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  background: #151c24;
+  overflow: hidden;
+}
+
+.panelTitle {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+  border-bottom: 1px solid #2a3848;
+  background: #121820;
+}
+
+.panelBody {
+  padding: 0.75rem;
+  max-height: 320px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid #243041;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: #9aa7b5;
+  font-weight: 600;
+}
+
+.statusPending {
+  color: #fbbf24;
+}
+
+.statusInProgress {
+  color: #60a5fa;
+}
+
+.statusCompleted {
+  color: #4ade80;
+}
+
+.statusError {
+  color: #f87171;
+}
+
+.statusCancelled {
+  color: #64748b;
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.statusCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pulseDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #60a5fa;
+  flex-shrink: 0;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+
+.activeRow {
+  background: rgba(96, 165, 250, 0.06);
+}
+
+.workingBanner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #1e3a5f;
+  background: linear-gradient(90deg, #121820 0%, #1a2430 50%, #121820 100%);
+  background-size: 200% 100%;
+  animation: bannerShimmer 2.5s ease-in-out infinite;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+}
+
+.workingBannerDeep {
+  border-color: #4338ca;
+  background: linear-gradient(90deg, #121820 0%, #1e1b4b 50%, #121820 100%);
+  background-size: 200% 100%;
+}
+
+.workingAgent {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.thinkingDots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: dotBounce 1.2s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.workingPlaceholder {
+  position: relative;
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+}
+
+.shimmerBar {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(96, 165, 250, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: bannerShimmer 1.8s ease-in-out infinite;
+}
+
+.reportPanelThinking {
+  animation: panelPulse 2s ease-in-out infinite;
+}
+
+.errorMessage {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+}
+
+.errorHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #fca5a5;
+}
+
+.errorMeta {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes dotBounce {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes bannerShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes panelPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px 0 rgba(96, 165, 250, 0.15);
+  }
+}
+
+.feedMeta {
+  color: #9aa7b5;
+  font-size: 0.75rem;
+}
+
+.progressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #2a3848;
+  background: #121820;
+}
+
+.panelTitleInline {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.progressChip {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.reportsPanel {
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  background: #151c24;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.reportsPanelHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reportsPanelTitle {
+  margin: 0;
+  font-size: 1rem;
+  color: #e8eef4;
+}
+
+.reportsPanelHint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #7d8fa3;
+}
+
+.reportGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.reportGroupTitle {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7d8fa3;
+}
+
+.reportList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.reportAccordion {
+  border: 1px solid #243041;
+  border-radius: 6px;
+  background: #121820;
+  overflow: hidden;
+}
+
+.reportAccordion[open] {
+  border-color: #334155;
+}
+
+.reportAccordion[open] > .reportAccordionSummary .chevron {
+  transform: rotate(90deg);
+}
+
+.reportAccordion[open] .reportAccordionPreview,
+.reportAccordion[open] .reportSignal,
+.reportAccordion[open] .reportAccordionHint {
+  display: none;
+}
+
+.reportAccordionSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.reportAccordionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.reportAccordionMain {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.reportAccordionTitle {
+  font-size: 0.9rem;
+  color: #e8eef4;
+  white-space: nowrap;
+}
+
+.reportAccordionMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.reportBadge {
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: lowercase;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.reportAccordionHint {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.reportAccordionPreview {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 12rem;
+}
+
+.reportSignal {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.12rem 0.55rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.reportSignalBullish {
+  color: #6ee7a0;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.reportSignalNeutral {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.reportSignalBearish {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.reportAccordionBody {
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-top: 1px solid #243041;
+  max-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.reportBodySignal {
+  margin-bottom: 0.65rem;
+}
+
+.reportAccordionBody pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #d1dbe6;
+}
+
+.footer {
+  margin-top: auto;
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: #121820;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.banner {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #1a2330;
+}
+
+.bannerError {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #7f1d1d;
+  background: #2a1515;
+  color: #fecaca;
+}
+
+.bannerError strong {
+  display: block;
+  font-size: 1rem;
+  color: #fca5a5;
+}
+
+.bannerComplete {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #14532d;
+  background: #14241a;
+  color: #bbf7d0;
+}

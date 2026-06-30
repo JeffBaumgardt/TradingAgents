@@ -1,0 +1,614 @@
+openapi: 3.1.0
+info:
+  title: TradingAgents API
+  version: 1.0.0
+  description: |
+    Public API gateway for TradingAgents analysis sessions.
+    Proxies run execution to the Python agents-service.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+tags:
+  - name: health
+  - name: config
+  - name: sessions
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /config/options:
+    get:
+      tags: [config]
+      summary: List configuration options
+      description: Analysts, research depths, languages, and LLM providers.
+      operationId: getConfigOptions
+      responses:
+        "200":
+          description: Configuration options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigOptions"
+  /config/credentials/schema:
+    get:
+      tags: [config]
+      summary: Provider credential field definitions
+      operationId: getCredentialsSchema
+      responses:
+        "200":
+          description: Credential schema for the setup UI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialsSchemaResponse"
+  /config/resolve:
+    post:
+      tags: [config]
+      summary: Resolve config filtered by user credentials
+      description: |
+        Returns analysts, languages, and only the LLM providers for which
+        the caller supplied valid credentials. Keys are not stored.
+      operationId: resolveConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveConfigRequest"
+      responses:
+        "200":
+          description: Filtered configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvedConfigResponse"
+  /config/providers/{provider}/models:
+    post:
+      tags: [config]
+      summary: List models for a provider (credential-aware)
+      operationId: getProviderModelsWithCredentials
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderModelsRequest"
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderModelsResponse"
+        "403":
+          description: No credentials for provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [config]
+      summary: List models for a provider
+      operationId: getProviderModels
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mode
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ModelMode"
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderModelsResponse"
+        "404":
+          description: Unknown provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /sessions:
+    get:
+      tags: [sessions]
+      summary: List analysis sessions
+      operationId: listSessions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Paginated session list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionListResponse"
+    post:
+      tags: [sessions]
+      summary: Create analysis session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /sessions/{id}:
+    get:
+      tags: [sessions]
+      summary: Get session status
+      operationId: getSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [sessions]
+      summary: Cancel session
+      operationId: cancelSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Session cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /sessions/{id}/stream:
+    get:
+      tags: [sessions]
+      summary: Stream session events (SSE)
+      operationId: streamSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Server-sent event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEvent"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /sessions/{id}/report:
+    get:
+      tags: [sessions]
+      summary: Get final report
+      operationId: getSessionReport
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Final analysis report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionReport"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Report not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, agentsService]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        service:
+          type: string
+        agentsService:
+          type: string
+          enum: [ok, unreachable]
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    AnalystType:
+      type: string
+      enum: [market, social, news, fundamentals]
+    ResearchDepth:
+      type: integer
+      enum: [1, 3, 5]
+    ModelMode:
+      type: string
+      enum: [quick, deep]
+    GoogleThinkingLevel:
+      type: string
+      enum: [high, minimal]
+    ReasoningEffort:
+      type: string
+      enum: [low, medium, high]
+    SessionStatus:
+      type: string
+      enum: [pending, running, completed, error, cancelled]
+    SseEventType:
+      type: string
+      enum:
+        - run.started
+        - agent.status
+        - message
+        - tool.call
+        - report.section
+        - stats
+        - run.completed
+        - run.error
+    ConfigOption:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          type: string
+        label:
+          type: string
+    ModelOption:
+      type: object
+      required: [id, label]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        capabilities:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: |
+            Optional provider-specific capability flags (e.g. anthropicEffort,
+            openaiReasoningEffort, googleThinkingLevel).
+    ConfigOptions:
+      type: object
+      required: [analysts, researchDepths, languages, providers]
+      properties:
+        analysts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfigOption"
+        researchDepths:
+          type: array
+          items:
+            type: object
+            required: [value, label]
+            properties:
+              value:
+                $ref: "#/components/schemas/ResearchDepth"
+              label:
+                type: string
+        languages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfigOption"
+        providers:
+          type: array
+          items:
+            type: object
+            required: [id, label]
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              backendUrl:
+                type: string
+                nullable: true
+    ProviderModelsResponse:
+      type: object
+      required: [provider, mode, models]
+      properties:
+        provider:
+          type: string
+        mode:
+          $ref: "#/components/schemas/ModelMode"
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelOption"
+    CreateSessionRequest:
+      type: object
+      required:
+        - ticker
+        - analysisDate
+        - outputLanguage
+        - analysts
+        - researchDepth
+        - llmProvider
+        - quickThinkLlm
+        - deepThinkLlm
+      properties:
+        ticker:
+          type: string
+          example: SPY
+        userContext:
+          type: string
+        analysisDate:
+          type: string
+          format: date
+          example: "2026-06-26"
+        outputLanguage:
+          type: string
+          example: English
+        analysts:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AnalystType"
+        researchDepth:
+          $ref: "#/components/schemas/ResearchDepth"
+        llmProvider:
+          type: string
+          example: openai
+        backendUrl:
+          type: string
+          nullable: true
+        quickThinkLlm:
+          type: string
+        deepThinkLlm:
+          type: string
+        googleThinkingLevel:
+          $ref: "#/components/schemas/GoogleThinkingLevel"
+        openaiReasoningEffort:
+          $ref: "#/components/schemas/ReasoningEffort"
+        anthropicEffort:
+          $ref: "#/components/schemas/ReasoningEffort"
+        checkpointEnabled:
+          type: boolean
+          default: false
+        providerCredentials:
+          type: object
+          description: |
+            Per-provider API keys for the current browser session. Forwarded to
+            the agents-service for inference only; never persisted in the database.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+    ResolveConfigRequest:
+      type: object
+      properties:
+        providerCredentials:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+    ProviderModelsRequest:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          $ref: "#/components/schemas/ModelMode"
+        providerCredentials:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+    CredentialField:
+      type: object
+      required: [name, label, secret, required]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        secret:
+          type: boolean
+        required:
+          type: boolean
+        placeholder:
+          type: string
+          nullable: true
+    ProviderCredentialDefinition:
+      type: object
+      required: [id, label, requiresApiKey, credentialFields, modelSource]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        backendUrl:
+          type: string
+          nullable: true
+        requiresApiKey:
+          type: boolean
+        credentialFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/CredentialField"
+        modelSource:
+          type: string
+          enum: [static, live, static_or_live]
+    CredentialsSchemaResponse:
+      type: object
+      required: [providers, modelCatalogNote]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProviderCredentialDefinition"
+        modelCatalogNote:
+          type: string
+    ResolvedConfigResponse:
+      allOf:
+        - $ref: "#/components/schemas/ConfigOptions"
+        - type: object
+          required: [credentialsSchema, availableProviderIds]
+          properties:
+            credentialsSchema:
+              $ref: "#/components/schemas/CredentialsSchemaResponse"
+            availableProviderIds:
+              type: array
+              items:
+                type: string
+    SessionConfig:
+      allOf:
+        - $ref: "#/components/schemas/CreateSessionRequest"
+    Session:
+      type: object
+      required: [id, status, ticker, analysisDate, config, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/SessionStatus"
+        ticker:
+          type: string
+        analysisDate:
+          type: string
+          format: date
+        config:
+          $ref: "#/components/schemas/SessionConfig"
+        runId:
+          type: string
+          format: uuid
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        decision:
+          type: string
+          nullable: true
+          description: Final portfolio rating when the run completed successfully.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SessionListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    SessionReport:
+      type: object
+      required: [sessionId, markdown, sections, decision]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        markdown:
+          type: string
+        sections:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+        decision:
+          type: string
+          nullable: true
+    SseEvent:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          $ref: "#/components/schemas/SseEventType"
+        data:
+          type: object
+          additionalProperties: true

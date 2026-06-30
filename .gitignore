@@ -221,3 +221,15 @@ __marimo__/
 # Enterprise env file (secrets) and generated run reports
 .env.enterprise
 reports/
+
+# Node / Turborepo monorepo
+node_modules/
+.turbo/
+*.tsbuildinfo
+.next/
+out/
+apps/api/data/
+apps/web/.env.local
+
+# API SQLite database (local dev)
+**/tradingagents-api.db

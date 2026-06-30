@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
 from tradingagents.agents.utils.agent_utils import (
+    format_user_context_block,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -24,7 +25,7 @@ def create_research_manager(llm):
 
         prompt = f"""As the Research Manager and debate facilitator, your role is to critically evaluate this round of debate and deliver a clear, actionable investment plan for the trader.
 
-{instrument_context}
+{instrument_context}{format_user_context_block(state.get("user_context", ""))}
 
 ---
 

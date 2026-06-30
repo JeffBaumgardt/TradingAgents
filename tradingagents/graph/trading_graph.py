@@ -156,6 +156,11 @@ class TradingAgentsGraph:
         if temperature is not None and temperature != "":
             kwargs["temperature"] = float(temperature)
 
+        provider_api_keys = self.config.get("provider_api_keys") or {}
+        provider_key = provider_api_keys.get(provider, {}).get("apiKey")
+        if provider_key:
+            kwargs["api_key"] = provider_key
+
         return kwargs
 
     def _create_tool_nodes(self) -> dict[str, ToolNode]:
@@ -318,7 +323,13 @@ class TradingAgentsGraph:
         identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity)
 
-    def propagate(self, company_name, trade_date, asset_type: str = "stock"):
+    def propagate(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        user_context: str = "",
+    ):
         """Run the trading agents graph for a company on a specific date.
 
         ``asset_type`` selects between the stock pipeline (default) and the
@@ -327,6 +338,14 @@ class TradingAgentsGraph:
         ``checkpoint_enabled`` is set in config, the graph is recompiled with
         a per-ticker SqliteSaver so a crashed run can resume from the last
         successful node on a subsequent invocation with the same ticker+date.
+
+        Args:
+            company_name: Ticker symbol to analyze.
+            trade_date: Analysis date (YYYY-MM-DD).
+            asset_type: Instrument type (``"stock"`` or ``"crypto"``).
+            user_context: Optional user-provided context (holdings, options
+                questions, entry criteria, etc.) injected as the initial human
+                message and passed to downstream agents.
         """
         self.ticker = company_name
 
@@ -352,7 +371,12 @@ class TradingAgentsGraph:
                 logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
         try:
-            return self._run_graph(company_name, trade_date, asset_type=asset_type)
+            return self._run_graph(
+                company_name,
+                trade_date,
+                asset_type=asset_type,
+                user_context=user_context,
+            )
         finally:
             if self._checkpointer_ctx is not None:
                 self._checkpointer_ctx.__exit__(None, None, None)
@@ -374,7 +398,13 @@ class TradingAgentsGraph:
             )
         return write_report_tree(final_state, ticker, save_path)
 
-    def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
+    def _run_graph(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        user_context: str = "",
+    ):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM and the
         # deterministically resolved instrument identity for all agents.
@@ -386,6 +416,7 @@ class TradingAgentsGraph:
             asset_type=asset_type,
             past_context=past_context,
             instrument_context=instrument_context,
+            user_context=user_context,
         )
         args = self.propagator.get_graph_args()
 

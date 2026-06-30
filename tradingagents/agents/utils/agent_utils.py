@@ -187,6 +187,34 @@ def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
     )
 
 
+
+def build_initial_user_message(ticker: str, user_context: str = "") -> str:
+    """Build the human message that seeds analyst tool-calling agents."""
+    context = user_context.strip()
+    if not context:
+        return ticker
+    return (
+        f"Analyze {ticker}.\n\n"
+        "User context and questions:\n"
+        f"{context}\n\n"
+        "Tailor your analysis to the user's situation, holdings, time horizon, "
+        "and any options or entry/exit questions they raised."
+    )
+
+
+def format_user_context_block(user_context: str) -> str:
+    """Format optional user context for downstream agent prompts."""
+    context = user_context.strip()
+    if not context:
+        return ""
+    return (
+        "\n\n**User Context & Questions:**\n"
+        f"{context}\n\n"
+        "Tailor your analysis, debate, and final recommendation to this user's "
+        "specific situation. Address their holdings, options questions, entry "
+        "points, and time horizon directly — not a generic buy/sell/hold opinion."
+    )
+
 def create_msg_delete():
     def delete_messages(state):
         """Clear messages and add a context-anchored placeholder.

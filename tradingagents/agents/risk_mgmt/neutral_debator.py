@@ -4,6 +4,9 @@ from tradingagents.agents.utils.agent_utils import (
 )
 
 
+from tradingagents.agents.utils.agent_utils import format_user_context_block
+
+
 def create_neutral_debator(llm):
     def neutral_node(state) -> dict:
         risk_debate_state = state["risk_debate_state"]
@@ -22,6 +25,7 @@ def create_neutral_debator(llm):
         trader_decision = state["trader_investment_plan"]
 
         prompt = f"""As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides while factoring in broader market trends, potential economic shifts, and diversification strategies.Here is the trader's decision:
+{format_user_context_block(state.get("user_context", ""))}
 
 {trader_decision}
 

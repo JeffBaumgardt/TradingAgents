@@ -1,4 +1,5 @@
 from tradingagents.agents.utils.agent_utils import (
+    format_user_context_block,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -25,6 +26,7 @@ def create_bear_researcher(llm):
         )
 
         prompt = f"""You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
+{format_user_context_block(state.get("user_context", ""))}
 
 Key points to focus on:
 

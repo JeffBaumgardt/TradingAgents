@@ -1,0 +1,17 @@
+{
+  "name": "@tradingagents/api-types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@tradingagents/typescript-config": "workspace:*",
+    "typescript": "^5.8.3"
+  }
+}

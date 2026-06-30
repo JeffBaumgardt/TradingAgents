@@ -6,6 +6,7 @@ from tradingagents.agents.utils.agent_states import (
     InvestDebateState,
     RiskDebateState,
 )
+from tradingagents.agents.utils.agent_utils import build_initial_user_message
 
 
 class Propagator:
@@ -22,6 +23,7 @@ class Propagator:
         asset_type: str = "stock",
         past_context: str = "",
         instrument_context: str = "",
+        user_context: str = "",
     ) -> dict[str, Any]:
         """Create the initial state for the agent graph.
 
@@ -32,12 +34,15 @@ class Propagator:
         ``get_instrument_context_from_state``.
         """
         return {
-            "messages": [("human", company_name)],
+            "messages": [
+                ("human", build_initial_user_message(company_name, user_context))
+            ],
             "company_of_interest": company_name,
             "asset_type": asset_type,
             "instrument_context": instrument_context,
             "trade_date": str(trade_date),
             "past_context": past_context,
+            "user_context": user_context,
             "investment_debate_state": InvestDebateState(
                 {
                     "bull_history": "",

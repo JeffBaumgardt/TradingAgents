@@ -1,0 +1,230 @@
+/**
+ * @file apps/web/src/components/CredentialsSetup.tsx
+ * First step of the web experience: collect provider API keys for the current
+ * browser session. Only providers with supplied credentials appear later in
+ * the analysis wizard.
+ */
+
+"use client";
+
+import { useEffect, useState } from "react";
+import type {
+  CredentialsSchemaResponse,
+  ProviderCredentials,
+} from "@tradingagents/api-types";
+import { ApiClientError, fetchCredentialsSchema, resolveConfig } from "@/lib/api-client";
+import { useUserSession } from "@/context/UserSessionContext";
+import styles from "./CredentialsSetup.module.css";
+
+function isTruthyFlag(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  return ["true", "1", "yes", "on"].includes(value.toLowerCase());
+}
+
+function countAvailableProviders(credentials: ProviderCredentials): number {
+  return Object.entries(credentials).filter(([providerId, fields]) => {
+    if (!fields) {
+      return false;
+    }
+    if (providerId === "ollama") {
+      return isTruthyFlag(fields.enabled);
+    }
+    return Boolean(fields.apiKey?.trim());
+  }).length;
+}
+
+export default function CredentialsSetup({
+  onSuccess,
+  continueLabel = "Continue to analysis setup",
+  initialSchema,
+}: {
+  onSuccess?: () => void;
+  continueLabel?: string;
+  /** When provided (from SSR), skips the client-side schema fetch. */
+  initialSchema?: CredentialsSchemaResponse;
+}) {
+  const {
+    providerCredentials,
+    setProviderCredentials,
+    setCredentialsReady,
+    setResolvedConfig,
+    credentialDefinitions,
+    setCredentialDefinitions,
+    modelCatalogNote,
+    setModelCatalogNote,
+  } = useUserSession();
+
+  const [localCredentials, setLocalCredentials] =
+    useState<ProviderCredentials>(providerCredentials);
+  const [loading, setLoading] = useState(!initialSchema);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialSchema) {
+      setCredentialDefinitions(initialSchema.providers);
+      setModelCatalogNote(initialSchema.modelCatalogNote);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadSchema() {
+      try {
+        const schema = await fetchCredentialsSchema();
+        if (cancelled) {
+          return;
+        }
+        setCredentialDefinitions(schema.providers);
+        setModelCatalogNote(schema.modelCatalogNote);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiClientError
+              ? err.message
+              : "Failed to load provider credential fields.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+    void loadSchema();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSchema, setCredentialDefinitions, setModelCatalogNote]);
+
+  function updateField(providerId: string, fieldName: string, value: string) {
+    setLocalCredentials((prev) => ({
+      ...prev,
+      [providerId]: {
+        ...(prev[providerId] ?? {}),
+        [fieldName]: value,
+      },
+    }));
+    setError(null);
+  }
+
+  function handleToggleOllama(checked: boolean) {
+    updateField("ollama", "enabled", checked ? "true" : "false");
+  }
+
+  async function handleContinue() {
+    const availableCount = countAvailableProviders(localCredentials);
+    if (availableCount === 0) {
+      setError("Enter at least one provider API key, or enable local Ollama.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const resolved = await resolveConfig(localCredentials);
+      if (resolved.providers.length === 0) {
+        setError("No providers are available with the credentials you entered.");
+        return;
+      }
+      setProviderCredentials(localCredentials);
+      setResolvedConfig(resolved);
+      setCredentialsReady(true);
+      onSuccess?.();
+    } catch (err) {
+      setError(
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to resolve available providers.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="muted">Loading provider options…</p>;
+  }
+
+  return (
+    <div className={styles.setup}>
+      <div className={styles.intro}>
+        <h2 className={styles.title}>Provider API Keys</h2>
+        <p className="muted">
+          Enter the API keys you have access to. Only matching providers and
+          models will appear in the analysis wizard. Keys stay in this browser
+          tab only — they are not saved.
+        </p>
+        {modelCatalogNote ? (
+          <p className={styles.note}>{modelCatalogNote}</p>
+        ) : null}
+      </div>
+
+      <div className={styles.grid}>
+        {credentialDefinitions.map((provider) => {
+          const values = localCredentials[provider.id] ?? {};
+          const isOllama = provider.id === "ollama";
+
+          return (
+            <section key={provider.id} className={styles.card}>
+              <header className={styles.cardHeader}>
+                <h3>{provider.label}</h3>
+                <span className={styles.badge}>{provider.modelSource}</span>
+              </header>
+
+              {isOllama ? (
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={isTruthyFlag(values.enabled)}
+                    onChange={(event) => handleToggleOllama(event.target.checked)}
+                  />
+                  <span>Use local Ollama instance</span>
+                </label>
+              ) : null}
+
+              {provider.credentialFields.map((field) => {
+                if (isOllama && field.name === "enabled") {
+                  return null;
+                }
+
+                const inputType = field.secret ? "password" : "text";
+                return (
+                  <label key={field.name} className={styles.field}>
+                    <span>
+                      {field.label}
+                      {field.required && !isOllama ? " *" : ""}
+                    </span>
+                    <input
+                      type={inputType}
+                      value={values[field.name] ?? ""}
+                      placeholder={field.placeholder ?? undefined}
+                      autoComplete="off"
+                      onChange={(event) =>
+                        updateField(provider.id, field.name, event.target.value)
+                      }
+                    />
+                  </label>
+                );
+              })}
+            </section>
+          );
+        })}
+      </div>
+
+      {error ? <p className={styles.error}>{error}</p> : null}
+
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.primaryButton}
+          disabled={submitting}
+          onClick={() => void handleContinue()}
+        >
+          {submitting ? "Checking providers…" : continueLabel}
+        </button>
+      </div>
+    </div>
+  );
+}

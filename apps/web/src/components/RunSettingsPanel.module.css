@@ -1,0 +1,97 @@
+.panel {
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  background: #151c24;
+  overflow: hidden;
+}
+
+.toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: #121820;
+  color: #b8c5d3;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.toggle:hover {
+  background: #1a2330;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: #e8eef4;
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #7d8fa3;
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.summary {
+  font-size: 0.82rem;
+  color: #7d8fa3;
+  white-space: nowrap;
+}
+
+.details {
+  margin: 0;
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid #2a3848;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) 1fr;
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.row dt {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #7d8fa3;
+}
+
+.row dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #e8eef4;
+}
+
+.multiline {
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .summary {
+    display: none;
+  }
+}

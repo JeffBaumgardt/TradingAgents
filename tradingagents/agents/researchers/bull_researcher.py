@@ -1,4 +1,5 @@
 from tradingagents.agents.utils.agent_utils import (
+    format_user_context_block,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -25,6 +26,7 @@ def create_bull_researcher(llm):
         )
 
         prompt = f"""You are a Bull Analyst advocating for investing in the {target_label}. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
+{format_user_context_block(state.get("user_context", ""))}
 
 Key points to focus on:
 - Growth Potential: Highlight the company's market opportunities, revenue projections, and scalability.

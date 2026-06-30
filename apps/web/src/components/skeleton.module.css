@@ -1,0 +1,72 @@
+.pulse {
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeletonPulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.block {
+  border-radius: 4px;
+  background: #243041;
+}
+
+.line {
+  composes: block pulse;
+  height: 0.85rem;
+}
+
+.lineWide {
+  composes: line;
+  width: 55%;
+}
+
+.lineMedium {
+  composes: line;
+  width: 35%;
+}
+
+.lineShort {
+  composes: line;
+  width: 22%;
+}
+
+.panel {
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  background: #151c24;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #243041;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowPrimary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.circle {
+  composes: block pulse;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}

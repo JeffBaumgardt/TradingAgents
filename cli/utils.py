@@ -62,6 +62,29 @@ def get_ticker() -> str:
     return normalize_ticker_symbol(ticker) if ticker.strip() else "SPY"
 
 
+def get_user_context() -> str:
+    """Prompt the user for optional personal context about their position or questions."""
+    context = questionary.text(
+        "Describe your situation and what you want analyzed (optional — press Enter to skip):\n"
+        "Examples: 'I own 1 share, should I add?', "
+        "'Should I have bought a call before earnings and at what strike?', "
+        "'SPY 1-week expiration, sell put or hold?'",
+        multiline=True,
+        style=questionary.Style(
+            [
+                ("text", "fg:green"),
+                ("highlighted", "noinherit"),
+            ]
+        ),
+    ).ask()
+
+    if context is None:
+        console.print("\n[red]Input cancelled. Exiting...[/red]")
+        exit(1)
+
+    return context.strip()
+
+
 def normalize_ticker_symbol(ticker: str) -> str:
     """Resolve user input to its canonical Yahoo symbol (single source of truth).
 

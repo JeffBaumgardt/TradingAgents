@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from .api_key_env import get_api_key_env
 from .base_client import BaseLLMClient, normalize_content
 from .capabilities import get_capabilities
 from .validators import validate_model
+
+logger = logging.getLogger(__name__)
 
 
 class NormalizedChatOpenAI(ChatOpenAI):
@@ -325,7 +328,15 @@ class OpenAIClient(BaseLLMClient):
         for key in _PASSTHROUGH_KWARGS:
             if key not in self.kwargs:
                 continue
-            if key == "reasoning_effort" and not _supports_reasoning_effort(self.model):
+            if (
+                key == "reasoning_effort"
+                and self.provider == "openai"
+                and not _supports_reasoning_effort(self.model)
+            ):
+                logger.debug(
+                    "Skipping reasoning_effort for %s: model does not support the parameter",
+                    self.model,
+                )
                 continue
             llm_kwargs[key] = self.kwargs[key]
 

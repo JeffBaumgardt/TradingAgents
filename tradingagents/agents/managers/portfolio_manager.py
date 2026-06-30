@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.utils.agent_utils import (
+    format_user_context_block,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -41,7 +42,7 @@ def create_portfolio_manager(llm):
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
-{instrument_context}
+{instrument_context}{format_user_context_block(state.get("user_context", ""))}
 
 ---
 

@@ -1,0 +1,142 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.panel {
+  border: 1px solid #2a3848;
+  border-radius: 8px;
+  background: #151c24;
+  max-height: 400px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 0.15rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid #243041;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.rowLink {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.rowLink:hover {
+  background: #1a2330;
+}
+
+.primary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.ticker {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #e8eef4;
+}
+
+.date {
+  font-size: 0.82rem;
+  color: #7d8fa3;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.decision {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.12rem 0.5rem;
+  border-radius: 4px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.status {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: lowercase;
+}
+
+.statusCompleted {
+  color: #6ee7a0;
+}
+
+.statusRunning {
+  color: #6eb6ff;
+}
+
+.statusError {
+  color: #fca5a5;
+}
+
+.statusOther {
+  color: #94a3b8;
+}
+
+.deleteButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-right: 0.75rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #475569;
+  background: transparent;
+  color: #94a3b8;
+}
+
+.deleteIcon {
+  display: block;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.9rem;
+}
