@@ -36,6 +36,33 @@
 - [2026-02] **TradingAgents v0.2.0** released with multi-provider LLM support (GPT-5.x, Gemini 3.x, Claude 4.x, Grok 4.x) and improved system architecture.
 - [2026-01] **Trading-R1** [Technical Report](https://arxiv.org/abs/2509.11420) released, with [Terminal](https://github.com/TauricResearch/Trading-R1) expected to land soon.
 
+## Repository
+
+This fork extends the upstream [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) project with a monorepo web stack (agents-service, API, and Next.js UI).
+
+| Remote | Repository | Purpose |
+|--------|------------|---------|
+| `origin` | [JeffBaumgardt/TradingAgents](https://github.com/JeffBaumgardt/TradingAgents) | This project — primary push/pull target |
+| `upstream` | [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) | Upstream base project |
+
+### Syncing upstream changes
+
+When upstream releases updates you want in this fork:
+
+```bash
+git fetch upstream
+git merge upstream/main   # or: git rebase upstream/main
+git push origin main
+```
+
+Fresh clone with both remotes configured:
+
+```bash
+git clone https://github.com/JeffBaumgardt/TradingAgents.git
+cd TradingAgents
+git remote add upstream https://github.com/TauricResearch/TradingAgents.git
+```
+
 <div align="center">
 <a href="https://www.star-history.com/#TauricResearch/TradingAgents&Date">
  <picture>
@@ -104,11 +131,15 @@ Our framework decomposes complex trading tasks into specialized roles.
 
 ### Installation
 
-Clone TradingAgents:
+Clone this repository:
+
 ```bash
-git clone https://github.com/TauricResearch/TradingAgents.git
+git clone https://github.com/JeffBaumgardt/TradingAgents.git
 cd TradingAgents
+git remote add upstream https://github.com/TauricResearch/TradingAgents.git
 ```
+
+See [Repository](#repository) for how to pull upstream changes later.
 
 Create a virtual environment in any of your favorite environment managers:
 ```bash
