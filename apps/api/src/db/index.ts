@@ -48,6 +48,16 @@ export function initializeDatabase(): void {
 
     CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
 
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT,
+      first_name TEXT,
+      last_name TEXT,
+      image_url TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS user_credentials (
       user_id TEXT NOT NULL,
       provider_id TEXT NOT NULL,

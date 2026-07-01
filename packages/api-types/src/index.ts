@@ -166,6 +166,23 @@ export interface ErrorResponse {
   details?: Record<string, unknown>;
 }
 
+export interface User {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateUserRequest {
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  imageUrl?: string | null;
+}
+
 export interface AgentStatusEvent {
   agent: string;
   status: AgentStatusValue;

@@ -4,8 +4,11 @@
  */
 
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import SiteHeader from "@/components/SiteHeader";
+import AuthUserSync from "@/components/AuthUserSync";
 import { UserSessionProvider } from "@/context/UserSessionContext";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,10 +24,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <UserSessionProvider>
-          <SiteHeader />
-          <main>{children}</main>
-        </UserSessionProvider>
+        <ClerkProvider appearance={clerkAppearance}>
+          <AuthUserSync />
+          <UserSessionProvider>
+            <SiteHeader />
+            <main>{children}</main>
+          </UserSessionProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

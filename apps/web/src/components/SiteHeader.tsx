@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import SiteHeaderNav from "@/components/SiteHeaderNav";
+import SiteHeaderAuth from "@/components/SiteHeaderAuth";
 import styles from "./SiteHeader.module.css";
 
 export default function SiteHeader() {
@@ -19,6 +20,7 @@ export default function SiteHeader() {
         </span>
       </div>
       <SiteHeaderNav />
+      <SiteHeaderAuth />
     </header>
   );
 }

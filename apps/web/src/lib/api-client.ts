@@ -17,8 +17,11 @@ import type {
   SseEventMap,
   SseEventType,
   StoredCredentialsResponse,
+  UpdateUserRequest,
+  User,
 } from "@tradingagents/api-types";
-import { getOrCreateUserId } from "@/lib/user-id";
+import { getCurrentUserId, requireCurrentUserId } from "@/lib/auth-user-store";
+import { buildUserIdHeader } from "@/lib/user-id";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
@@ -34,11 +37,33 @@ export class ApiClientError extends Error {
 }
 
 function buildUserHeaders(): HeadersInit {
-  const userId = getOrCreateUserId();
-  if (!userId) {
-    return {};
-  }
-  return { "X-User-Id": userId };
+  return buildUserIdHeader(getCurrentUserId());
+}
+
+/** Ensure the API has a user row and sync Clerk profile fields. */
+export async function syncCurrentUser(
+  userId: string,
+  profile: UpdateUserRequest,
+): Promise<User> {
+  await fetch(`${API_BASE}/users/me`, {
+    headers: buildUserIdHeader(userId),
+    cache: "no-store",
+  }).then((response) => parseJson<User>(response));
+
+  const updateResponse = await fetch(`${API_BASE}/users/me`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildUserIdHeader(userId),
+    },
+    body: JSON.stringify(profile),
+    cache: "no-store",
+  });
+  return parseJson<User>(updateResponse);
+}
+
+export function getApiUserId(): string {
+  return requireCurrentUserId();
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
