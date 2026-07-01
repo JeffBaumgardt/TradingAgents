@@ -30,6 +30,7 @@ This runbook defines a repeatable agent loop for feature and bug delivery when y
    - Inline review line comments require an explicit `/agent-fix` command to avoid one fix prompt per line comment.
 6. Failing CI shortcut:
    - A failed `CI` run on a PR automatically posts a fix-loop prompt with failed job links.
+   - Dedup uses a hidden per-run marker; the orchestrator paginates PR comments until the marker is found or comments are exhausted (avoids duplicate prompts on active PRs).
 
 ---
 

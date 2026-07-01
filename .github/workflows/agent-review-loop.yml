@@ -85,6 +85,31 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            async function hasIssueCommentWithMarker({ owner, repo, issueNumber, marker }) {
+              let page = 1;
+              const perPage = 100;
+
+              while (true) {
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  per_page: perPage,
+                  page,
+                });
+
+                if (comments.some((comment) => (comment.body || "").includes(marker))) {
+                  return true;
+                }
+
+                if (comments.length < perPage) {
+                  return false;
+                }
+
+                page += 1;
+              }
+            }
+
             const run = context.payload.workflow_run;
             if (!run) {
               core.info("No workflow_run payload.");
@@ -132,16 +157,12 @@ jobs:
               }
 
               const marker = `<!-- agent-ci-failure-run:${run.id}:pr:${prNumber} -->`;
-              const existingComments = await github.rest.issues.listComments({
+              const alreadyPosted = await hasIssueCommentWithMarker({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: prNumber,
-                per_page: 100,
+                issueNumber: prNumber,
+                marker,
               });
-
-              const alreadyPosted = existingComments.data.some((comment) =>
-                (comment.body || "").includes(marker)
-              );
               if (alreadyPosted) {
                 core.info(`Failure prompt already posted for run ${run.id} on PR #${prNumber}.`);
                 continue;
