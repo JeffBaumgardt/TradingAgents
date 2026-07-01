@@ -576,9 +576,10 @@ jobs:
             if (commands.length === 0) {
               const reviewState = (payload.review?.state || "").toLowerCase();
               const reviewCanTriggerImplicitFix =
-                eventName !== "pull_request_review" ||
-                reviewState === "commented" ||
-                reviewState === "changes_requested";
+                eventName === "issue_comment" ||
+                (eventName === "pull_request_review" &&
+                  (reviewState === "commented" ||
+                    reviewState === "changes_requested"));
               const isChangesRequestedReview =
                 eventName === "pull_request_review" &&
                 reviewState === "changes_requested";

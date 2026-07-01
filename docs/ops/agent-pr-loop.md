@@ -26,7 +26,8 @@ This runbook defines a repeatable agent loop for feature and bug delivery when y
    - `/agent-followup <one-line follow-up prompt>` create a new follow-up loop issue.
    - `/agent-ready` request approval gate check and auto-approval by orchestrator.
 5. Plain-language shortcut:
-   - Non-bot PR comments/reviews that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
+   - Non-bot PR conversation comments and review summaries (`commented` / `changes_requested`) that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
+   - Inline review line comments require an explicit `/agent-fix` command to avoid one fix prompt per line comment.
 6. Failing CI shortcut:
    - A failed `CI` run on a PR automatically posts a fix-loop prompt with failed job links.
    - Dedup uses a hidden per-run marker; the orchestrator paginates PR comments until the marker is found or comments are exhausted (avoids duplicate prompts on active PRs).
@@ -121,7 +122,7 @@ Requested follow-up:
 3. Orchestrator auto-posts a reviewer cycle prompt on every PR update.
 4. Reviewer agent(s) leave comments/reviews with actionable findings.
 5. Loop agent consumes feedback and updates the branch.
-6. Plain-English feedback comments are converted into fix-loop prompts automatically.
+6. Plain-English PR conversation comments and review summaries are converted into fix-loop prompts automatically; inline review line comments need `/agent-fix`.
 7. Use `/agent-followup ...` for valuable but out-of-scope feedback.
 8. If CI fails, orchestrator also posts an automatic fix prompt for the failure run.
 9. After fixes are done, agent posts `/agent-ready`.
