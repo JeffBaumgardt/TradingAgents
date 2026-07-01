@@ -1,27 +1,32 @@
 # Agent Pull Request Loop (Cursor + GitHub)
 
-This runbook defines a repeatable agent loop for feature and bug delivery:
+This runbook defines a repeatable agent loop for feature and bug delivery when you are the only human developer and all other contributors are agents:
 
-1. Implement requested changes.
-2. Document code changes.
-3. Add/update tests.
-4. Run tests and fix failures.
-5. Open/update PR.
-6. Iterate on review feedback until no actionable comments remain.
-7. Route out-of-scope suggestions into a new loop.
+1. Implementation agent builds from your prompt.
+2. Implementation agent documents changes and adds tests.
+3. Implementation agent runs checks, fixes failures, opens/updates PR.
+4. Reviewer agent(s) review and comment like skilled reviewers.
+5. Loop agent processes feedback and updates branch.
+6. Out-of-scope comments are routed into follow-up loops.
+7. Agent marks PR ready (`/agent-ready`), orchestrator approves if gates pass.
+8. You merge manually.
 
 ---
 
 ## 1) One-time repository setup
 
 1. Keep CI required on pull requests (already present in `.github/workflows/ci.yml`).
-2. Add the review router workflow in this repo:
+2. Add the PR loop orchestrator workflow in this repo:
    - `.github/workflows/agent-review-loop.yml`
 3. Add PR reviewer command guidance:
    - `.github/PULL_REQUEST_TEMPLATE.md`
-4. Tell reviewers to use these commands in review comments:
-   - `/agent-fix <optional guidance>` for in-scope PR work.
-   - `/agent-followup <one-line follow-up prompt>` for out-of-scope but valuable work.
+4. Agent command protocol (in PR comments/reviews):
+   - `/agent-review <optional focus>` ask reviewer agent(s) to run a review cycle.
+   - `/agent-fix <optional guidance>` run an in-scope fix cycle on current PR branch.
+   - `/agent-followup <one-line follow-up prompt>` create a new follow-up loop issue.
+   - `/agent-ready` request approval gate check and auto-approval by orchestrator.
+5. Owner shortcut:
+   - Plain-English PR comments by the repo owner that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
 
 ---
 
@@ -60,7 +65,7 @@ Work request:
 Use this prompt when an actionable review comment exists (or from workflow-generated prompt comments):
 
 ```text
-You are the PR review loop agent.
+You are the PR loop implementation agent.
 
 Target PR: <PR_LINK_OR_NUMBER>
 Target review comment: <COMMENT_URL>
@@ -73,6 +78,7 @@ Task:
 5) Run relevant tests/checks; fix any failures.
 6) Commit and push.
 7) Reply on PR with what changed + test evidence.
+8) If complete and no blockers remain, comment `/agent-ready`.
 
 Stop condition:
 - If the request is out of scope for this PR, do not force it in. Propose a follow-up loop prompt and link a new issue.
@@ -105,17 +111,20 @@ Requested follow-up:
 
 ---
 
-## 5) Day-to-day operation
+## 5) Day-to-day operation (owner + agents)
 
 1. Start with the **Primary implementation prompt**.
-2. Open PR.
-3. Reviewers leave normal comments plus either:
-   - `/agent-fix ...` for in-scope tasks.
-   - `/agent-followup ...` for out-of-scope tasks.
-4. Automation posts a ready-to-run loop prompt for `/agent-fix`.
-5. Automation creates a follow-up issue for `/agent-followup` with a ready prompt.
-6. Run Cursor agent with generated prompt until no actionable review items remain.
-7. Merge PR manually when ready.
+2. Implementation agent opens/updates PR.
+3. Orchestrator auto-posts a reviewer cycle prompt on every PR update.
+4. Reviewer agent(s) leave comments/reviews with actionable findings.
+5. Loop agent consumes feedback and updates the branch.
+6. If you leave a plain-English PR comment with a change request, orchestrator converts it into a fix-loop prompt automatically.
+7. Use `/agent-followup ...` for valuable but out-of-scope feedback.
+8. After fixes are done, agent posts `/agent-ready`.
+9. Orchestrator approves only when:
+   - all checks are green, and
+   - there are no unresolved review threads.
+10. You merge manually.
 
 ---
 
@@ -128,3 +137,4 @@ A PR is loop-complete when all are true:
 - Requested scope is fully implemented and documented.
 - Tests relevant to touched behavior exist and pass.
 - Any out-of-scope review suggestions are captured as follow-up issue(s)/loop(s).
+- PR is approved by the loop orchestrator after `/agent-ready`.

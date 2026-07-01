@@ -1,6 +1,8 @@
-name: Agent Review Loop Router
+name: Agent PR Loop Orchestrator
 
 on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -12,22 +14,78 @@ permissions:
   contents: read
   issues: write
   pull-requests: write
+  checks: read
+  statuses: read
 
 jobs:
-  route-review-commands:
-    name: Route /agent-fix and /agent-followup
+  kickoff-review-cycle:
+    name: Post reviewer cycle prompt
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Publish reviewer prompt for each PR cycle
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullRequest = context.payload.pull_request;
+            if (!pullRequest) {
+              core.info("No pull request payload found.");
+              return;
+            }
+
+            const prNumber = pullRequest.number;
+            const prUrl = pullRequest.html_url;
+
+            const reviewerPrompt = [
+              "You are a skilled reviewer agent for this repository.",
+              "",
+              `Target PR: ${prUrl} (#${prNumber})`,
+              "",
+              "Task:",
+              "1) Read the full PR diff with strong attention to correctness, regressions, and scope fit.",
+              "2) Run the relevant tests/checks locally if needed for confidence.",
+              "3) Leave actionable review comments directly on the PR where changes are needed.",
+              "4) If no issues remain, leave a PR comment containing `/agent-ready` and a short validation summary.",
+              "",
+              "Review lens:",
+              "- Functional correctness and edge cases",
+              "- Test coverage for changed behavior",
+              "- Documentation and maintainability",
+              "- Risk of unintended side effects",
+            ].join("\n");
+
+            const commentBody = [
+              "### Reviewer cycle prompt (auto)",
+              "",
+              "A new review cycle started because the PR changed.",
+              "",
+              "```text",
+              reviewerPrompt,
+              "```",
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody,
+            });
+
+  route-loop-events:
+    name: Route fix/follow-up/review/ready events
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
       github.event_name == 'pull_request_review_comment' ||
       github.event_name == 'pull_request_review'
     steps:
-      - name: Parse review commands and route workflow
+      - name: Route loop commands and owner requests
         uses: actions/github-script@v7
         with:
           script: |
             const eventName = context.eventName;
             const payload = context.payload;
+            const ownerLogin = context.repo.owner.toLowerCase();
 
             function parseCommands(bodyText) {
               if (!bodyText || !bodyText.trim()) {
@@ -36,51 +94,80 @@ jobs:
 
               const commands = [];
               const lines = bodyText.split(/\r?\n/).map((line) => line.trim());
-
               for (const line of lines) {
                 const fixMatch = line.match(/\/agent-fix\b(.*)$/);
                 if (fixMatch) {
-                  commands.push({
-                    type: "fix",
-                    guidance: fixMatch[1].trim(),
-                  });
+                  commands.push({ type: "fix", guidance: fixMatch[1].trim(), implicit: false });
                 }
 
                 const followupMatch = line.match(/\/agent-followup\b(.*)$/);
                 if (followupMatch) {
-                  commands.push({
-                    type: "followup",
-                    guidance: followupMatch[1].trim(),
-                  });
+                  commands.push({ type: "followup", guidance: followupMatch[1].trim(), implicit: false });
+                }
+
+                const reviewMatch = line.match(/\/agent-review\b(.*)$/);
+                if (reviewMatch) {
+                  commands.push({ type: "review", guidance: reviewMatch[1].trim(), implicit: false });
+                }
+
+                const readyMatch = line.match(/\/agent-ready\b(.*)$/);
+                if (readyMatch) {
+                  commands.push({ type: "ready", guidance: readyMatch[1].trim(), implicit: false });
                 }
               }
 
               return commands;
             }
 
+            function looksLikeWorkRequest(text) {
+              const normalized = (text || "").toLowerCase();
+              if (!normalized.trim()) {
+                return false;
+              }
+              return /(please|update|change|fix|add|remove|migrate|refactor|rename|switch|implement|test|docs?|provider|database)/.test(normalized);
+            }
+
             function buildFixPrompt({ prNumber, prUrl, commentUrl, guidance }) {
               const guidanceText = guidance
-                ? `Additional guidance: ${guidance}`
-                : "Additional guidance: none provided";
+                ? `Requested change: ${guidance}`
+                : "Requested change: derive from linked comment context.";
 
               return [
-                "You are the PR review loop agent.",
+                "You are the PR loop implementation agent.",
                 "",
                 `Target PR: ${prUrl} (#${prNumber})`,
-                `Target review comment: ${commentUrl}`,
+                `Source comment: ${commentUrl}`,
+                "",
+                "Execution contract:",
+                "1) Read the comment + PR diff and restate intent.",
+                "2) Plan in detailed pseudocode before coding.",
+                "3) Implement the requested in-scope change.",
+                "4) Update docs/comments for changed behavior.",
+                "5) Add/update tests where appropriate.",
+                "6) Run relevant tests/checks and fix any failures.",
+                "7) Commit and push changes to the same PR branch.",
+                "8) Reply with summary and test evidence.",
+                "9) If out-of-scope, use `/agent-followup ...` to spawn a new loop.",
+                "",
+                guidanceText,
+              ].join("\n");
+            }
+
+            function buildReviewerPrompt({ prNumber, prUrl, guidance }) {
+              const guidanceText = guidance
+                ? `Additional review focus: ${guidance}`
+                : "Additional review focus: broad correctness + regression risk.";
+
+              return [
+                "You are a skilled reviewer agent for this repository.",
+                "",
+                `Target PR: ${prUrl} (#${prNumber})`,
                 "",
                 "Task:",
-                "1) Read the PR diff and the referenced review comment carefully.",
-                "2) Plan the fix in pseudocode before coding.",
-                "3) Implement the minimal in-scope change needed to resolve the review feedback.",
-                "4) Update or add tests/docs if behavior changed.",
-                "5) Run relevant tests/checks and fix any failures.",
-                "6) Commit and push changes.",
-                "7) Reply in the PR with what changed and test evidence.",
-                "",
-                "Stop condition:",
-                "- If this request is out of scope for the PR, do not force it into this branch.",
-                "- Instead, create or request a follow-up issue/loop.",
+                "1) Review the PR diff deeply for correctness, scope, and maintainability.",
+                "2) Validate tests/checks are appropriate for touched behavior.",
+                "3) Post actionable comments where fixes are needed.",
+                "4) When no actionable concerns remain, post `/agent-ready` with a short summary.",
                 "",
                 guidanceText,
               ].join("\n");
@@ -124,21 +211,204 @@ jobs:
               ].join("\n");
             }
 
+            async function getUnresolvedThreadCount({ owner, repo, prNumber }) {
+              let unresolvedCount = 0;
+              let hasNextPage = true;
+              let cursor = null;
+
+              while (hasNextPage) {
+                const result = await github.graphql(
+                  `
+                    query PullRequestThreads($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
+                      repository(owner: $owner, name: $repo) {
+                        pullRequest(number: $prNumber) {
+                          reviewThreads(first: 100, after: $cursor) {
+                            nodes {
+                              isResolved
+                              isOutdated
+                            }
+                            pageInfo {
+                              hasNextPage
+                              endCursor
+                            }
+                          }
+                        }
+                      }
+                    }
+                  `,
+                  {
+                    owner,
+                    repo,
+                    prNumber,
+                    cursor,
+                  }
+                );
+
+                const threads = result.repository.pullRequest.reviewThreads.nodes;
+                unresolvedCount += threads.filter((thread) => !thread.isResolved && !thread.isOutdated).length;
+                hasNextPage = result.repository.pullRequest.reviewThreads.pageInfo.hasNextPage;
+                cursor = result.repository.pullRequest.reviewThreads.pageInfo.endCursor;
+              }
+
+              return unresolvedCount;
+            }
+
+            async function getCheckHealth({ owner, repo, sha }) {
+              const failingConclusions = new Set([
+                "failure",
+                "timed_out",
+                "cancelled",
+                "action_required",
+                "startup_failure",
+                "stale",
+              ]);
+              const successConclusions = new Set(["success", "neutral", "skipped"]);
+
+              const checks = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: sha,
+                per_page: 100,
+              });
+
+              const statuses = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: sha,
+              });
+
+              let hasPending = false;
+              let hasFailures = false;
+
+              for (const checkRun of checks.data.check_runs || []) {
+                if (checkRun.status !== "completed") {
+                  hasPending = true;
+                  continue;
+                }
+                if (!successConclusions.has(checkRun.conclusion || "")) {
+                  if (failingConclusions.has(checkRun.conclusion || "")) {
+                    hasFailures = true;
+                  }
+                }
+              }
+
+              const statusState = statuses.data.state;
+              if (statusState === "pending") {
+                hasPending = true;
+              } else if (statusState === "failure" || statusState === "error") {
+                hasFailures = true;
+              }
+
+              if ((checks.data.total_count || 0) === 0 && (statuses.data.total_count || 0) === 0) {
+                hasPending = true;
+              }
+
+              return {
+                hasPending,
+                hasFailures,
+              };
+            }
+
+            async function alreadyApprovedByActionsBot({ owner, repo, prNumber, sha }) {
+              const reviews = await github.rest.pulls.listReviews({
+                owner,
+                repo,
+                pull_number: prNumber,
+                per_page: 100,
+              });
+
+              return reviews.data.some((review) =>
+                review.user?.login === "github-actions[bot]" &&
+                review.state === "APPROVED" &&
+                review.commit_id === sha
+              );
+            }
+
+            async function tryApprovePr({ owner, repo, prNumber, pr, triggerLabel }) {
+              const unresolvedThreadCount = await getUnresolvedThreadCount({
+                owner,
+                repo,
+                prNumber,
+              });
+              const checkHealth = await getCheckHealth({
+                owner,
+                repo,
+                sha: pr.head.sha,
+              });
+              const approvalExists = await alreadyApprovedByActionsBot({
+                owner,
+                repo,
+                prNumber,
+                sha: pr.head.sha,
+              });
+
+              if (approvalExists) {
+                core.info("Approval already exists for current head SHA.");
+                return;
+              }
+
+              const blockers = [];
+              if (unresolvedThreadCount > 0) {
+                blockers.push(`Unresolved review threads: ${unresolvedThreadCount}`);
+              }
+              if (checkHealth.hasPending) {
+                blockers.push("Checks are still pending (or not yet reported).");
+              }
+              if (checkHealth.hasFailures) {
+                blockers.push("One or more checks failed.");
+              }
+
+              if (blockers.length > 0) {
+                const blockerComment = [
+                  `### Agent ready check blocked (${triggerLabel})`,
+                  "",
+                  "Approval was not applied because:",
+                  ...blockers.map((entry) => `- ${entry}`),
+                  "",
+                  "When blockers are resolved, post `/agent-ready` again.",
+                ].join("\n");
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  body: blockerComment,
+                });
+                return;
+              }
+
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: prNumber,
+                event: "APPROVE",
+                body: "Agent loop approval: all checks passed and no unresolved review threads were detected.",
+              });
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: "### Agent loop status\n\nPR has been marked as approved by the loop orchestrator.",
+              });
+            }
+
             let bodyText = "";
             let prNumber = null;
             let commentUrl = "";
             let sourceAuthor = "";
             let sourceKind = "";
+
             if (eventName === "issue_comment") {
               if (!payload.issue?.pull_request) {
-                core.info("Ignoring issue comment that is not on a pull request.");
+                core.info("Ignoring issue comment outside pull requests.");
                 return;
               }
               bodyText = payload.comment?.body || "";
               prNumber = payload.issue.number;
               commentUrl = payload.comment?.html_url || payload.issue.html_url;
               sourceAuthor = payload.comment?.user?.login || "unknown";
-              sourceKind = "PR comment";
+              sourceKind = "PR conversation comment";
             } else if (eventName === "pull_request_review_comment") {
               bodyText = payload.comment?.body || "";
               prNumber = payload.pull_request.number;
@@ -150,37 +420,60 @@ jobs:
               prNumber = payload.pull_request.number;
               commentUrl = payload.review?.html_url || payload.pull_request.html_url;
               sourceAuthor = payload.review?.user?.login || "unknown";
-              sourceKind = "review summary";
+              sourceKind = `review summary (${payload.review?.state || "unknown state"})`;
             }
 
             if (!prNumber) {
-              core.info("No PR number detected. Exiting.");
+              core.info("No pull request number detected.");
               return;
             }
 
-            if (
-              payload.sender?.type === "Bot" ||
-              sourceAuthor.endsWith("[bot]")
-            ) {
-              core.info("Ignoring bot-authored command source.");
+            if ((payload.sender?.login || "") === "github-actions[bot]") {
+              core.info("Ignoring workflow-authored comments to prevent recursion.");
               return;
             }
 
             const commands = parseCommands(bodyText);
+            const sourceAuthorLower = sourceAuthor.toLowerCase();
+
             if (commands.length === 0) {
-              core.info("No /agent-fix or /agent-followup commands found.");
+              const isOwnerPlainComment =
+                eventName === "issue_comment" &&
+                sourceAuthorLower === ownerLogin &&
+                looksLikeWorkRequest(bodyText);
+
+              const isChangesRequestedReview =
+                eventName === "pull_request_review" &&
+                (payload.review?.state || "").toLowerCase() === "changes_requested";
+
+              if (isOwnerPlainComment) {
+                commands.push({
+                  type: "fix",
+                  guidance: bodyText.trim(),
+                  implicit: true,
+                });
+              } else if (isChangesRequestedReview) {
+                commands.push({
+                  type: "fix",
+                  guidance: bodyText.trim() || "Review requested changes. Inspect linked review and apply needed fixes.",
+                  implicit: true,
+                });
+              }
+            }
+
+            if (commands.length === 0) {
+              core.info("No actionable agent loop command detected.");
               return;
             }
 
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             const pr = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               pull_number: prNumber,
             });
-
             const prUrl = pr.data.html_url;
-            const commandSummary = commands.map((command) => command.type).join(", ");
-            core.info(`Parsed commands: ${commandSummary}`);
 
             for (const command of commands) {
               if (command.type === "fix") {
@@ -191,8 +484,12 @@ jobs:
                   guidance: command.guidance,
                 });
 
+                const heading = command.implicit
+                  ? "### Agent loop prompt generated from owner/review feedback"
+                  : "### Agent loop prompt generated (`/agent-fix`)";
+
                 const commentBody = [
-                  "### Agent loop prompt generated (`/agent-fix`)",
+                  heading,
                   "",
                   `Source: ${sourceKind} by @${sourceAuthor}`,
                   `Source link: ${commentUrl}`,
@@ -203,8 +500,34 @@ jobs:
                 ].join("\n");
 
                 await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  body: commentBody,
+                });
+              }
+
+              if (command.type === "review") {
+                const prompt = buildReviewerPrompt({
+                  prNumber,
+                  prUrl,
+                  guidance: command.guidance,
+                });
+
+                const commentBody = [
+                  "### Reviewer agent prompt generated (`/agent-review`)",
+                  "",
+                  `Source: ${sourceKind} by @${sourceAuthor}`,
+                  `Source link: ${commentUrl}`,
+                  "",
+                  "```text",
+                  prompt,
+                  "```",
+                ].join("\n");
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
                   issue_number: prNumber,
                   body: commentBody,
                 });
@@ -214,6 +537,7 @@ jobs:
                 const issueTitle = command.guidance
                   ? `Follow-up from PR #${prNumber}: ${command.guidance.slice(0, 80)}`
                   : `Follow-up from PR #${prNumber}`;
+
                 const issueBody = buildFollowupIssueBody({
                   prNumber,
                   prUrl,
@@ -223,28 +547,36 @@ jobs:
                 });
 
                 const followupIssue = await github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
                   title: issueTitle,
                   body: issueBody,
                 });
 
-                const prComment = [
-                  "### Follow-up loop issue created (`/agent-followup`)",
-                  "",
-                  `Source: ${sourceKind} by @${sourceAuthor}`,
-                  `Source link: ${commentUrl}`,
-                  "",
-                  `Created issue: #${followupIssue.data.number} (${followupIssue.data.html_url})`,
-                ].join("\n");
-
                 await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
                   issue_number: prNumber,
-                  body: prComment,
+                  body: [
+                    "### Follow-up loop issue created (`/agent-followup`)",
+                    "",
+                    `Source: ${sourceKind} by @${sourceAuthor}`,
+                    `Source link: ${commentUrl}`,
+                    "",
+                    `Created issue: #${followupIssue.data.number} (${followupIssue.data.html_url})`,
+                  ].join("\n"),
+                });
+              }
+
+              if (command.type === "ready") {
+                await tryApprovePr({
+                  owner,
+                  repo,
+                  prNumber,
+                  pr: pr.data,
+                  triggerLabel: "/agent-ready",
                 });
               }
             }
 
-            core.info("Agent review loop routing complete.");
+            core.info("Agent PR loop routing complete.");
