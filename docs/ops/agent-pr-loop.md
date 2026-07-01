@@ -31,6 +31,32 @@ This runbook defines a repeatable agent loop for feature and bug delivery when y
 6. Failing CI shortcut:
    - A failed `CI` run on a PR automatically posts a fix-loop prompt with failed job links.
    - Dedup uses a hidden per-run marker; the orchestrator paginates PR comments until the marker is found or comments are exhausted (avoids duplicate prompts on active PRs).
+   - **Important:** this shortcut is driven by the `workflow_run` trigger in `.github/workflows/agent-review-loop.yml`. GitHub evaluates `workflow_run` from the workflow definition on the **default branch** (`main`), not from the PR head. Until the orchestrator workflow (including `ci-failure-loop-prompt`) is merged to `main`, only `pull_request` jobs such as `kickoff-review-cycle` run for open PRs.
+
+---
+
+## 1a) Workflow trigger semantics (operational)
+
+GitHub applies different rules depending on the event type:
+
+| Event | Workflow source | Jobs that run during PR review |
+|-------|-----------------|--------------------------------|
+| `pull_request` | PR head commit | `kickoff-review-cycle`, `route-loop-events` |
+| `workflow_run` | **Default branch** (`main`) | `ci-failure-loop-prompt` (after CI completes) |
+
+Practical impact:
+
+- On an open PR, reviewer kickoff and comment routing work from the PR branch.
+- The automatic **CI failure fix-loop prompt** (`ci-failure-loop-prompt`) does **not** run from PR-head workflow changes alone. It starts working only after `.github/workflows/agent-review-loop.yml` (with the `workflow_run` trigger) is on `main`.
+- If CI fails on this PR before merge, expect only the normal `pull_request` orchestrator behavior—not the `workflow_run`-driven failure prompt.
+
+### Post-merge validation (required once)
+
+After merging the orchestrator workflow to `main`, validate the CI failure path:
+
+1. Open a short-lived test PR that intentionally fails CI (for example, a failing assertion or lint check).
+2. Confirm the orchestrator posts the **CI failure detected (auto)** comment with failed job links.
+3. Close or revert the test PR once verified.
 
 ---
 
@@ -124,7 +150,7 @@ Requested follow-up:
 5. Loop agent consumes feedback and updates the branch.
 6. Plain-English PR conversation comments and review summaries are converted into fix-loop prompts automatically; inline review line comments need `/agent-fix`.
 7. Use `/agent-followup ...` for valuable but out-of-scope feedback.
-8. If CI fails, orchestrator also posts an automatic fix prompt for the failure run.
+8. If CI fails **and** the orchestrator workflow (with `workflow_run`) is on `main`, the orchestrator posts an automatic fix prompt for the failure run. On PRs opened before that merge, only `pull_request` orchestrator jobs run.
 9. After fixes are done, agent posts `/agent-ready`.
 10. Orchestrator approves only when:
    - all checks are green, and
