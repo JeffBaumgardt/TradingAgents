@@ -29,6 +29,7 @@ This runbook defines a repeatable agent loop for feature and bug delivery when y
    - Non-bot PR comments/reviews that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
 6. Failing CI shortcut:
    - A failed `CI` run on a PR automatically posts a fix-loop prompt with failed job links.
+   - Dedup uses a hidden per-run marker; the orchestrator paginates PR comments until the marker is found or comments are exhausted (avoids duplicate prompts on active PRs).
 
 ---
 
