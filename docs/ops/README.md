@@ -45,3 +45,4 @@ docker compose up --build
 - [API deployment](./apps/api.md)
 - [Web deployment](./apps/web.md)
 - [Agents service deployment](./apps/agents-service.md)
+- [Agent PR loop](./agent-pr-loop.md) — Cursor + GitHub review/fix iteration workflow
