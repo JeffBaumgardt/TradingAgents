@@ -1,14 +1,16 @@
 # Agent Pull Request Loop (Cursor + GitHub)
 
-This runbook defines a repeatable agent loop for feature and bug delivery when you are the only human developer and all other contributors are agents:
+This runbook defines a repeatable agent loop for feature and bug delivery when you are the only human developer and all other contributors are agents.
+
+High-level loop:
 
 1. Implementation agent builds from your prompt.
-2. Implementation agent documents changes and adds tests.
-3. Implementation agent runs checks, fixes failures, opens/updates PR.
-4. Reviewer agent(s) review and comment like skilled reviewers.
-5. Loop agent processes feedback and updates branch.
-6. Out-of-scope comments are routed into follow-up loops.
-7. Agent marks PR ready (`/agent-ready`), orchestrator approves if gates pass.
+2. Implementation agent adds/updates docs and tests, then opens/updates PR.
+3. Orchestrator posts one kickoff review comment when PR opens.
+4. Cloud automation triggers from that comment and runs reviewer/fix agent cycles.
+5. If CI fails, orchestrator posts one CI-failure follow-up comment.
+6. Cloud automation triggers again, fixes issues, pushes updates, and comments back.
+7. Repeat until no actionable feedback remains and CI is green.
 8. You merge manually.
 
 ---
@@ -16,47 +18,16 @@ This runbook defines a repeatable agent loop for feature and bug delivery when y
 ## 1) One-time repository setup
 
 1. Keep CI required on pull requests (already present in `.github/workflows/ci.yml`).
-2. Add the PR loop orchestrator workflow in this repo:
+2. Add the PR loop orchestrator workflow:
    - `.github/workflows/agent-review-loop.yml`
-3. Add PR reviewer command guidance:
+3. Add reviewer guidance template:
    - `.github/PULL_REQUEST_TEMPLATE.md`
-4. Agent command protocol (in PR comments/reviews):
-   - `/agent-review <optional focus>` ask reviewer agent(s) to run a review cycle.
-   - `/agent-fix <optional guidance>` run an in-scope fix cycle on current PR branch.
-   - `/agent-followup <one-line follow-up prompt>` create a new follow-up loop issue.
-   - `/agent-ready` request approval gate check and auto-approval by orchestrator.
-5. Plain-language shortcut:
-   - Non-bot PR conversation comments and review summaries (`commented` / `changes_requested`) that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
-   - Inline review line comments require an explicit `/agent-fix` command to avoid one fix prompt per line comment.
-6. Failing CI shortcut:
-   - A failed `CI` run on a PR automatically posts a fix-loop prompt with failed job links.
-   - Dedup uses a hidden per-run marker; the orchestrator paginates PR comments until the marker is found or comments are exhausted (avoids duplicate prompts on active PRs).
-   - **Important:** this shortcut is driven by the `workflow_run` trigger in `.github/workflows/agent-review-loop.yml`. GitHub evaluates `workflow_run` from the workflow definition on the **default branch** (`main`), not from the PR head. Until the orchestrator workflow (including `ci-failure-loop-prompt`) is merged to `main`, only `pull_request` jobs such as `kickoff-review-cycle` run for open PRs.
-
----
-
-## 1a) Workflow trigger semantics (operational)
-
-GitHub applies different rules depending on the event type:
-
-| Event | Workflow source | Jobs that run during PR review |
-|-------|-----------------|--------------------------------|
-| `pull_request` | PR head commit | `kickoff-review-cycle`, `route-loop-events` |
-| `workflow_run` | **Default branch** (`main`) | `ci-failure-loop-prompt` (after CI completes) |
-
-Practical impact:
-
-- On an open PR, reviewer kickoff and comment routing work from the PR branch.
-- The automatic **CI failure fix-loop prompt** (`ci-failure-loop-prompt`) does **not** run from PR-head workflow changes alone. It starts working only after `.github/workflows/agent-review-loop.yml` (with the `workflow_run` trigger) is on `main`.
-- If CI fails on this PR before merge, expect only the normal `pull_request` orchestrator behavior—not the `workflow_run`-driven failure prompt.
-
-### Post-merge validation (required once)
-
-After merging the orchestrator workflow to `main`, validate the CI failure path:
-
-1. Open a short-lived test PR that intentionally fails CI (for example, a failing assertion or lint check).
-2. Confirm the orchestrator posts the **CI failure detected (auto)** comment with failed job links.
-3. Close or revert the test PR once verified.
+4. Wire your cloud automation to trigger on PR comments:
+   - Kickoff comment: `### Agent review kickoff (auto)`
+   - CI follow-up comment: `### CI failure follow-up (auto)`
+5. Important behavior:
+   - The orchestrator does **not** respond to comments with more comments.
+   - It only posts seed comments on PR open and CI failure.
 
 ---
 
@@ -90,76 +61,42 @@ Work request:
 
 ---
 
-## 3) Review-response loop prompt (generated per comment)
-
-Use this prompt when an actionable review comment exists (or from workflow-generated prompt comments):
+## 3) Review/fix loop prompt (use from orchestrator comments)
 
 ```text
 You are the PR loop implementation agent.
 
 Target PR: <PR_LINK_OR_NUMBER>
-Target review comment: <COMMENT_URL>
+Source comment: <COMMENT_URL>
 
 Task:
-1) Read the PR diff + the referenced review comment.
+1) Read the PR diff and source comment carefully.
 2) Plan fix in pseudocode before coding.
-3) Implement only what is needed to resolve the comment (unless tightly coupled updates are required).
+3) Implement only what is needed for the requested outcome.
 4) Update tests/docs if behavior changed.
-5) Run relevant tests/checks; fix any failures.
-6) Commit and push.
+5) Run relevant tests/checks and fix any failures.
+6) Commit and push to the same PR branch.
 7) Reply on PR with what changed + test evidence.
-8) If complete and no blockers remain, comment `/agent-ready`.
-
-Stop condition:
-- If the request is out of scope for this PR, do not force it in. Propose a follow-up loop prompt and link a new issue.
+8) If additional work is out-of-scope, create/link a follow-up issue.
 ```
 
 ---
 
-## 4) Out-of-scope follow-up loop prompt
-
-Use this to start a new loop for review suggestions that should not expand the current PR:
-
-```text
-You are the follow-up loop agent.
-
-Background:
-- Origin PR: <PR_LINK_OR_NUMBER>
-- Origin comment: <COMMENT_URL>
-- Reason this is out of scope: <SHORT_REASON>
-
-Task:
-1) Convert the suggestion into a scoped implementation plan (pseudocode first).
-2) Implement on a new branch.
-3) Add/update tests and docs.
-4) Run relevant checks and resolve failures.
-5) Open a new PR that references the origin PR/comment.
-
-Requested follow-up:
-<PASTE SUGGESTION TEXT>
-```
-
----
-
-## 5) Day-to-day operation (owner + agents)
+## 4) Day-to-day operation (owner + agents)
 
 1. Start with the **Primary implementation prompt**.
 2. Implementation agent opens/updates PR.
-3. Orchestrator auto-posts a reviewer cycle prompt on every PR update.
-4. Reviewer agent(s) leave comments/reviews with actionable findings.
-5. Loop agent consumes feedback and updates the branch.
-6. Plain-English PR conversation comments and review summaries are converted into fix-loop prompts automatically; inline review line comments need `/agent-fix`.
-7. Use `/agent-followup ...` for valuable but out-of-scope feedback.
-8. If CI fails **and** the orchestrator workflow (with `workflow_run`) is on `main`, the orchestrator posts an automatic fix prompt for the failure run. On PRs opened before that merge, only `pull_request` orchestrator jobs run.
-9. After fixes are done, agent posts `/agent-ready`.
-10. Orchestrator approves only when:
-   - all checks are green, and
-   - there are no unresolved review threads.
-11. You merge manually.
+3. Orchestrator posts one kickoff review comment.
+4. Cloud automation triggers and runs reviewer/fix cycles.
+5. Agent pushes fixes and comments results.
+6. If CI fails, orchestrator posts one CI failure follow-up comment.
+7. Cloud automation triggers again from that comment and applies fixes.
+8. Repeat until no actionable feedback remains and CI is green.
+9. You merge manually.
 
 ---
 
-## 6) Definition of done
+## 5) Definition of done
 
 A PR is loop-complete when all are true:
 
@@ -167,5 +104,4 @@ A PR is loop-complete when all are true:
 - CI checks are green.
 - Requested scope is fully implemented and documented.
 - Tests relevant to touched behavior exist and pass.
-- Any out-of-scope review suggestions are captured as follow-up issue(s)/loop(s).
-- PR is approved by the loop orchestrator after `/agent-ready`.
+- Out-of-scope suggestions are captured as follow-up issues/loops.

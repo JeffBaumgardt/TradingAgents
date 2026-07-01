@@ -2,77 +2,70 @@ name: Agent PR Loop Orchestrator
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened]
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
-  pull_request_review:
-    types: [submitted]
 
 permissions:
   contents: read
   issues: write
-  pull-requests: write
-  checks: read
-  statuses: read
-  actions: read
 
 jobs:
   kickoff-review-cycle:
-    name: Post reviewer cycle prompt
+    name: Post first review kickoff comment
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - name: Publish reviewer prompt for each PR cycle
+      - name: Publish first review comment
         uses: actions/github-script@v7
         with:
           script: |
             const pullRequest = context.payload.pull_request;
             if (!pullRequest) {
-              core.info("No pull request payload found.");
+              core.info("No pull_request payload found.");
               return;
             }
 
             const prNumber = pullRequest.number;
             const prUrl = pullRequest.html_url;
+            const marker = `<!-- agent-kickoff-pr:${prNumber} -->`;
 
-            const reviewerPrompt = [
-              "You are a skilled reviewer agent for this repository.",
-              "",
-              `Target PR: ${prUrl} (#${prNumber})`,
-              "",
-              "Task:",
-              "1) Read the full PR diff with strong attention to correctness, regressions, and scope fit.",
-              "2) Run the relevant tests/checks locally if needed for confidence.",
-              "3) Leave actionable review comments directly on the PR where changes are needed.",
-              "4) If no issues remain, leave a PR comment containing `/agent-ready` and a short validation summary.",
-              "",
-              "Review lens:",
-              "- Functional correctness and edge cases",
-              "- Test coverage for changed behavior",
-              "- Documentation and maintainability",
-              "- Risk of unintended side effects",
-            ].join("\n");
+            const existingComments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
 
-            const commentBody = [
-              "### Reviewer cycle prompt (auto)",
+            const alreadyPosted = existingComments.data.some((comment) =>
+              (comment.body || "").includes(marker)
+            );
+            if (alreadyPosted) {
+              core.info(`Kickoff comment already exists for PR #${prNumber}.`);
+              return;
+            }
+
+            const firstComment = [
+              "### Agent review kickoff (auto)",
               "",
-              "A new review cycle started because the PR changed.",
+              "Start the loop for this PR:",
+              "1) Review the full diff for correctness, scope, regressions, and maintainability.",
+              "2) Run relevant tests/checks locally if needed.",
+              "3) Implement and push any needed fixes directly to this PR branch.",
+              "4) Comment back with a concise summary and verification evidence.",
               "",
-              "```text",
-              reviewerPrompt,
-              "```",
+              `PR: ${prUrl}`,
+              "",
+              "Note: this workflow does not respond to comments with more comments.",
+              marker,
             ].join("\n");
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              body: commentBody,
+              body: firstComment,
             });
 
   ci-failure-loop-prompt:
@@ -82,7 +75,7 @@ jobs:
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'failure'
     steps:
-      - name: Publish loop prompt for failed CI runs
+      - name: Publish fix-loop prompt for failed CI runs
         uses: actions/github-script@v7
         with:
           script: |
@@ -118,13 +111,13 @@ jobs:
             }
 
             if (run.name !== "CI") {
-              core.info(`Skipping workflow_run with unexpected name: ${run.name}`);
+              core.info(`Skipping non-CI workflow run: ${run.name}`);
               return;
             }
 
             const prRefs = run.pull_requests || [];
             if (prRefs.length === 0) {
-              core.info("No pull requests attached to failing CI run.");
+              core.info("No PR references on failed CI run.");
               return;
             }
 
@@ -141,23 +134,22 @@ jobs:
             const failedJobLines =
               failedJobs.length > 0
                 ? failedJobs.map((job) => `- ${job.name}: ${job.html_url}`)
-                : ["- CI run failed but no individual failed jobs were enumerated."];
+                : ["- CI run failed but failed jobs were not enumerated."];
 
             for (const prRef of prRefs) {
               const prNumber = prRef.number;
+              const marker = `<!-- agent-ci-failure-run:${run.id}:pr:${prNumber} -->`;
 
               const pr = await github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: prNumber,
               });
-
               if (pr.data.state !== "open") {
                 core.info(`Skipping closed PR #${prNumber}.`);
                 continue;
               }
 
-              const marker = `<!-- agent-ci-failure-run:${run.id}:pr:${prNumber} -->`;
               const alreadyPosted = await hasIssueCommentWithMarker({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -169,36 +161,19 @@ jobs:
                 continue;
               }
 
-              const fixPrompt = [
-                "You are the PR loop implementation agent.",
+              const failureComment = [
+                "### CI failure follow-up (auto)",
                 "",
-                `Target PR: ${pr.data.html_url} (#${prNumber})`,
-                `Failing CI run: ${run.html_url}`,
-                "",
-                "Task:",
-                "1) Inspect the failing CI jobs and identify root cause(s).",
-                "2) Plan the fix in pseudocode before coding.",
-                "3) Implement minimal, correct changes.",
-                "4) Add/update tests if behavior changed.",
-                "5) Run relevant checks locally.",
-                "6) Commit and push to the same PR branch.",
-                "7) Reply with what changed and evidence.",
-                "8) If all clear, post `/agent-review` (or `/agent-ready` if no concerns remain).",
-              ].join("\n");
-
-              const commentBody = [
-                "### CI failure detected (auto)",
-                "",
-                `A failing CI run was detected and this fix-loop prompt was generated automatically.`,
+                "CI failed for this PR. Continue the loop:",
+                "1) Inspect failed jobs linked below.",
+                "2) Apply minimal correct fixes on this PR branch.",
+                "3) Re-run relevant checks locally.",
+                "4) Push and comment with what was fixed and evidence.",
                 "",
                 `Failing run: ${run.html_url}`,
                 "",
                 "Failed jobs:",
                 ...failedJobLines,
-                "",
-                "```text",
-                fixPrompt,
-                "```",
                 marker,
               ].join("\n");
 
@@ -206,522 +181,6 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: prNumber,
-                body: commentBody,
+                body: failureComment,
               });
             }
-
-  route-loop-events:
-    name: Route fix/follow-up/review/ready events
-    runs-on: ubuntu-latest
-    if: >
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
-      github.event_name == 'pull_request_review_comment' ||
-      github.event_name == 'pull_request_review'
-    steps:
-      - name: Route loop commands and owner requests
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const eventName = context.eventName;
-            const payload = context.payload;
-
-            function parseCommands(bodyText) {
-              if (!bodyText || !bodyText.trim()) {
-                return [];
-              }
-
-              const commands = [];
-              const lines = bodyText.split(/\r?\n/).map((line) => line.trim());
-              for (const line of lines) {
-                const fixMatch = line.match(/\/agent-fix\b(.*)$/);
-                if (fixMatch) {
-                  commands.push({ type: "fix", guidance: fixMatch[1].trim(), implicit: false });
-                }
-
-                const followupMatch = line.match(/\/agent-followup\b(.*)$/);
-                if (followupMatch) {
-                  commands.push({ type: "followup", guidance: followupMatch[1].trim(), implicit: false });
-                }
-
-                const reviewMatch = line.match(/\/agent-review\b(.*)$/);
-                if (reviewMatch) {
-                  commands.push({ type: "review", guidance: reviewMatch[1].trim(), implicit: false });
-                }
-
-                const readyMatch = line.match(/\/agent-ready\b(.*)$/);
-                if (readyMatch) {
-                  commands.push({ type: "ready", guidance: readyMatch[1].trim(), implicit: false });
-                }
-              }
-
-              return commands;
-            }
-
-            function looksLikeWorkRequest(text) {
-              const normalized = (text || "").toLowerCase();
-              if (!normalized.trim()) {
-                return false;
-              }
-              return /(please|update|change|fix|add|remove|migrate|refactor|rename|switch|implement|test|docs?|provider|database)/.test(normalized);
-            }
-
-            function buildFixPrompt({ prNumber, prUrl, commentUrl, guidance }) {
-              const guidanceText = guidance
-                ? `Requested change: ${guidance}`
-                : "Requested change: derive from linked comment context.";
-
-              return [
-                "You are the PR loop implementation agent.",
-                "",
-                `Target PR: ${prUrl} (#${prNumber})`,
-                `Source comment: ${commentUrl}`,
-                "",
-                "Execution contract:",
-                "1) Read the comment + PR diff and restate intent.",
-                "2) Plan in detailed pseudocode before coding.",
-                "3) Implement the requested in-scope change.",
-                "4) Update docs/comments for changed behavior.",
-                "5) Add/update tests where appropriate.",
-                "6) Run relevant tests/checks and fix any failures.",
-                "7) Commit and push changes to the same PR branch.",
-                "8) Reply with summary and test evidence.",
-                "9) If out-of-scope, use `/agent-followup ...` to spawn a new loop.",
-                "",
-                guidanceText,
-              ].join("\n");
-            }
-
-            function buildReviewerPrompt({ prNumber, prUrl, guidance }) {
-              const guidanceText = guidance
-                ? `Additional review focus: ${guidance}`
-                : "Additional review focus: broad correctness + regression risk.";
-
-              return [
-                "You are a skilled reviewer agent for this repository.",
-                "",
-                `Target PR: ${prUrl} (#${prNumber})`,
-                "",
-                "Task:",
-                "1) Review the PR diff deeply for correctness, scope, and maintainability.",
-                "2) Validate tests/checks are appropriate for touched behavior.",
-                "3) Post actionable comments where fixes are needed.",
-                "4) When no actionable concerns remain, post `/agent-ready` with a short summary.",
-                "",
-                guidanceText,
-              ].join("\n");
-            }
-
-            function buildFollowupIssueBody({
-              prNumber,
-              prUrl,
-              commentUrl,
-              guidance,
-              sourceAuthor,
-            }) {
-              const requestedFollowup = guidance || "Please scope the follow-up from the linked review comment.";
-
-              return [
-                "## Follow-up loop request",
-                "",
-                `Origin PR: ${prUrl} (#${prNumber})`,
-                `Origin comment: ${commentUrl}`,
-                `Requested by: @${sourceAuthor}`,
-                "",
-                "### Suggested loop prompt",
-                "```text",
-                "You are the follow-up loop agent.",
-                "",
-                "Background:",
-                `- Origin PR: ${prUrl} (#${prNumber})`,
-                `- Origin comment: ${commentUrl}`,
-                "- Reason out of scope: review suggestion is valuable but exceeds current PR scope.",
-                "",
-                "Task:",
-                "1) Plan in detailed pseudocode first.",
-                "2) Implement on a new branch.",
-                "3) Add/update tests and docs.",
-                "4) Run relevant checks and fix failures.",
-                "5) Open a new PR and reference the origin PR/comment.",
-                "",
-                "Requested follow-up:",
-                requestedFollowup,
-                "```",
-              ].join("\n");
-            }
-
-            async function getUnresolvedThreadCount({ owner, repo, prNumber }) {
-              let unresolvedCount = 0;
-              let hasNextPage = true;
-              let cursor = null;
-
-              while (hasNextPage) {
-                const result = await github.graphql(
-                  `
-                    query PullRequestThreads($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
-                      repository(owner: $owner, name: $repo) {
-                        pullRequest(number: $prNumber) {
-                          reviewThreads(first: 100, after: $cursor) {
-                            nodes {
-                              isResolved
-                              isOutdated
-                            }
-                            pageInfo {
-                              hasNextPage
-                              endCursor
-                            }
-                          }
-                        }
-                      }
-                    }
-                  `,
-                  {
-                    owner,
-                    repo,
-                    prNumber,
-                    cursor,
-                  }
-                );
-
-                const threads = result.repository.pullRequest.reviewThreads.nodes;
-                unresolvedCount += threads.filter((thread) => !thread.isResolved && !thread.isOutdated).length;
-                hasNextPage = result.repository.pullRequest.reviewThreads.pageInfo.hasNextPage;
-                cursor = result.repository.pullRequest.reviewThreads.pageInfo.endCursor;
-              }
-
-              return unresolvedCount;
-            }
-
-            async function getCheckHealth({ owner, repo, sha }) {
-              const failingConclusions = new Set([
-                "failure",
-                "timed_out",
-                "cancelled",
-                "action_required",
-                "startup_failure",
-                "stale",
-              ]);
-              const successConclusions = new Set(["success", "neutral", "skipped"]);
-
-              const checks = await github.rest.checks.listForRef({
-                owner,
-                repo,
-                ref: sha,
-                per_page: 100,
-              });
-
-              const statuses = await github.rest.repos.getCombinedStatusForRef({
-                owner,
-                repo,
-                ref: sha,
-              });
-
-              let hasPending = false;
-              let hasFailures = false;
-
-              for (const checkRun of checks.data.check_runs || []) {
-                if (checkRun.status !== "completed") {
-                  hasPending = true;
-                  continue;
-                }
-                if (!successConclusions.has(checkRun.conclusion || "")) {
-                  if (failingConclusions.has(checkRun.conclusion || "")) {
-                    hasFailures = true;
-                  }
-                }
-              }
-
-              const statusState = statuses.data.state;
-              if (statusState === "pending") {
-                hasPending = true;
-              } else if (statusState === "failure" || statusState === "error") {
-                hasFailures = true;
-              }
-
-              if ((checks.data.total_count || 0) === 0 && (statuses.data.total_count || 0) === 0) {
-                hasPending = true;
-              }
-
-              return {
-                hasPending,
-                hasFailures,
-              };
-            }
-
-            async function alreadyApprovedByActionsBot({ owner, repo, prNumber, sha }) {
-              const reviews = await github.rest.pulls.listReviews({
-                owner,
-                repo,
-                pull_number: prNumber,
-                per_page: 100,
-              });
-
-              return reviews.data.some((review) =>
-                review.user?.login === "github-actions[bot]" &&
-                review.state === "APPROVED" &&
-                review.commit_id === sha
-              );
-            }
-
-            async function tryApprovePr({ owner, repo, prNumber, pr, triggerLabel }) {
-              const unresolvedThreadCount = await getUnresolvedThreadCount({
-                owner,
-                repo,
-                prNumber,
-              });
-              const checkHealth = await getCheckHealth({
-                owner,
-                repo,
-                sha: pr.head.sha,
-              });
-              const approvalExists = await alreadyApprovedByActionsBot({
-                owner,
-                repo,
-                prNumber,
-                sha: pr.head.sha,
-              });
-
-              if (approvalExists) {
-                core.info("Approval already exists for current head SHA.");
-                return;
-              }
-
-              const blockers = [];
-              if (unresolvedThreadCount > 0) {
-                blockers.push(`Unresolved review threads: ${unresolvedThreadCount}`);
-              }
-              if (checkHealth.hasPending) {
-                blockers.push("Checks are still pending (or not yet reported).");
-              }
-              if (checkHealth.hasFailures) {
-                blockers.push("One or more checks failed.");
-              }
-
-              if (blockers.length > 0) {
-                const blockerComment = [
-                  `### Agent ready check blocked (${triggerLabel})`,
-                  "",
-                  "Approval was not applied because:",
-                  ...blockers.map((entry) => `- ${entry}`),
-                  "",
-                  "When blockers are resolved, post `/agent-ready` again.",
-                ].join("\n");
-
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  body: blockerComment,
-                });
-                return;
-              }
-
-              await github.rest.pulls.createReview({
-                owner,
-                repo,
-                pull_number: prNumber,
-                event: "APPROVE",
-                body: "Agent loop approval: all checks passed and no unresolved review threads were detected.",
-              });
-
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body: "### Agent loop status\n\nPR has been marked as approved by the loop orchestrator.",
-              });
-            }
-
-            let bodyText = "";
-            let prNumber = null;
-            let commentUrl = "";
-            let sourceAuthor = "";
-            let sourceKind = "";
-
-            if (eventName === "issue_comment") {
-              if (!payload.issue?.pull_request) {
-                core.info("Ignoring issue comment outside pull requests.");
-                return;
-              }
-              bodyText = payload.comment?.body || "";
-              prNumber = payload.issue.number;
-              commentUrl = payload.comment?.html_url || payload.issue.html_url;
-              sourceAuthor = payload.comment?.user?.login || "unknown";
-              sourceKind = "PR conversation comment";
-            } else if (eventName === "pull_request_review_comment") {
-              bodyText = payload.comment?.body || "";
-              prNumber = payload.pull_request.number;
-              commentUrl = payload.comment?.html_url || payload.pull_request.html_url;
-              sourceAuthor = payload.comment?.user?.login || "unknown";
-              sourceKind = "review line comment";
-            } else if (eventName === "pull_request_review") {
-              bodyText = payload.review?.body || "";
-              prNumber = payload.pull_request.number;
-              commentUrl = payload.review?.html_url || payload.pull_request.html_url;
-              sourceAuthor = payload.review?.user?.login || "unknown";
-              sourceKind = `review summary (${payload.review?.state || "unknown state"})`;
-            }
-
-            if (!prNumber) {
-              core.info("No pull request number detected.");
-              return;
-            }
-
-            if ((payload.sender?.login || "") === "github-actions[bot]") {
-              core.info("Ignoring workflow-authored comments to prevent recursion.");
-              return;
-            }
-
-            const commands = parseCommands(bodyText);
-            const sourceAuthorLower = sourceAuthor.toLowerCase();
-
-            if (commands.length === 0) {
-              const reviewState = (payload.review?.state || "").toLowerCase();
-              const reviewCanTriggerImplicitFix =
-                eventName === "issue_comment" ||
-                (eventName === "pull_request_review" &&
-                  (reviewState === "commented" ||
-                    reviewState === "changes_requested"));
-              const isChangesRequestedReview =
-                eventName === "pull_request_review" &&
-                reviewState === "changes_requested";
-              const isPlainLanguageFixRequest =
-                reviewCanTriggerImplicitFix &&
-                looksLikeWorkRequest(bodyText) &&
-                !sourceAuthorLower.endsWith("[bot]");
-
-              if (isPlainLanguageFixRequest) {
-                commands.push({
-                  type: "fix",
-                  guidance:
-                    bodyText.trim() ||
-                    "Address the linked feedback request and update tests/docs as needed.",
-                  implicit: true,
-                });
-              } else if (isChangesRequestedReview) {
-                commands.push({
-                  type: "fix",
-                  guidance: bodyText.trim() || "Review requested changes. Inspect linked review and apply needed fixes.",
-                  implicit: true,
-                });
-              }
-            }
-
-            if (commands.length === 0) {
-              core.info("No actionable agent loop command detected.");
-              return;
-            }
-
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const pr = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: prNumber,
-            });
-            const prUrl = pr.data.html_url;
-
-            for (const command of commands) {
-              if (command.type === "fix") {
-                const prompt = buildFixPrompt({
-                  prNumber,
-                  prUrl,
-                  commentUrl,
-                  guidance: command.guidance,
-                });
-
-                const heading = command.implicit
-                  ? "### Agent loop prompt generated from plain-language feedback"
-                  : "### Agent loop prompt generated (`/agent-fix`)";
-
-                const commentBody = [
-                  heading,
-                  "",
-                  `Source: ${sourceKind} by @${sourceAuthor}`,
-                  `Source link: ${commentUrl}`,
-                  "",
-                  "```text",
-                  prompt,
-                  "```",
-                ].join("\n");
-
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  body: commentBody,
-                });
-              }
-
-              if (command.type === "review") {
-                const prompt = buildReviewerPrompt({
-                  prNumber,
-                  prUrl,
-                  guidance: command.guidance,
-                });
-
-                const commentBody = [
-                  "### Reviewer agent prompt generated (`/agent-review`)",
-                  "",
-                  `Source: ${sourceKind} by @${sourceAuthor}`,
-                  `Source link: ${commentUrl}`,
-                  "",
-                  "```text",
-                  prompt,
-                  "```",
-                ].join("\n");
-
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  body: commentBody,
-                });
-              }
-
-              if (command.type === "followup") {
-                const issueTitle = command.guidance
-                  ? `Follow-up from PR #${prNumber}: ${command.guidance.slice(0, 80)}`
-                  : `Follow-up from PR #${prNumber}`;
-
-                const issueBody = buildFollowupIssueBody({
-                  prNumber,
-                  prUrl,
-                  commentUrl,
-                  guidance: command.guidance,
-                  sourceAuthor,
-                });
-
-                const followupIssue = await github.rest.issues.create({
-                  owner,
-                  repo,
-                  title: issueTitle,
-                  body: issueBody,
-                });
-
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  body: [
-                    "### Follow-up loop issue created (`/agent-followup`)",
-                    "",
-                    `Source: ${sourceKind} by @${sourceAuthor}`,
-                    `Source link: ${commentUrl}`,
-                    "",
-                    `Created issue: #${followupIssue.data.number} (${followupIssue.data.html_url})`,
-                  ].join("\n"),
-                });
-              }
-
-              if (command.type === "ready") {
-                await tryApprovePr({
-                  owner,
-                  repo,
-                  prNumber,
-                  pr: pr.data,
-                  triggerLabel: "/agent-ready",
-                });
-              }
-            }
-
-            core.info("Agent PR loop routing complete.");
