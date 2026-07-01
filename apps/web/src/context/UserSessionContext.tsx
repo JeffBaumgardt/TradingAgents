@@ -5,6 +5,7 @@
 
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import {
   createContext,
   useCallback,
@@ -50,6 +51,7 @@ function readStoredReady(): boolean {
 }
 
 export function UserSessionProvider({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const [providerCredentials, setProviderCredentialsState] = useState<ProviderCredentials>({});
   const [credentialsReady, setCredentialsReadyState] = useState(false);
   const [resolvedConfig, setResolvedConfig] = useState<ConfigOptions | null>(null);
@@ -71,6 +73,11 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userId) {
+      setHydrating(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function hydrate() {
@@ -117,7 +124,7 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isLoaded, isSignedIn, userId]);
 
   const clearSession = useCallback(() => {
     setProviderCredentialsState({});

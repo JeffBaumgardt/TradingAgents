@@ -12,6 +12,8 @@ import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
 import { credentialsRoutes } from "./routes/credentials.js";
 import { sessionRoutes } from "./routes/sessions.js";
+import { userRoutes } from "./routes/users.js";
+import { webhookRoutes } from "./routes/webhooks.js";
 import "./types/hono.js";
 
 export function createApp() {
@@ -30,6 +32,8 @@ export function createApp() {
   app.route("/", healthRoutes);
   app.route("/", configRoutes);
   app.route("/", credentialsRoutes);
+  app.route("/", userRoutes);
+  app.route("/", webhookRoutes);
   app.route("/", sessionRoutes);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));

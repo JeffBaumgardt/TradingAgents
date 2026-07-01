@@ -12,6 +12,7 @@ tags:
   - name: health
   - name: config
   - name: credentials
+  - name: users
   - name: sessions
 paths:
   /health:
@@ -99,6 +100,79 @@ paths:
                 $ref: "#/components/schemas/StoredCredentialsResponse"
         "401":
           description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /users/me:
+    get:
+      tags: [users]
+      summary: Get or create the current user record
+      description: |
+        Ensures a local user row exists for the Clerk user id sent in X-User-Id.
+        Creates a stub record when the Clerk webhook has not arrived yet.
+      operationId: getCurrentUser
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [users]
+      summary: Sync Clerk profile fields for the current user
+      operationId: updateCurrentUser
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /webhooks/clerk:
+    post:
+      tags: [users]
+      summary: Clerk user lifecycle webhook
+      description: |
+        Receives verified Clerk user.created, user.updated, and user.deleted events.
+        Not authenticated via X-User-Id; verified with CLERK_WEBHOOK_SIGNING_SECRET.
+      operationId: clerkWebhook
+      responses:
+        "200":
+          description: Event processed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        "400":
+          description: Invalid webhook signature or payload
           content:
             application/json:
               schema:
@@ -363,6 +437,46 @@ components:
         details:
           type: object
           additionalProperties: true
+    User:
+      type: object
+      required: [id, email, firstName, lastName, imageUrl, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: Clerk user id (user_xxx)
+        email:
+          type: string
+          nullable: true
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          nullable: true
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
     AnalystType:
       type: string
       enum: [market, social, news, fundamentals]
