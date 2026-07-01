@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import patch
 
@@ -63,19 +64,17 @@ class AnthropicClientEffortTests(unittest.TestCase):
 
 
 class OpenAIClientReasoningEffortTests(unittest.TestCase):
-    @patch("tradingagents.llm_clients.openai_client.NormalizedChatOpenAI")
-    def test_skips_reasoning_effort_for_legacy_model(self, mock_chat):
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"})
+    def test_skips_reasoning_effort_for_legacy_model(self):
         client = OpenAIClient("gpt-4o", provider="openai", reasoning_effort="high")
-        client.get_llm()
-        call_kwargs = mock_chat.call_args[1]
-        self.assertNotIn("reasoning_effort", call_kwargs)
+        llm = client.get_llm()
+        self.assertIsNone(getattr(llm, "reasoning_effort", None))
 
-    @patch("tradingagents.llm_clients.openai_client.NormalizedChatOpenAI")
-    def test_passes_reasoning_effort_for_gpt5(self, mock_chat):
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"})
+    def test_passes_reasoning_effort_for_gpt5(self):
         client = OpenAIClient("gpt-5.4", provider="openai", reasoning_effort="medium")
-        client.get_llm()
-        call_kwargs = mock_chat.call_args[1]
-        self.assertEqual(call_kwargs.get("reasoning_effort"), "medium")
+        llm = client.get_llm()
+        self.assertEqual(getattr(llm, "reasoning_effort", None), "medium")
 
 
 if __name__ == "__main__":

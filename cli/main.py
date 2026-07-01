@@ -32,6 +32,7 @@ from cli.utils import (
     detect_asset_type,
     ensure_api_key,
     get_ticker,
+    get_user_context,
     prompt_openai_compatible_url,
     resolve_backend_url,
     select_analysts,
