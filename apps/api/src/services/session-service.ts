@@ -8,6 +8,7 @@ import { count, desc, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type {
   CreateSessionRequest,
+  ProviderCredentials,
   Session,
   SessionListResponse,
   SessionReport,
@@ -23,6 +24,7 @@ import {
 import { db } from "../db/index.js";
 import { events, sessions, type SessionRow } from "../db/schema.js";
 import * as agentsClient from "./agents-client.js";
+import { getUserCredentialsRaw } from "./credentials-service.js";
 
 function rowToSession(row: SessionRow): Session {
   return {
@@ -71,7 +73,10 @@ function sectionsToMarkdown(sections: Record<string, string | null>): string {
   return parts.join("\n\n");
 }
 
-export function validateCreateRequest(body: CreateSessionRequest): string | null {
+export function validateCreateRequest(
+  body: CreateSessionRequest,
+  providerCredentials: ProviderCredentials,
+): string | null {
   if (!validateTicker(body.ticker)) {
     return "Invalid ticker symbol";
   }
@@ -87,11 +92,11 @@ export function validateCreateRequest(body: CreateSessionRequest): string | null
   if (!body.llmProvider || !body.quickThinkLlm || !body.deepThinkLlm) {
     return "LLM provider and model selections are required";
   }
-  if (!body.providerCredentials || Object.keys(body.providerCredentials).length === 0) {
+  if (Object.keys(providerCredentials).length === 0) {
     return "At least one provider credential is required";
   }
   const providerKey = body.llmProvider.toLowerCase();
-  const creds = body.providerCredentials[providerKey];
+  const creds = providerCredentials[providerKey];
   if (!creds) {
     return `No credentials provided for selected provider: ${body.llmProvider}`;
   }
@@ -109,8 +114,10 @@ export function validateCreateRequest(body: CreateSessionRequest): string | null
 
 export async function createSession(
   body: CreateSessionRequest,
+  userId: string,
 ): Promise<Session> {
-  const validationError = validateCreateRequest(body);
+  const storedCredentials = await getUserCredentialsRaw(userId);
+  const validationError = validateCreateRequest(body, storedCredentials);
   if (validationError) {
     throw new Error(validationError);
   }
@@ -118,6 +125,7 @@ export async function createSession(
   const normalized: CreateSessionRequest = {
     ...body,
     ticker: normalizeTicker(body.ticker),
+    providerCredentials: storedCredentials,
   };
 
   const { providerCredentials, ...persistedConfig } = normalized;

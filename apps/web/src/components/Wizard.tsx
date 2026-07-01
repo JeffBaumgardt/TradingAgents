@@ -82,7 +82,7 @@ function resolveModelId(selected: string, custom: string): string {
 
 export default function Wizard() {
   const router = useRouter();
-  const { resolvedConfig, providerCredentials } = useUserSession();
+  const { resolvedConfig } = useUserSession();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<WizardFormState>(DEFAULT_FORM);
   const options = resolvedConfig;
@@ -111,8 +111,8 @@ export default function Wizard() {
       setLoadingModels(true);
       try {
         const [quick, deep] = await Promise.all([
-          fetchProviderModels(provider, "quick", providerCredentials),
-          fetchProviderModels(provider, "deep", providerCredentials),
+          fetchProviderModels(provider, "quick"),
+          fetchProviderModels(provider, "deep"),
         ]);
         setQuickModels(quick.models);
         setDeepModels(deep.models);
@@ -129,7 +129,7 @@ export default function Wizard() {
         setLoadingModels(false);
       }
     },
-    [providerCredentials],
+    [],
   );
 
   useEffect(() => {
@@ -242,7 +242,6 @@ export default function Wizard() {
       backendUrl: form.backendUrl,
       quickThinkLlm: resolveModelId(form.quickThinkLlm, form.customQuickModel),
       deepThinkLlm: resolveModelId(form.deepThinkLlm, form.customDeepModel),
-      providerCredentials,
     };
 
     if (form.llmProvider === "google" && showProviderConfig && form.googleThinkingLevel) {

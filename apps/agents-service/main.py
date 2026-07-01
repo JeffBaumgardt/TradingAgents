@@ -14,7 +14,6 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from routes_config import router as config_router
 from routes_runs import router as runs_router
 

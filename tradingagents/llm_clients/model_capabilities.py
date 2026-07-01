@@ -29,10 +29,7 @@ def supports_anthropic_effort(model: str) -> bool:
                 return True
         return False
 
-    if "fable" in model_id or "mythos" in model_id:
-        return True
-
-    return False
+    return "fable" in model_id or "mythos" in model_id
 
 
 def supports_openai_reasoning_effort(model: str) -> bool:
@@ -48,10 +45,7 @@ def supports_openai_reasoning_effort(model: str) -> bool:
     if model_id.startswith("gpt-5") or model_id.startswith(("o1", "o3", "o4")):
         return True
 
-    if "gpt-4.1" in model_id:
-        return True
-
-    return False
+    return "gpt-4.1" in model_id
 
 
 def supports_google_thinking_level(model: str) -> bool:

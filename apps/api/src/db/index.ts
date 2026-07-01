@@ -47,5 +47,14 @@ export function initializeDatabase(): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
+
+    CREATE TABLE IF NOT EXISTS user_credentials (
+      user_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      field_name TEXT NOT NULL,
+      field_value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, provider_id, field_name)
+    );
   `);
 }

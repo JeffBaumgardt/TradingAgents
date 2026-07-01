@@ -7,19 +7,18 @@ Provider and model lists are filtered by user-supplied credentials.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
-
-from tradingagents.llm_clients.model_catalog import MODEL_OPTIONS, get_model_options
-from tradingagents.llm_clients.model_capabilities import get_model_capabilities
-
 from provider_credentials import (
+    PROVIDER_DEFINITIONS,
     get_credentials_schema,
     is_provider_available,
     list_available_provider_ids,
-    PROVIDER_DEFINITIONS,
 )
+
+from tradingagents.llm_clients.model_capabilities import get_model_capabilities
+from tradingagents.llm_clients.model_catalog import MODEL_OPTIONS, get_model_options
 
 ANALYST_OPTIONS = [
     {"value": "market", "label": "Market Analyst"},
@@ -63,7 +62,7 @@ PROVIDER_OPTIONS = [
 ]
 
 
-def _fetch_openrouter_models(api_key: str) -> List[Dict[str, str]]:
+def _fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
     """Fetch live OpenRouter models when the user provides a key."""
     try:
         response = requests.get(
@@ -82,7 +81,7 @@ def _fetch_openrouter_models(api_key: str) -> List[Dict[str, str]]:
         return []
 
 
-def _fetch_ollama_models(base_url: str) -> List[Dict[str, str]]:
+def _fetch_ollama_models(base_url: str) -> list[dict[str, str]]:
     """Fetch tags from a local Ollama instance."""
     root = base_url.rstrip("/").removesuffix("/v1")
     try:
@@ -102,8 +101,8 @@ def _fetch_ollama_models(base_url: str) -> List[Dict[str, str]]:
 
 
 def get_config_options(
-    provider_credentials: Dict[str, Dict[str, str]] | None = None,
-) -> Dict[str, Any]:
+    provider_credentials: dict[str, dict[str, str]] | None = None,
+) -> dict[str, Any]:
     available_ids = set(list_available_provider_ids(provider_credentials))
     providers = [
         option for option in PROVIDER_OPTIONS if option["id"] in available_ids
@@ -118,8 +117,8 @@ def get_config_options(
 
 
 def resolve_config(
-    provider_credentials: Dict[str, Dict[str, str]] | None = None,
-) -> Dict[str, Any]:
+    provider_credentials: dict[str, dict[str, str]] | None = None,
+) -> dict[str, Any]:
     """Return credential schema plus config filtered to available providers."""
     available_ids = list_available_provider_ids(provider_credentials)
     return {
@@ -129,8 +128,8 @@ def resolve_config(
     }
 
 
-def _model_entry(provider: str, model_id: str, label: str) -> Dict[str, Any]:
-    entry: Dict[str, Any] = {"id": model_id, "label": label}
+def _model_entry(provider: str, model_id: str, label: str) -> dict[str, Any]:
+    entry: dict[str, Any] = {"id": model_id, "label": label}
     capabilities = get_model_capabilities(provider, model_id)
     if capabilities:
         entry["capabilities"] = capabilities
@@ -140,8 +139,8 @@ def _model_entry(provider: str, model_id: str, label: str) -> Dict[str, Any]:
 def get_provider_models(
     provider: str,
     mode: str,
-    provider_credentials: Dict[str, Dict[str, str]] | None = None,
-) -> Dict[str, Any]:
+    provider_credentials: dict[str, dict[str, str]] | None = None,
+) -> dict[str, Any]:
     provider_key = provider.lower()
     if provider_key not in MODEL_OPTIONS and provider_key not in ("openrouter", "azure"):
         raise KeyError(provider)
@@ -153,7 +152,7 @@ def get_provider_models(
         raise ValueError("mode must be quick or deep")
 
     creds = (provider_credentials or {}).get(provider_key, {})
-    models: List[Dict[str, str]] = []
+    models: list[dict[str, str]] = []
 
     if provider_key == "openrouter" and creds.get("apiKey"):
         live = _fetch_openrouter_models(creds["apiKey"])

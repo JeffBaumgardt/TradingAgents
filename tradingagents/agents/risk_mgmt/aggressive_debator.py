@@ -1,10 +1,8 @@
 from tradingagents.agents.utils.agent_utils import (
+    format_user_context_block,
     get_instrument_context_from_state,
     get_language_instruction,
 )
-
-
-from tradingagents.agents.utils.agent_utils import format_user_context_block
 
 
 def create_aggressive_debator(llm):
