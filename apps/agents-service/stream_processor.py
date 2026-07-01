@@ -10,12 +10,13 @@ from __future__ import annotations
 import ast
 import datetime
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-EventEmitter = Callable[[str, Dict[str, Any]], None]
+EventEmitter = Callable[[str, dict[str, Any]], None]
 
 ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
 ANALYST_AGENT_NAMES = {
@@ -32,7 +33,7 @@ ANALYST_REPORT_MAP = {
 }
 
 
-def extract_content_string(content: Any) -> Optional[str]:
+def extract_content_string(content: Any) -> str | None:
     """Extract string content from various message formats."""
 
     def is_empty(val: Any) -> bool:
@@ -72,7 +73,7 @@ def extract_content_string(content: Any) -> Optional[str]:
     return rendered if not is_empty(rendered) else None
 
 
-def classify_message_type(message: Any) -> Tuple[str, Optional[str]]:
+def classify_message_type(message: Any) -> tuple[str, str | None]:
     content = extract_content_string(getattr(message, "content", None))
 
     if isinstance(message, HumanMessage):
@@ -93,7 +94,7 @@ def classify_message_type(message: Any) -> Tuple[str, Optional[str]]:
 class StreamBuffer:
     """In-memory buffer mirroring cli/main.py MessageBuffer for SSE emission."""
 
-    FIXED_AGENTS: Dict[str, List[str]] = field(
+    FIXED_AGENTS: dict[str, list[str]] = field(
         default_factory=lambda: {
             "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
             "Trading Team": ["Trader"],
@@ -105,7 +106,7 @@ class StreamBuffer:
             "Portfolio Management": ["Portfolio Manager"],
         }
     )
-    ANALYST_MAPPING: Dict[str, str] = field(
+    ANALYST_MAPPING: dict[str, str] = field(
         default_factory=lambda: {
             "market": "Market Analyst",
             "social": "Social Analyst",
@@ -113,7 +114,7 @@ class StreamBuffer:
             "fundamentals": "Fundamentals Analyst",
         }
     )
-    REPORT_SECTIONS: Dict[str, Tuple[Optional[str], str]] = field(
+    REPORT_SECTIONS: dict[str, tuple[str | None, str]] = field(
         default_factory=lambda: {
             "market_report": ("market", "Market Analyst"),
             "sentiment_report": ("social", "Social Analyst"),
@@ -125,14 +126,14 @@ class StreamBuffer:
         }
     )
 
-    messages: Deque[Tuple[str, str, str]] = field(default_factory=lambda: deque(maxlen=100))
-    tool_calls: Deque[Tuple[str, str, dict]] = field(default_factory=lambda: deque(maxlen=100))
-    agent_status: Dict[str, str] = field(default_factory=dict)
-    report_sections: Dict[str, Optional[str]] = field(default_factory=dict)
-    selected_analysts: List[str] = field(default_factory=list)
-    final_report: Optional[str] = None
-    _processed_message_ids: Set[str] = field(default_factory=set)
-    _last_agent_status: Dict[str, str] = field(default_factory=dict)
+    messages: deque[tuple[str, str, str]] = field(default_factory=lambda: deque(maxlen=100))
+    tool_calls: deque[tuple[str, str, dict]] = field(default_factory=lambda: deque(maxlen=100))
+    agent_status: dict[str, str] = field(default_factory=dict)
+    report_sections: dict[str, str | None] = field(default_factory=dict)
+    selected_analysts: list[str] = field(default_factory=list)
+    final_report: str | None = None
+    _processed_message_ids: set[str] = field(default_factory=set)
+    _last_agent_status: dict[str, str] = field(default_factory=dict)
 
     def init_for_analysis(self, selected_analysts: Iterable[str]) -> None:
         self.selected_analysts = [a.lower() for a in selected_analysts]
@@ -176,7 +177,7 @@ class StreamBuffer:
             self._update_final_report()
 
     def _update_final_report(self) -> None:
-        report_parts: List[str] = []
+        report_parts: list[str] = []
         analyst_sections = [
             "market_report",
             "sentiment_report",
@@ -218,8 +219,8 @@ def update_research_team_status(buffer: StreamBuffer, status: str) -> None:
 
 def update_analyst_statuses(
     buffer: StreamBuffer,
-    chunk: Dict[str, Any],
-    emit: Optional[EventEmitter] = None,
+    chunk: dict[str, Any],
+    emit: EventEmitter | None = None,
 ) -> None:
     selected = buffer.selected_analysts
     found_active = False
@@ -252,19 +253,22 @@ def update_analyst_statuses(
         else:
             buffer.update_agent_status(agent_name, "pending")
 
-    if not found_active and selected:
-        if buffer.agent_status.get("Bull Researcher") == "pending":
-            buffer.update_agent_status("Bull Researcher", "in_progress")
+    if (
+        not found_active
+        and selected
+        and buffer.agent_status.get("Bull Researcher") == "pending"
+    ):
+        buffer.update_agent_status("Bull Researcher", "in_progress")
 
 
 class StreamProcessor:
     """Processes LangGraph stream chunks and emits structured SSE events."""
 
-    def __init__(self, selected_analysts: List[str], emit: EventEmitter):
+    def __init__(self, selected_analysts: list[str], emit: EventEmitter):
         self.buffer = StreamBuffer()
         self.buffer.init_for_analysis(selected_analysts)
         self.emit = emit
-        self._last_stats: Optional[Dict[str, int]] = None
+        self._last_stats: dict[str, int] | None = None
 
     def _emit_agent_status_changes(self) -> None:
         for agent, status in self.buffer.agent_status.items():
@@ -272,7 +276,7 @@ class StreamProcessor:
                 self.buffer._last_agent_status[agent] = status
                 self.emit("agent.status", {"agent": agent, "status": status})
 
-    def process_chunk(self, chunk: Dict[str, Any]) -> None:
+    def process_chunk(self, chunk: dict[str, Any]) -> None:
         for message in chunk.get("messages", []):
             msg_id = getattr(message, "id", None)
             if msg_id is not None:
@@ -393,18 +397,18 @@ class StreamProcessor:
                     self.buffer.update_agent_status("Portfolio Manager", "completed")
                 self._emit_agent_status_changes()
 
-    def emit_stats(self, stats: Dict[str, int]) -> None:
+    def emit_stats(self, stats: dict[str, int]) -> None:
         if stats != self._last_stats:
             self._last_stats = dict(stats)
             self.emit("stats", stats)
 
-    def get_active_agent(self) -> Optional[str]:
+    def get_active_agent(self) -> str | None:
         for agent, status in self.buffer.agent_status.items():
             if status == "in_progress":
                 return agent
         return None
 
-    def mark_run_stopped(self, failed_agent: Optional[str] = None) -> int:
+    def mark_run_stopped(self, failed_agent: str | None = None) -> int:
         """Mark pending agents cancelled and in-progress as error. Returns stopped count."""
         stopped = 0
         for agent, status in list(self.buffer.agent_status.items()):
@@ -418,8 +422,8 @@ class StreamProcessor:
         self._emit_agent_status_changes()
         return stopped
 
-    def finalize_state(self, trace: List[Dict[str, Any]]) -> Dict[str, Any]:
-        final_state: Dict[str, Any] = {}
+    def finalize_state(self, trace: list[dict[str, Any]]) -> dict[str, Any]:
+        final_state: dict[str, Any] = {}
         for chunk in trace:
             final_state.update(chunk)
 
@@ -427,7 +431,7 @@ class StreamProcessor:
             self.buffer.update_agent_status(agent, "completed")
         self._emit_agent_status_changes()
 
-        for section in self.buffer.report_sections.keys():
+        for section in self.buffer.report_sections:
             if section in final_state:
                 self.buffer.update_report_section(section, final_state[section])
                 content = self.buffer.report_sections.get(section)
@@ -437,7 +441,7 @@ class StreamProcessor:
         return final_state
 
 
-def format_sse(event_type: str, data: Dict[str, Any]) -> str:
+def format_sse(event_type: str, data: dict[str, Any]) -> str:
     import json
 
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"

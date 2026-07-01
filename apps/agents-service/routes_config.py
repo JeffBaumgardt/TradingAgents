@@ -8,28 +8,25 @@ can actually use with the API keys they supply for the current browser session.
 
 from __future__ import annotations
 
-from typing import Any, Dict
-
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
-
 from config_options import (
     get_config_options,
     get_credentials_schema,
     get_provider_models,
     resolve_config,
 )
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/internal/config", tags=["config"])
 
 
 class ProviderCredentialsBody(BaseModel):
-    providerCredentials: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    providerCredentials: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class ProviderModelsBody(BaseModel):
     mode: str = Field(..., pattern="^(quick|deep)$")
-    providerCredentials: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    providerCredentials: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 @router.get("/credentials/schema")

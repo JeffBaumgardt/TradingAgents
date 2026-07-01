@@ -11,7 +11,7 @@ Ollama requires no key — only an optional base URL.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 
 class CredentialField(TypedDict):
@@ -27,12 +27,12 @@ class ProviderDefinition(TypedDict):
     label: str
     backendUrl: str | None
     requiresApiKey: bool
-    credentialFields: List[CredentialField]
+    credentialFields: list[CredentialField]
     modelSource: str  # "static" | "live" | "static_or_live"
 
 
 # Maps provider id -> env var names for each credential field name
-PROVIDER_ENV_VARS: Dict[str, Dict[str, str]] = {
+PROVIDER_ENV_VARS: dict[str, dict[str, str]] = {
     "openai": {"apiKey": "OPENAI_API_KEY"},
     "google": {"apiKey": "GOOGLE_API_KEY"},
     "anthropic": {"apiKey": "ANTHROPIC_API_KEY"},
@@ -50,7 +50,7 @@ PROVIDER_ENV_VARS: Dict[str, Dict[str, str]] = {
 }
 
 
-PROVIDER_DEFINITIONS: List[ProviderDefinition] = [
+PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
     {
         "id": "openai",
         "label": "OpenAI",
@@ -235,7 +235,7 @@ PROVIDER_DEFINITIONS: List[ProviderDefinition] = [
 ]
 
 
-def get_credentials_schema() -> Dict[str, Any]:
+def get_credentials_schema() -> dict[str, Any]:
     """Return provider credential field definitions for the setup UI."""
     return {
         "providers": PROVIDER_DEFINITIONS,
@@ -249,11 +249,11 @@ def get_credentials_schema() -> Dict[str, Any]:
 
 
 def _normalize_credentials(
-    provider_credentials: Dict[str, Dict[str, str]] | None,
-) -> Dict[str, Dict[str, str]]:
+    provider_credentials: dict[str, dict[str, str]] | None,
+) -> dict[str, dict[str, str]]:
     if not provider_credentials:
         return {}
-    normalized: Dict[str, Dict[str, str]] = {}
+    normalized: dict[str, dict[str, str]] = {}
     for provider_id, fields in provider_credentials.items():
         key = provider_id.lower().strip()
         cleaned = {
@@ -268,7 +268,7 @@ def _normalize_credentials(
 
 def is_provider_available(
     provider_id: str,
-    provider_credentials: Dict[str, Dict[str, str]],
+    provider_credentials: dict[str, dict[str, str]],
 ) -> bool:
     """Return True when the user supplied enough credentials for this provider."""
     provider_key = provider_id.lower()
@@ -294,8 +294,8 @@ def is_provider_available(
 
 
 def list_available_provider_ids(
-    provider_credentials: Dict[str, Dict[str, str]] | None,
-) -> List[str]:
+    provider_credentials: dict[str, dict[str, str]] | None,
+) -> list[str]:
     creds = _normalize_credentials(provider_credentials)
     return [
         item["id"]
@@ -305,11 +305,11 @@ def list_available_provider_ids(
 
 
 def credentials_to_env_updates(
-    provider_credentials: Dict[str, Dict[str, str]] | None,
-) -> Dict[str, str]:
+    provider_credentials: dict[str, dict[str, str]] | None,
+) -> dict[str, str]:
     """Flatten user credentials into environment variable updates for a run."""
     creds = _normalize_credentials(provider_credentials)
-    env_updates: Dict[str, str] = {}
+    env_updates: dict[str, str] = {}
 
     for provider_id, fields in creds.items():
         env_map = PROVIDER_ENV_VARS.get(provider_id, {})
@@ -323,7 +323,7 @@ def credentials_to_env_updates(
 
 def active_provider_api_key(
     llm_provider: str,
-    provider_credentials: Dict[str, Dict[str, str]] | None,
-) -> Optional[str]:
+    provider_credentials: dict[str, dict[str, str]] | None,
+) -> str | None:
     creds = _normalize_credentials(provider_credentials)
     return creds.get(llm_provider.lower(), {}).get("apiKey")

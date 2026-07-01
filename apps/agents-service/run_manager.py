@@ -12,24 +12,25 @@ import queue
 import threading
 import time
 import uuid
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any
 
 from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv(usecwd=True))
 load_dotenv(find_dotenv(".env.enterprise", usecwd=True), override=False)
 
-from cli.stats_handler import StatsCallbackHandler
-from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.graph.trading_graph import TradingAgentsGraph
-
 from provider_credentials import (
     active_provider_api_key,
     credentials_to_env_updates,
 )
 from stream_processor import StreamProcessor, format_sse
+
+from cli.stats_handler import StatsCallbackHandler
+from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.graph.trading_graph import TradingAgentsGraph
 
 ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
 
@@ -53,9 +54,9 @@ def error_hint(message: str) -> str:
 
 
 @contextmanager
-def temporary_env(updates: Dict[str, str]) -> Iterator[None]:
+def temporary_env(updates: dict[str, str]) -> Iterator[None]:
     """Apply credential env vars for the duration of a single analysis run."""
-    previous: Dict[str, Optional[str]] = {}
+    previous: dict[str, str | None] = {}
     try:
         for key, value in updates.items():
             previous[key] = os.environ.get(key)
@@ -74,19 +75,19 @@ class RunRecord:
     run_id: str
     session_id: str
     status: str = "pending"
-    subscribers: List[queue.Queue] = field(default_factory=list)
-    final_state: Optional[Dict[str, Any]] = None
-    decision: Optional[str] = None
-    error: Optional[str] = None
+    subscribers: list[queue.Queue] = field(default_factory=list)
+    final_state: dict[str, Any] | None = None
+    decision: str | None = None
+    error: str | None = None
     cancel_event: threading.Event = field(default_factory=threading.Event)
 
 
 class RunManager:
     def __init__(self) -> None:
-        self._runs: Dict[str, RunRecord] = {}
+        self._runs: dict[str, RunRecord] = {}
         self._lock = threading.Lock()
 
-    def create_run(self, session_id: str, payload: Dict[str, Any]) -> str:
+    def create_run(self, session_id: str, payload: dict[str, Any]) -> str:
         run_id = str(uuid.uuid4())
         record = RunRecord(run_id=run_id, session_id=session_id)
         with self._lock:
@@ -100,7 +101,7 @@ class RunManager:
         thread.start()
         return run_id
 
-    def get_run(self, run_id: str) -> Optional[RunRecord]:
+    def get_run(self, run_id: str) -> RunRecord | None:
         with self._lock:
             return self._runs.get(run_id)
 
@@ -124,9 +125,9 @@ class RunManager:
     def _fail_run(
         self,
         record: RunRecord,
-        processor: Optional[StreamProcessor],
+        processor: StreamProcessor | None,
         message: str,
-        failed_agent: Optional[str] = None,
+        failed_agent: str | None = None,
     ) -> None:
         stopped = 0
         if processor:
@@ -149,7 +150,7 @@ class RunManager:
     def _start_heartbeat(
         self,
         record: RunRecord,
-        heartbeat_state: Dict[str, Any],
+        heartbeat_state: dict[str, Any],
         started_at: float,
     ) -> threading.Thread:
         def loop() -> None:
@@ -173,18 +174,16 @@ class RunManager:
         thread.start()
         return thread
 
-    def _broadcast(self, record: RunRecord, event_type: str, data: Dict[str, Any]) -> None:
+    def _broadcast(self, record: RunRecord, event_type: str, data: dict[str, Any]) -> None:
         frame = format_sse(event_type, data)
         for subscriber in record.subscribers:
-            try:
+            with suppress(queue.Full):
                 subscriber.put_nowait(frame)
-            except queue.Full:
-                pass
 
-    def _emit(self, record: RunRecord, event_type: str, data: Dict[str, Any]) -> None:
+    def _emit(self, record: RunRecord, event_type: str, data: dict[str, Any]) -> None:
         self._broadcast(record, event_type, data)
 
-    def _execute_run(self, run_id: str, payload: Dict[str, Any]) -> None:
+    def _execute_run(self, run_id: str, payload: dict[str, Any]) -> None:
         record = self.get_run(run_id)
         if not record:
             return
@@ -192,7 +191,7 @@ class RunManager:
         record.status = "running"
         self._emit(record, "run.started", {"runId": run_id, "sessionId": record.session_id})
 
-        processor: Optional[StreamProcessor] = None
+        processor: StreamProcessor | None = None
         try:
             selected_set = set(payload["analysts"])
             selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
@@ -253,7 +252,7 @@ class RunManager:
                 )
 
                 started_at = time.time()
-                heartbeat_state: Dict[str, Any] = {
+                heartbeat_state: dict[str, Any] = {
                     "running": True,
                     "active_agent": None,
                     "stats": {},
@@ -267,7 +266,7 @@ class RunManager:
                 )
                 args = graph.propagator.get_graph_args(callbacks=[stats_handler])
 
-                trace: List[Dict[str, Any]] = []
+                trace: list[dict[str, Any]] = []
                 try:
                     for chunk in graph.graph.stream(init_state, **args):
                         if record.cancel_event.is_set():
@@ -328,7 +327,7 @@ class RunManager:
             if subscriber in record.subscribers:
                 record.subscribers.remove(subscriber)
 
-    def get_report(self, run_id: str) -> Dict[str, Any]:
+    def get_report(self, run_id: str) -> dict[str, Any]:
         record = self.get_run(run_id)
         if not record:
             raise KeyError(run_id)
@@ -348,7 +347,7 @@ class RunManager:
             ]
         }
 
-        markdown_parts: List[str] = []
+        markdown_parts: list[str] = []
         if any(sections.get(k) for k in ["market_report", "sentiment_report", "news_report", "fundamentals_report"]):
             markdown_parts.append("## Analyst Team Reports")
         for section, title in [

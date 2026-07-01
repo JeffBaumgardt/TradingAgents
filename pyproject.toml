@@ -81,6 +81,7 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]   # intentional re-exports
+"apps/agents-service/run_manager.py" = ["E402"]  # load_dotenv before local imports
 
 [tool.ruff.lint.isort]
 # Keep multiple aliased names from one module in a single combined import block
