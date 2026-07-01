@@ -412,9 +412,17 @@ components:
       name: X-User-Id
       in: header
       required: true
+      deprecated: true
       schema:
         type: string
-      description: Stable user identifier for credential scoping.
+      description: Deprecated. Use Authorization Bearer token with a Clerk session JWT instead.
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Clerk session JWT as `Bearer <token>`.
   schemas:
     HealthResponse:
       type: object

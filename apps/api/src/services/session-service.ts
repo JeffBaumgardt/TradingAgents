@@ -4,7 +4,7 @@
  * Session lifecycle management: persistence, validation, and event storage.
  */
 
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type {
   CreateSessionRequest,
@@ -29,6 +29,7 @@ import { getUserCredentialsRaw } from "./credentials-service.js";
 function rowToSession(row: SessionRow): Session {
   return {
     id: row.id,
+    userId: row.userId,
     status: row.status as SessionStatus,
     ticker: row.ticker,
     analysisDate: row.analysisDate,
@@ -112,6 +113,10 @@ export function validateCreateRequest(
   return null;
 }
 
+function isSessionOwnedByUser(row: SessionRow, userId: string): boolean {
+  return row.userId === userId;
+}
+
 export async function createSession(
   body: CreateSessionRequest,
   userId: string,
@@ -135,6 +140,7 @@ export async function createSession(
 
   await db.insert(sessions).values({
     id,
+    userId,
     ticker: normalized.ticker,
     analysisDate: normalized.analysisDate,
     status: "pending",
@@ -159,25 +165,36 @@ export async function createSession(
   return rowToSession(row);
 }
 
-export async function getSession(id: string): Promise<Session | null> {
+export async function getSession(id: string, userId?: string): Promise<Session | null> {
   const row = (
     await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
   )[0];
-  return row ? rowToSession(row) : null;
+  if (!row) {
+    return null;
+  }
+  if (userId && !isSessionOwnedByUser(row, userId)) {
+    return null;
+  }
+  return rowToSession(row);
 }
 
 export async function listSessions(
+  userId: string,
   limit = 20,
   offset = 0,
 ): Promise<SessionListResponse> {
   const items = await db
     .select()
     .from(sessions)
+    .where(eq(sessions.userId, userId))
     .orderBy(desc(sessions.analysisDate), desc(sessions.createdAt))
     .limit(limit)
     .offset(offset);
 
-  const [totalRow] = await db.select({ value: count() }).from(sessions);
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(sessions)
+    .where(eq(sessions.userId, userId));
 
   return {
     items: items.map(rowToSession),
@@ -207,9 +224,13 @@ export async function cancelSession(id: string): Promise<Session | null> {
   return getSession(id);
 }
 
-export async function deleteSession(id: string): Promise<boolean> {
+export async function deleteSession(id: string, userId: string): Promise<boolean> {
   const row = (
-    await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
+    await db
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.id, id), eq(sessions.userId, userId)))
+      .limit(1)
   )[0];
   if (!row) {
     return false;
@@ -300,11 +321,15 @@ export async function markSessionError(
 
 export async function getSessionReport(
   id: string,
+  userId?: string,
 ): Promise<SessionReport | "not_found" | "not_ready"> {
   const row = (
     await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
   )[0];
   if (!row) {
+    return "not_found";
+  }
+  if (userId && !isSessionOwnedByUser(row, userId)) {
     return "not_found";
   }
 

@@ -2,7 +2,7 @@
  * apps/api/src/routes/sessions.ts
  *
  * Session CRUD, report retrieval, and SSE streaming endpoints.
- * Streams proxy the Python agents-service while persisting events to SQLite.
+ * All routes require a verified Clerk session and are scoped to the owner.
  */
 
 import { Hono } from "hono";
@@ -15,14 +15,17 @@ import * as sessionService from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
 
+sessionRoutes.use("*", requireUserId());
+
 sessionRoutes.get("/sessions", async (c) => {
+  const userId = getRequestUserId(c);
   const limit = Number(c.req.query("limit") ?? "20");
   const offset = Number(c.req.query("offset") ?? "0");
-  const result = await sessionService.listSessions(limit, offset);
+  const result = await sessionService.listSessions(userId, limit, offset);
   return c.json(result);
 });
 
-sessionRoutes.post("/sessions", requireUserId(), async (c) => {
+sessionRoutes.post("/sessions", async (c) => {
   const body = (await c.req.json()) as CreateSessionRequest;
   const userId = getRequestUserId(c);
 
@@ -36,7 +39,8 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id", async (c) => {
-  const session = await sessionService.getSession(c.req.param("id"));
+  const userId = getRequestUserId(c);
+  const session = await sessionService.getSession(c.req.param("id"), userId);
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
   }
@@ -44,7 +48,8 @@ sessionRoutes.get("/sessions/:id", async (c) => {
 });
 
 sessionRoutes.delete("/sessions/:id", async (c) => {
-  const deleted = await sessionService.deleteSession(c.req.param("id"));
+  const userId = getRequestUserId(c);
+  const deleted = await sessionService.deleteSession(c.req.param("id"), userId);
   if (!deleted) {
     return c.json({ error: "Session not found" }, 404);
   }
@@ -52,8 +57,9 @@ sessionRoutes.delete("/sessions/:id", async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id/report", async (c) => {
+  const userId = getRequestUserId(c);
   const id = c.req.param("id");
-  const report = await sessionService.getSessionReport(id);
+  const report = await sessionService.getSessionReport(id, userId);
 
   if (report === "not_found") {
     return c.json({ error: "Session not found" }, 404);
@@ -66,8 +72,9 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id/stream", async (c) => {
+  const userId = getRequestUserId(c);
   const id = c.req.param("id");
-  const session = await sessionService.getSession(id);
+  const session = await sessionService.getSession(id, userId);
 
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
@@ -150,7 +157,7 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
           }
 
           if (eventType === "run.completed") {
-            const report = await sessionService.getSessionReport(id);
+            const report = await sessionService.getSessionReport(id, userId);
             if (report !== "not_found" && report !== "not_ready") {
               await sessionService.markSessionCompleted(id, {
                 markdown: report.markdown,

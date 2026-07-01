@@ -20,8 +20,7 @@ import type {
   UpdateUserRequest,
   User,
 } from "@tradingagents/api-types";
-import { getCurrentUserId, requireCurrentUserId } from "@/lib/auth-user-store";
-import { buildUserIdHeader } from "@/lib/user-id";
+import { buildAuthHeaders, requireCurrentUserId } from "@/lib/auth-user-store";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
@@ -36,17 +35,14 @@ export class ApiClientError extends Error {
   }
 }
 
-function buildUserHeaders(): HeadersInit {
-  return buildUserIdHeader(getCurrentUserId());
-}
-
 /** Ensure the API has a user row and sync Clerk profile fields. */
 export async function syncCurrentUser(
-  userId: string,
+  _userId: string,
   profile: UpdateUserRequest,
 ): Promise<User> {
+  const authHeaders = await buildAuthHeaders();
   await fetch(`${API_BASE}/users/me`, {
-    headers: buildUserIdHeader(userId),
+    headers: authHeaders,
     cache: "no-store",
   }).then((response) => parseJson<User>(response));
 
@@ -54,7 +50,7 @@ export async function syncCurrentUser(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...buildUserIdHeader(userId),
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify(profile),
     cache: "no-store",
@@ -91,7 +87,7 @@ export async function fetchCredentialsSchema(): Promise<CredentialsSchemaRespons
 /** Load stored credentials (secret fields are masked). */
 export async function fetchUserCredentials(): Promise<ProviderCredentials> {
   const response = await fetch(`${API_BASE}/credentials`, {
-    headers: buildUserHeaders(),
+    headers: await buildAuthHeaders(),
     cache: "no-store",
   });
   const body = await parseJson<StoredCredentialsResponse>(response);
@@ -106,7 +102,7 @@ export async function saveUserCredentials(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...buildUserHeaders(),
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify({ providerCredentials }),
     cache: "no-store",
@@ -121,7 +117,7 @@ export async function resolveConfig(): Promise<ResolvedConfigResponse> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...buildUserHeaders(),
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify({}),
     cache: "no-store",
@@ -148,7 +144,7 @@ export async function fetchProviderModels(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...buildUserHeaders(),
+        ...(await buildAuthHeaders()),
       },
       body: JSON.stringify({ mode }),
       cache: "no-store",
@@ -164,7 +160,7 @@ export async function createSession(config: CreateSessionRequest): Promise<Sessi
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...buildUserHeaders(),
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify(payload),
   });
@@ -174,6 +170,7 @@ export async function createSession(config: CreateSessionRequest): Promise<Sessi
 /** Fetch session metadata (ticker, config, status). */
 export async function fetchSession(sessionId: string): Promise<Session> {
   const response = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: await buildAuthHeaders(),
     cache: "no-store",
   });
   return parseJson<Session>(response);
@@ -189,6 +186,7 @@ export async function fetchSessions(
     offset: String(offset),
   });
   const response = await fetch(`${API_BASE}/sessions?${params.toString()}`, {
+    headers: await buildAuthHeaders(),
     cache: "no-store",
   });
   return parseJson<SessionListResponse>(response);
@@ -198,6 +196,7 @@ export async function fetchSessions(
 export async function deleteSession(sessionId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",
+    headers: await buildAuthHeaders(),
   });
   if (!response.ok && response.status !== 204) {
     await parseJson(response);
@@ -208,7 +207,10 @@ export async function deleteSession(sessionId: string): Promise<void> {
 export async function fetchSessionReport(sessionId: string): Promise<SessionReport> {
   const response = await fetch(
     `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/report`,
-    { cache: "no-store" },
+    {
+      headers: await buildAuthHeaders(),
+      cache: "no-store",
+    },
   );
   return parseJson<SessionReport>(response);
 }
@@ -238,7 +240,7 @@ export function subscribeToSessionStream(
   sessionId: string,
   callbacks: SessionStreamCallbacks,
 ): () => void {
-  const url = `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/stream`;
+  const url = `/api/sessions/${encodeURIComponent(sessionId)}/stream`;
   const eventSource = new EventSource(url);
   let terminal = false;
 

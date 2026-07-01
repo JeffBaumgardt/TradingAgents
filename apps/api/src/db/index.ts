@@ -25,6 +25,7 @@ export function initializeDatabase(): void {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
+      user_id TEXT,
       ticker TEXT NOT NULL,
       analysis_date TEXT NOT NULL,
       status TEXT NOT NULL,
@@ -47,6 +48,7 @@ export function initializeDatabase(): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -67,4 +69,17 @@ export function initializeDatabase(): void {
       PRIMARY KEY (user_id, provider_id, field_name)
     );
   `);
+
+  migrateSessionsUserIdColumn();
+}
+
+function migrateSessionsUserIdColumn(): void {
+  const columns = sqlite.prepare("PRAGMA table_info(sessions)").all() as Array<{
+    name: string;
+  }>;
+  const hasUserId = columns.some((column) => column.name === "user_id");
+  if (!hasUserId) {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN user_id TEXT`);
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`);
+  }
 }
