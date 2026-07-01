@@ -1,0 +1,250 @@
+name: Agent Review Loop Router
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  route-review-commands:
+    name: Route /agent-fix and /agent-followup
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
+      github.event_name == 'pull_request_review_comment' ||
+      github.event_name == 'pull_request_review'
+    steps:
+      - name: Parse review commands and route workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const eventName = context.eventName;
+            const payload = context.payload;
+
+            function parseCommands(bodyText) {
+              if (!bodyText || !bodyText.trim()) {
+                return [];
+              }
+
+              const commands = [];
+              const lines = bodyText.split(/\r?\n/).map((line) => line.trim());
+
+              for (const line of lines) {
+                const fixMatch = line.match(/\/agent-fix\b(.*)$/);
+                if (fixMatch) {
+                  commands.push({
+                    type: "fix",
+                    guidance: fixMatch[1].trim(),
+                  });
+                }
+
+                const followupMatch = line.match(/\/agent-followup\b(.*)$/);
+                if (followupMatch) {
+                  commands.push({
+                    type: "followup",
+                    guidance: followupMatch[1].trim(),
+                  });
+                }
+              }
+
+              return commands;
+            }
+
+            function buildFixPrompt({ prNumber, prUrl, commentUrl, guidance }) {
+              const guidanceText = guidance
+                ? `Additional guidance: ${guidance}`
+                : "Additional guidance: none provided";
+
+              return [
+                "You are the PR review loop agent.",
+                "",
+                `Target PR: ${prUrl} (#${prNumber})`,
+                `Target review comment: ${commentUrl}`,
+                "",
+                "Task:",
+                "1) Read the PR diff and the referenced review comment carefully.",
+                "2) Plan the fix in pseudocode before coding.",
+                "3) Implement the minimal in-scope change needed to resolve the review feedback.",
+                "4) Update or add tests/docs if behavior changed.",
+                "5) Run relevant tests/checks and fix any failures.",
+                "6) Commit and push changes.",
+                "7) Reply in the PR with what changed and test evidence.",
+                "",
+                "Stop condition:",
+                "- If this request is out of scope for the PR, do not force it into this branch.",
+                "- Instead, create or request a follow-up issue/loop.",
+                "",
+                guidanceText,
+              ].join("\n");
+            }
+
+            function buildFollowupIssueBody({
+              prNumber,
+              prUrl,
+              commentUrl,
+              guidance,
+              sourceAuthor,
+            }) {
+              const requestedFollowup = guidance || "Please scope the follow-up from the linked review comment.";
+
+              return [
+                "## Follow-up loop request",
+                "",
+                `Origin PR: ${prUrl} (#${prNumber})`,
+                `Origin comment: ${commentUrl}`,
+                `Requested by: @${sourceAuthor}`,
+                "",
+                "### Suggested loop prompt",
+                "```text",
+                "You are the follow-up loop agent.",
+                "",
+                "Background:",
+                `- Origin PR: ${prUrl} (#${prNumber})`,
+                `- Origin comment: ${commentUrl}`,
+                "- Reason out of scope: review suggestion is valuable but exceeds current PR scope.",
+                "",
+                "Task:",
+                "1) Plan in detailed pseudocode first.",
+                "2) Implement on a new branch.",
+                "3) Add/update tests and docs.",
+                "4) Run relevant checks and fix failures.",
+                "5) Open a new PR and reference the origin PR/comment.",
+                "",
+                "Requested follow-up:",
+                requestedFollowup,
+                "```",
+              ].join("\n");
+            }
+
+            let bodyText = "";
+            let prNumber = null;
+            let commentUrl = "";
+            let sourceAuthor = "";
+            let sourceKind = "";
+            if (eventName === "issue_comment") {
+              if (!payload.issue?.pull_request) {
+                core.info("Ignoring issue comment that is not on a pull request.");
+                return;
+              }
+              bodyText = payload.comment?.body || "";
+              prNumber = payload.issue.number;
+              commentUrl = payload.comment?.html_url || payload.issue.html_url;
+              sourceAuthor = payload.comment?.user?.login || "unknown";
+              sourceKind = "PR comment";
+            } else if (eventName === "pull_request_review_comment") {
+              bodyText = payload.comment?.body || "";
+              prNumber = payload.pull_request.number;
+              commentUrl = payload.comment?.html_url || payload.pull_request.html_url;
+              sourceAuthor = payload.comment?.user?.login || "unknown";
+              sourceKind = "review line comment";
+            } else if (eventName === "pull_request_review") {
+              bodyText = payload.review?.body || "";
+              prNumber = payload.pull_request.number;
+              commentUrl = payload.review?.html_url || payload.pull_request.html_url;
+              sourceAuthor = payload.review?.user?.login || "unknown";
+              sourceKind = "review summary";
+            }
+
+            if (!prNumber) {
+              core.info("No PR number detected. Exiting.");
+              return;
+            }
+
+            if (
+              payload.sender?.type === "Bot" ||
+              sourceAuthor.endsWith("[bot]")
+            ) {
+              core.info("Ignoring bot-authored command source.");
+              return;
+            }
+
+            const commands = parseCommands(bodyText);
+            if (commands.length === 0) {
+              core.info("No /agent-fix or /agent-followup commands found.");
+              return;
+            }
+
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const prUrl = pr.data.html_url;
+            const commandSummary = commands.map((command) => command.type).join(", ");
+            core.info(`Parsed commands: ${commandSummary}`);
+
+            for (const command of commands) {
+              if (command.type === "fix") {
+                const prompt = buildFixPrompt({
+                  prNumber,
+                  prUrl,
+                  commentUrl,
+                  guidance: command.guidance,
+                });
+
+                const commentBody = [
+                  "### Agent loop prompt generated (`/agent-fix`)",
+                  "",
+                  `Source: ${sourceKind} by @${sourceAuthor}`,
+                  `Source link: ${commentUrl}`,
+                  "",
+                  "```text",
+                  prompt,
+                  "```",
+                ].join("\n");
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: commentBody,
+                });
+              }
+
+              if (command.type === "followup") {
+                const issueTitle = command.guidance
+                  ? `Follow-up from PR #${prNumber}: ${command.guidance.slice(0, 80)}`
+                  : `Follow-up from PR #${prNumber}`;
+                const issueBody = buildFollowupIssueBody({
+                  prNumber,
+                  prUrl,
+                  commentUrl,
+                  guidance: command.guidance,
+                  sourceAuthor,
+                });
+
+                const followupIssue = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueTitle,
+                  body: issueBody,
+                });
+
+                const prComment = [
+                  "### Follow-up loop issue created (`/agent-followup`)",
+                  "",
+                  `Source: ${sourceKind} by @${sourceAuthor}`,
+                  `Source link: ${commentUrl}`,
+                  "",
+                  `Created issue: #${followupIssue.data.number} (${followupIssue.data.html_url})`,
+                ].join("\n");
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: prComment,
+                });
+              }
+            }
+
+            core.info("Agent review loop routing complete.");

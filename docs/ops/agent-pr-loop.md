@@ -1,0 +1,130 @@
+# Agent Pull Request Loop (Cursor + GitHub)
+
+This runbook defines a repeatable agent loop for feature and bug delivery:
+
+1. Implement requested changes.
+2. Document code changes.
+3. Add/update tests.
+4. Run tests and fix failures.
+5. Open/update PR.
+6. Iterate on review feedback until no actionable comments remain.
+7. Route out-of-scope suggestions into a new loop.
+
+---
+
+## 1) One-time repository setup
+
+1. Keep CI required on pull requests (already present in `.github/workflows/ci.yml`).
+2. Add the review router workflow in this repo:
+   - `.github/workflows/agent-review-loop.yml`
+3. Add PR reviewer command guidance:
+   - `.github/PULL_REQUEST_TEMPLATE.md`
+4. Tell reviewers to use these commands in review comments:
+   - `/agent-fix <optional guidance>` for in-scope PR work.
+   - `/agent-followup <one-line follow-up prompt>` for out-of-scope but valuable work.
+
+---
+
+## 2) Primary implementation prompt (copy/paste into Cursor agent)
+
+```text
+You are the implementation loop agent for this repository.
+
+Goal: Implement the requested feature/bug end-to-end on a new branch and open/update a PR.
+
+Required execution contract:
+1) Read request + relevant code.
+2) Plan first in detailed pseudocode.
+3) Implement fully (no placeholders/TODOs unless explicitly requested).
+4) Add or update tests where appropriate.
+5) Run relevant tests/lint checks.
+6) Fix failures raised by tests/checks.
+7) Update docs/comments where needed for maintainability.
+8) Commit with clear message(s), push branch, create/update PR.
+9) Provide concise change summary and test evidence.
+
+Rules:
+- Prefer existing project patterns/components over introducing new abstractions.
+- Use readable, descriptive naming and early returns.
+- Keep changes scoped to the request.
+- If blocked, explain blocker and best fallback.
+
+Work request:
+<PASTE FEATURE OR BUG REQUEST HERE>
+```
+
+---
+
+## 3) Review-response loop prompt (generated per comment)
+
+Use this prompt when an actionable review comment exists (or from workflow-generated prompt comments):
+
+```text
+You are the PR review loop agent.
+
+Target PR: <PR_LINK_OR_NUMBER>
+Target review comment: <COMMENT_URL>
+
+Task:
+1) Read the PR diff + the referenced review comment.
+2) Plan fix in pseudocode before coding.
+3) Implement only what is needed to resolve the comment (unless tightly coupled updates are required).
+4) Update tests/docs if behavior changed.
+5) Run relevant tests/checks; fix any failures.
+6) Commit and push.
+7) Reply on PR with what changed + test evidence.
+
+Stop condition:
+- If the request is out of scope for this PR, do not force it in. Propose a follow-up loop prompt and link a new issue.
+```
+
+---
+
+## 4) Out-of-scope follow-up loop prompt
+
+Use this to start a new loop for review suggestions that should not expand the current PR:
+
+```text
+You are the follow-up loop agent.
+
+Background:
+- Origin PR: <PR_LINK_OR_NUMBER>
+- Origin comment: <COMMENT_URL>
+- Reason this is out of scope: <SHORT_REASON>
+
+Task:
+1) Convert the suggestion into a scoped implementation plan (pseudocode first).
+2) Implement on a new branch.
+3) Add/update tests and docs.
+4) Run relevant checks and resolve failures.
+5) Open a new PR that references the origin PR/comment.
+
+Requested follow-up:
+<PASTE SUGGESTION TEXT>
+```
+
+---
+
+## 5) Day-to-day operation
+
+1. Start with the **Primary implementation prompt**.
+2. Open PR.
+3. Reviewers leave normal comments plus either:
+   - `/agent-fix ...` for in-scope tasks.
+   - `/agent-followup ...` for out-of-scope tasks.
+4. Automation posts a ready-to-run loop prompt for `/agent-fix`.
+5. Automation creates a follow-up issue for `/agent-followup` with a ready prompt.
+6. Run Cursor agent with generated prompt until no actionable review items remain.
+7. Merge PR manually when ready.
+
+---
+
+## 6) Definition of done
+
+A PR is loop-complete when all are true:
+
+- No unresolved actionable review comments remain.
+- CI checks are green.
+- Requested scope is fully implemented and documented.
+- Tests relevant to touched behavior exist and pass.
+- Any out-of-scope review suggestions are captured as follow-up issue(s)/loop(s).
