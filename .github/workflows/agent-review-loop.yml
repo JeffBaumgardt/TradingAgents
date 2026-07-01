@@ -19,6 +19,7 @@ permissions:
   pull-requests: write
   checks: read
   statuses: read
+  actions: read
 
 jobs:
   kickoff-review-cycle:
