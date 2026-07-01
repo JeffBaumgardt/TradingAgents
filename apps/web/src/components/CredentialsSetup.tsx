@@ -1,8 +1,6 @@
 /**
  * @file apps/web/src/components/CredentialsSetup.tsx
- * First step of the web experience: collect provider API keys for the current
- * browser session. Only providers with supplied credentials appear later in
- * the analysis wizard.
+ * Collect provider API keys and persist them server-side (masked on read).
  */
 
 "use client";
@@ -12,7 +10,14 @@ import type {
   CredentialsSchemaResponse,
   ProviderCredentials,
 } from "@tradingagents/api-types";
-import { ApiClientError, fetchCredentialsSchema, resolveConfig } from "@/lib/api-client";
+import { SECRET_CREDENTIAL_PLACEHOLDER } from "@tradingagents/api-types";
+import {
+  ApiClientError,
+  fetchCredentialsSchema,
+  fetchUserCredentials,
+  resolveConfig,
+  saveUserCredentials,
+} from "@/lib/api-client";
 import { useUserSession } from "@/context/UserSessionContext";
 import styles from "./CredentialsSetup.module.css";
 
@@ -35,6 +40,13 @@ function countAvailableProviders(credentials: ProviderCredentials): number {
   }).length;
 }
 
+function hasStoredSecret(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  return value === SECRET_CREDENTIAL_PLACEHOLDER || /^\*+$/.test(value);
+}
+
 export default function CredentialsSetup({
   onSuccess,
   continueLabel = "Continue to analysis setup",
@@ -46,7 +58,6 @@ export default function CredentialsSetup({
   initialSchema?: CredentialsSchemaResponse;
 }) {
   const {
-    providerCredentials,
     setProviderCredentials,
     setCredentialsReady,
     setResolvedConfig,
@@ -56,8 +67,7 @@ export default function CredentialsSetup({
     setModelCatalogNote,
   } = useUserSession();
 
-  const [localCredentials, setLocalCredentials] =
-    useState<ProviderCredentials>(providerCredentials);
+  const [localCredentials, setLocalCredentials] = useState<ProviderCredentials>({});
   const [loading, setLoading] = useState(!initialSchema);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,18 +76,26 @@ export default function CredentialsSetup({
     if (initialSchema) {
       setCredentialDefinitions(initialSchema.providers);
       setModelCatalogNote(initialSchema.modelCatalogNote);
-      return;
     }
 
     let cancelled = false;
-    async function loadSchema() {
+
+    async function loadInitialData() {
       try {
-        const schema = await fetchCredentialsSchema();
+        const [schema, storedCredentials] = await Promise.all([
+          initialSchema ? Promise.resolve(initialSchema) : fetchCredentialsSchema(),
+          fetchUserCredentials(),
+        ]);
+
         if (cancelled) {
           return;
         }
-        setCredentialDefinitions(schema.providers);
-        setModelCatalogNote(schema.modelCatalogNote);
+
+        if (!initialSchema) {
+          setCredentialDefinitions(schema.providers);
+          setModelCatalogNote(schema.modelCatalogNote);
+        }
+        setLocalCredentials(storedCredentials);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -92,7 +110,8 @@ export default function CredentialsSetup({
         }
       }
     }
-    void loadSchema();
+
+    void loadInitialData();
     return () => {
       cancelled = true;
     };
@@ -123,14 +142,16 @@ export default function CredentialsSetup({
     setSubmitting(true);
     setError(null);
     try {
-      const resolved = await resolveConfig(localCredentials);
+      const savedCredentials = await saveUserCredentials(localCredentials);
+      const resolved = await resolveConfig();
       if (resolved.providers.length === 0) {
         setError("No providers are available with the credentials you entered.");
         return;
       }
-      setProviderCredentials(localCredentials);
+      setProviderCredentials(savedCredentials);
       setResolvedConfig(resolved);
       setCredentialsReady(true);
+      setLocalCredentials(savedCredentials);
       onSuccess?.();
     } catch (err) {
       setError(
@@ -153,8 +174,8 @@ export default function CredentialsSetup({
         <h2 className={styles.title}>Provider API Keys</h2>
         <p className="muted">
           Enter the API keys you have access to. Only matching providers and
-          models will appear in the analysis wizard. Keys stay in this browser
-          tab only — they are not saved.
+          models will appear in the analysis wizard. Keys are saved on the
+          server and never returned to the browser.
         </p>
         {modelCatalogNote ? (
           <p className={styles.note}>{modelCatalogNote}</p>
@@ -189,7 +210,10 @@ export default function CredentialsSetup({
                   return null;
                 }
 
+                const storedValue = values[field.name] ?? "";
                 const inputType = field.secret ? "password" : "text";
+                const isStoredSecret = field.secret && hasStoredSecret(storedValue);
+
                 return (
                   <label key={field.name} className={styles.field}>
                     <span>
@@ -198,8 +222,12 @@ export default function CredentialsSetup({
                     </span>
                     <input
                       type={inputType}
-                      value={values[field.name] ?? ""}
-                      placeholder={field.placeholder ?? undefined}
+                      value={storedValue}
+                      placeholder={
+                        isStoredSecret
+                          ? "Saved — enter a new value to replace"
+                          : (field.placeholder ?? undefined)
+                      }
                       autoComplete="off"
                       onChange={(event) =>
                         updateField(provider.id, field.name, event.target.value)

@@ -5,7 +5,7 @@
  * SQLite is used for local development; swap the driver for Postgres in production.
  */
 
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
 
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
@@ -32,6 +32,23 @@ export const events = sqliteTable("events", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+export const userCredentials = sqliteTable(
+  "user_credentials",
+  {
+    userId: text("user_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    fieldName: text("field_name").notNull(),
+    fieldValue: text("field_value").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.providerId, table.fieldName],
+    }),
+  ],
+);
+
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
 export type EventRow = typeof events.$inferSelect;
+export type UserCredentialRow = typeof userCredentials.$inferSelect;

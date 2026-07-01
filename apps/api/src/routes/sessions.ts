@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
+import { requireUserId, getRequestUserId } from "../middleware/user-context.js";
 import { getRunStreamUrl } from "../services/agents-client.js";
 import * as sessionService from "../services/session-service.js";
 
@@ -21,11 +22,12 @@ sessionRoutes.get("/sessions", async (c) => {
   return c.json(result);
 });
 
-sessionRoutes.post("/sessions", async (c) => {
+sessionRoutes.post("/sessions", requireUserId(), async (c) => {
   const body = (await c.req.json()) as CreateSessionRequest;
+  const userId = getRequestUserId(c);
 
   try {
-    const session = await sessionService.createSession(body);
+    const session = await sessionService.createSession(body, userId);
     return c.json(session, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request";

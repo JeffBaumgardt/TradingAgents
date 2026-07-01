@@ -3,6 +3,10 @@
  * Shared utilities for TradingAgents frontend, API gateway, and tooling.
  */
 
+import { SECRET_CREDENTIAL_PLACEHOLDER } from "@tradingagents/api-types";
+
+export { SECRET_CREDENTIAL_PLACEHOLDER };
+
 import type { AnalystType, ResearchDepth } from "@tradingagents/api-types";
 
 const TICKER_PATTERN = /^[A-Z0-9._^-]{1,32}$/i;
@@ -115,7 +119,7 @@ export {
   getReportSignalTone,
   type ReportSignal,
   type ReportSignalTone,
-} from "./report-signal";
+} from "./report-signal.js";
 
 /** Providers that show step 9 provider-specific config. */
 export const PROVIDERS_WITH_STEP9 = new Set(["google", "openai", "anthropic"]);

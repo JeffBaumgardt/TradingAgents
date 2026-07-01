@@ -1,7 +1,6 @@
 /**
  * @file apps/web/src/context/UserSessionContext.tsx
- * In-memory user session holding provider API keys for the current browser tab.
- * Keys are mirrored in sessionStorage (tab-scoped) but never sent to the database.
+ * Client session state for resolved provider config. API keys live server-side only.
  */
 
 "use client";
@@ -20,10 +19,9 @@ import type {
   ProviderCredentials,
   ProviderCredentialDefinition,
 } from "@tradingagents/api-types";
-import { resolveConfig } from "@/lib/api-client";
+import { fetchUserCredentials, resolveConfig } from "@/lib/api-client";
 
 const STORAGE_KEYS = {
-  credentials: "tradingagents:providerCredentials",
   ready: "tradingagents:credentialsReady",
 } as const;
 
@@ -44,21 +42,6 @@ interface UserSessionContextValue {
 
 const UserSessionContext = createContext<UserSessionContextValue | null>(null);
 
-function readStoredCredentials(): ProviderCredentials {
-  if (typeof window === "undefined") {
-    return {};
-  }
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEYS.credentials);
-    if (!raw) {
-      return {};
-    }
-    return JSON.parse(raw) as ProviderCredentials;
-  } catch {
-    return {};
-  }
-}
-
 function readStoredReady(): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -78,9 +61,6 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
 
   const setProviderCredentials = useCallback((credentials: ProviderCredentials) => {
     setProviderCredentialsState(credentials);
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(STORAGE_KEYS.credentials, JSON.stringify(credentials));
-    }
   }, []);
 
   const setCredentialsReady = useCallback((ready: boolean) => {
@@ -94,23 +74,28 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function hydrate() {
-      const storedCredentials = readStoredCredentials();
       const storedReady = readStoredReady();
-
-      if (Object.keys(storedCredentials).length > 0) {
-        setProviderCredentialsState(storedCredentials);
-      }
-
-      if (!storedReady || Object.keys(storedCredentials).length === 0) {
+      if (!storedReady) {
         setHydrating(false);
         return;
       }
 
       try {
-        const resolved = await resolveConfig(storedCredentials);
+        const [storedCredentials, resolved] = await Promise.all([
+          fetchUserCredentials(),
+          Promise.race([
+            resolveConfig(),
+            new Promise<never>((_, reject) => {
+              window.setTimeout(() => reject(new Error("Config resolve timed out")), 8000);
+            }),
+          ]),
+        ]);
+
         if (cancelled) {
           return;
         }
+
+        setProviderCredentialsState(storedCredentials);
         if (resolved.providers.length > 0) {
           setResolvedConfig(resolved);
           setCredentialsReadyState(true);
@@ -139,7 +124,6 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
     setCredentialsReadyState(false);
     setResolvedConfig(null);
     if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(STORAGE_KEYS.credentials);
       window.sessionStorage.removeItem(STORAGE_KEYS.ready);
     }
   }, []);

@@ -36,7 +36,7 @@ export default function CredentialsPageContent({
       </div>
       <h1 style={{ marginBottom: "0.25rem" }}>API Keys</h1>
       <p className="muted" style={{ marginTop: 0, marginBottom: "1.5rem" }}>
-        Keys stay in this browser tab only — they are never saved to the server.
+        Keys are stored securely on the server and never sent back to your browser.
       </p>
       <CredentialsSetup
         initialSchema={initialSchema}

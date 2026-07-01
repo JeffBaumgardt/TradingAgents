@@ -11,6 +11,7 @@ servers:
 tags:
   - name: health
   - name: config
+  - name: credentials
   - name: sessions
 paths:
   /health:
@@ -50,16 +51,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CredentialsSchemaResponse"
+  /credentials:
+    get:
+      tags: [credentials]
+      summary: Get stored credentials for the current user
+      description: |
+        Returns provider credential fields with secret values replaced by a
+        fixed placeholder. Real API keys are never included in the response.
+      operationId: getUserCredentials
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Masked stored credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoredCredentialsResponse"
+        "401":
+          description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [credentials]
+      summary: Save provider credentials for the current user
+      description: |
+        Writes credential values to the database. Submitting the secret
+        placeholder leaves an existing key unchanged. Responses always mask
+        secret fields.
+      operationId: saveUserCredentials
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveCredentialsRequest"
+      responses:
+        "200":
+          description: Saved credentials (masked)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoredCredentialsResponse"
+        "401":
+          description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /config/resolve:
     post:
       tags: [config]
       summary: Resolve config filtered by user credentials
       description: |
         Returns analysts, languages, and only the LLM providers for which
-        the caller supplied valid credentials. Keys are not stored.
+        the user has stored valid credentials. Secret keys are loaded
+        server-side and never returned.
       operationId: resolveConfig
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -278,6 +334,13 @@ components:
       schema:
         type: string
         format: uuid
+    UserIdHeader:
+      name: X-User-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Stable user identifier for credential scoping.
   schemas:
     HealthResponse:
       type: object
@@ -451,15 +514,17 @@ components:
           default: false
         providerCredentials:
           type: object
+          readOnly: true
           description: |
-            Per-provider API keys for the current browser session. Forwarded to
-            the agents-service for inference only; never persisted in the database.
+            Loaded server-side from stored user credentials. Clients must not
+            send secret API keys on session creation.
           additionalProperties:
             type: object
             additionalProperties:
               type: string
-    ResolveConfigRequest:
+    SaveCredentialsRequest:
       type: object
+      required: [providerCredentials]
       properties:
         providerCredentials:
           type: object
@@ -467,6 +532,22 @@ components:
             type: object
             additionalProperties:
               type: string
+    StoredCredentialsResponse:
+      type: object
+      required: [providerCredentials]
+      properties:
+        providerCredentials:
+          type: object
+          description: |
+            Secret fields contain a fixed placeholder (********) when a value
+            is stored. The real key is never returned.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+    ResolveConfigRequest:
+      type: object
+      description: Credentials are loaded from server storage; body is ignored.
     ProviderModelsRequest:
       type: object
       required: [mode]

@@ -10,7 +10,9 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
+import { credentialsRoutes } from "./routes/credentials.js";
 import { sessionRoutes } from "./routes/sessions.js";
+import "./types/hono.js";
 
 export function createApp() {
   const app = new Hono();
@@ -20,12 +22,14 @@ export function createApp() {
     "*",
     cors({
       origin: process.env.CORS_ORIGIN ?? "*",
-      allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowHeaders: ["Content-Type", "X-User-Id"],
     }),
   );
 
   app.route("/", healthRoutes);
   app.route("/", configRoutes);
+  app.route("/", credentialsRoutes);
   app.route("/", sessionRoutes);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
