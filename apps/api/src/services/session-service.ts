@@ -4,7 +4,6 @@
  * Session lifecycle management: persistence, validation, and event storage.
  */
 
-import { count, desc, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type {
   CreateSessionRequest,
@@ -21,8 +20,7 @@ import {
   validateResearchDepth,
   validateTicker,
 } from "@tradingagents/utils";
-import { db } from "../db/index.js";
-import { events, sessions, type SessionRow } from "../db/schema.js";
+import type { AppSupabaseClient, EventRow, SessionRow } from "../db/database.js";
 import * as agentsClient from "./agents-client.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 
@@ -31,13 +29,13 @@ function rowToSession(row: SessionRow): Session {
     id: row.id,
     status: row.status as SessionStatus,
     ticker: row.ticker,
-    analysisDate: row.analysisDate,
-    config: row.config as CreateSessionRequest,
-    runId: row.runId,
+    analysisDate: row.analysis_date,
+    config: row.config,
+    runId: row.run_id,
     error: row.error,
     decision: row.decision,
-    createdAt: new Date(row.createdAt).toISOString(),
-    updatedAt: new Date(row.updatedAt).toISOString(),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -113,10 +111,11 @@ export function validateCreateRequest(
 }
 
 export async function createSession(
+  client: AppSupabaseClient,
   body: CreateSessionRequest,
   userId: string,
 ): Promise<Session> {
-  const storedCredentials = await getUserCredentialsRaw(userId);
+  const storedCredentials = await getUserCredentialsRaw(client, userId);
   const validationError = validateCreateRequest(body, storedCredentials);
   if (validationError) {
     throw new Error(validationError);
@@ -128,147 +127,226 @@ export async function createSession(
     providerCredentials: storedCredentials,
   };
 
-  const { providerCredentials, ...persistedConfig } = normalized;
+  const { providerCredentials: _providerCredentials, ...persistedConfig } = normalized;
 
   const id = uuidv4();
-  const now = new Date();
+  const now = new Date().toISOString();
 
-  await db.insert(sessions).values({
+  const { error: insertError } = await client.from("sessions").insert({
     id,
     ticker: normalized.ticker,
-    analysisDate: normalized.analysisDate,
+    analysis_date: normalized.analysisDate,
     status: "pending",
     config: persistedConfig,
-    createdAt: now,
-    updatedAt: now,
+    created_at: now,
+    updated_at: now,
   });
+
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
 
   const { runId } = await agentsClient.startRun(id, normalized);
 
-  await db
-    .update(sessions)
-    .set({ runId, status: "running", updatedAt: new Date() })
-    .where(eq(sessions.id, id));
+  const { error: updateError } = await client
+    .from("sessions")
+    .update({ run_id: runId, status: "running", updated_at: new Date().toISOString() })
+    .eq("id", id);
 
-  const row = (
-    await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
-  )[0];
-  if (!row) {
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  const session = await getSession(client, id);
+  if (!session) {
     throw new Error("Failed to create session");
   }
-  return rowToSession(row);
+  return session;
 }
 
-export async function getSession(id: string): Promise<Session | null> {
-  const row = (
-    await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
-  )[0];
-  return row ? rowToSession(row) : null;
+export async function getSession(
+  client: AppSupabaseClient,
+  id: string,
+): Promise<Session | null> {
+  const { data, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? rowToSession(data as SessionRow) : null;
 }
 
 export async function listSessions(
+  client: AppSupabaseClient,
   limit = 20,
   offset = 0,
 ): Promise<SessionListResponse> {
-  const items = await db
-    .select()
-    .from(sessions)
-    .orderBy(desc(sessions.analysisDate), desc(sessions.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const { data: items, error, count } = await client
+    .from("sessions")
+    .select("*", { count: "exact" })
+    .order("analysis_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
-  const [totalRow] = await db.select({ value: count() }).from(sessions);
+  if (error) {
+    throw new Error(error.message);
+  }
 
   return {
-    items: items.map(rowToSession),
-    total: totalRow?.value ?? 0,
+    items: (items ?? []).map((row) => rowToSession(row as SessionRow)),
+    total: count ?? 0,
     limit,
     offset,
   };
 }
 
-export async function cancelSession(id: string): Promise<Session | null> {
-  const row = (
-    await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
-  )[0];
+export async function cancelSession(
+  client: AppSupabaseClient,
+  id: string,
+): Promise<Session | null> {
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
   if (!row) {
     return null;
   }
 
-  if (row.runId && row.status === "running") {
-    await agentsClient.cancelRun(row.runId);
+  const sessionRow = row as SessionRow;
+
+  if (sessionRow.run_id && sessionRow.status === "running") {
+    await agentsClient.cancelRun(sessionRow.run_id);
   }
 
-  await db
-    .update(sessions)
-    .set({ status: "cancelled", updatedAt: new Date() })
-    .where(eq(sessions.id, id));
+  const { error: updateError } = await client
+    .from("sessions")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", id);
 
-  return getSession(id);
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  return getSession(client, id);
 }
 
-export async function deleteSession(id: string): Promise<boolean> {
-  const row = (
-    await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
-  )[0];
+export async function deleteSession(
+  client: AppSupabaseClient,
+  id: string,
+): Promise<boolean> {
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
   if (!row) {
     return false;
   }
 
-  if (row.runId && row.status === "running") {
+  const sessionRow = row as SessionRow;
+
+  if (sessionRow.run_id && sessionRow.status === "running") {
     try {
-      await agentsClient.cancelRun(row.runId);
+      await agentsClient.cancelRun(sessionRow.run_id);
     } catch {
       // Best-effort cancel before removing persisted data.
     }
   }
 
-  await db.delete(events).where(eq(events.sessionId, id));
-  await db.delete(sessions).where(eq(sessions.id, id));
+  const { error: deleteEventsError } = await client
+    .from("events")
+    .delete()
+    .eq("session_id", id);
+
+  if (deleteEventsError) {
+    throw new Error(deleteEventsError.message);
+  }
+
+  const { error: deleteSessionError } = await client
+    .from("sessions")
+    .delete()
+    .eq("id", id);
+
+  if (deleteSessionError) {
+    throw new Error(deleteSessionError.message);
+  }
+
   return true;
 }
 
 export async function persistEvent(
+  client: AppSupabaseClient,
   sessionId: string,
   type: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  await db.insert(events).values({
-    sessionId,
+  const { error } = await client.from("events").insert({
+    session_id: sessionId,
     type,
     payload,
-    createdAt: new Date(),
+    created_at: new Date().toISOString(),
   });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function persistReportSection(
+  client: AppSupabaseClient,
   sessionId: string,
   section: string,
   content: string,
 ): Promise<void> {
-  const row = (
-    await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1)
-  )[0];
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
   if (!row) {
     return;
   }
 
+  const sessionRow = row as SessionRow;
   const sections = {
-    ...((row.reportSections as Record<string, string | null> | null) ?? {}),
+    ...(sessionRow.report_sections ?? {}),
     [section]: content,
   };
 
-  await db
-    .update(sessions)
-    .set({
-      reportSections: sections,
-      reportMarkdown: sectionsToMarkdown(sections),
-      updatedAt: new Date(),
+  const { error: updateError } = await client
+    .from("sessions")
+    .update({
+      report_sections: sections,
+      report_markdown: sectionsToMarkdown(sections),
+      updated_at: new Date().toISOString(),
     })
-    .where(eq(sessions.id, sessionId));
+    .eq("id", sessionId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
 }
 
 export async function markSessionCompleted(
+  client: AppSupabaseClient,
   sessionId: string,
   report: {
     markdown: string;
@@ -276,64 +354,86 @@ export async function markSessionCompleted(
     decision: string | null;
   },
 ): Promise<void> {
-  await db
-    .update(sessions)
-    .set({
+  const { error } = await client
+    .from("sessions")
+    .update({
       status: "completed",
-      reportMarkdown: report.markdown,
-      reportSections: report.sections,
+      report_markdown: report.markdown,
+      report_sections: report.sections,
       decision: report.decision,
-      updatedAt: new Date(),
+      updated_at: new Date().toISOString(),
     })
-    .where(eq(sessions.id, sessionId));
+    .eq("id", sessionId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function markSessionError(
+  client: AppSupabaseClient,
   sessionId: string,
   message: string,
 ): Promise<void> {
-  await db
-    .update(sessions)
-    .set({ status: "error", error: message, updatedAt: new Date() })
-    .where(eq(sessions.id, sessionId));
+  const { error } = await client
+    .from("sessions")
+    .update({
+      status: "error",
+      error: message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function getSessionReport(
+  client: AppSupabaseClient,
   id: string,
 ): Promise<SessionReport | "not_found" | "not_ready"> {
-  const row = (
-    await db.select().from(sessions).where(eq(sessions.id, id)).limit(1)
-  )[0];
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
   if (!row) {
     return "not_found";
   }
 
-  if (row.status === "completed" && row.reportMarkdown) {
+  const sessionRow = row as SessionRow;
+
+  if (sessionRow.status === "completed" && sessionRow.report_markdown) {
     return {
       sessionId: id,
-      markdown: row.reportMarkdown,
-      sections: (row.reportSections as Record<string, string | null>) ?? {},
-      decision: row.decision,
+      markdown: sessionRow.report_markdown,
+      sections: sessionRow.report_sections ?? {},
+      decision: sessionRow.decision,
     };
   }
 
-  const storedSections = (row.reportSections as Record<string, string | null> | null) ?? {};
+  const storedSections = sessionRow.report_sections ?? {};
   if (
-    row.status === "completed" &&
+    sessionRow.status === "completed" &&
     Object.values(storedSections).some((value) => Boolean(value))
   ) {
     return {
       sessionId: id,
       markdown: sectionsToMarkdown(storedSections),
       sections: storedSections,
-      decision: row.decision,
+      decision: sessionRow.decision,
     };
   }
 
-  if (row.runId && row.status === "running") {
+  if (sessionRow.run_id && sessionRow.status === "running") {
     try {
-      const report = await agentsClient.fetchRunReport(row.runId);
-      await markSessionCompleted(id, report);
+      const report = await agentsClient.fetchRunReport(sessionRow.run_id);
+      await markSessionCompleted(client, id, report);
       return {
         sessionId: id,
         markdown: report.markdown,
@@ -348,10 +448,19 @@ export async function getSessionReport(
   return "not_ready";
 }
 
-export async function getStoredEvents(sessionId: string) {
-  return db
-    .select()
-    .from(events)
-    .where(eq(events.sessionId, sessionId))
-    .orderBy(events.id);
+export async function getStoredEvents(
+  client: AppSupabaseClient,
+  sessionId: string,
+): Promise<EventRow[]> {
+  const { data, error } = await client
+    .from("events")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("id", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as EventRow[];
 }

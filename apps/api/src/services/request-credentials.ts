@@ -7,6 +7,7 @@
 
 import type { Context } from "hono";
 import type { ProviderCredentials } from "@tradingagents/api-types";
+import { getSupabaseAdmin } from "../db/client.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 
 export async function resolveRequestCredentials(
@@ -17,7 +18,7 @@ export async function resolveRequestCredentials(
     return null;
   }
 
-  return getUserCredentialsRaw(userId);
+  return getUserCredentialsRaw(getSupabaseAdmin(c), userId);
 }
 
 export async function requireRequestCredentials(c: Context): Promise<ProviderCredentials> {

@@ -2,13 +2,14 @@
  * apps/api/src/routes/sessions.ts
  *
  * Session CRUD, report retrieval, and SSE streaming endpoints.
- * Streams proxy the Python agents-service while persisting events to SQLite.
+ * Streams proxy the Python agents-service while persisting events to Supabase.
  */
 
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
+import { getSupabaseAdmin } from "../db/client.js";
 import { requireUserId, getRequestUserId } from "../middleware/user-context.js";
 import { getRunStreamUrl } from "../services/agents-client.js";
 import * as sessionService from "../services/session-service.js";
@@ -18,16 +19,18 @@ export const sessionRoutes = new Hono();
 sessionRoutes.get("/sessions", async (c) => {
   const limit = Number(c.req.query("limit") ?? "20");
   const offset = Number(c.req.query("offset") ?? "0");
-  const result = await sessionService.listSessions(limit, offset);
+  const client = getSupabaseAdmin(c);
+  const result = await sessionService.listSessions(client, limit, offset);
   return c.json(result);
 });
 
 sessionRoutes.post("/sessions", requireUserId(), async (c) => {
   const body = (await c.req.json()) as CreateSessionRequest;
   const userId = getRequestUserId(c);
+  const client = getSupabaseAdmin(c);
 
   try {
-    const session = await sessionService.createSession(body, userId);
+    const session = await sessionService.createSession(client, body, userId);
     return c.json(session, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request";
@@ -36,7 +39,8 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id", async (c) => {
-  const session = await sessionService.getSession(c.req.param("id"));
+  const client = getSupabaseAdmin(c);
+  const session = await sessionService.getSession(client, c.req.param("id"));
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
   }
@@ -44,7 +48,8 @@ sessionRoutes.get("/sessions/:id", async (c) => {
 });
 
 sessionRoutes.delete("/sessions/:id", async (c) => {
-  const deleted = await sessionService.deleteSession(c.req.param("id"));
+  const client = getSupabaseAdmin(c);
+  const deleted = await sessionService.deleteSession(client, c.req.param("id"));
   if (!deleted) {
     return c.json({ error: "Session not found" }, 404);
   }
@@ -53,7 +58,8 @@ sessionRoutes.delete("/sessions/:id", async (c) => {
 
 sessionRoutes.get("/sessions/:id/report", async (c) => {
   const id = c.req.param("id");
-  const report = await sessionService.getSessionReport(id);
+  const client = getSupabaseAdmin(c);
+  const report = await sessionService.getSessionReport(client, id);
 
   if (report === "not_found") {
     return c.json({ error: "Session not found" }, 404);
@@ -67,7 +73,8 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
 
 sessionRoutes.get("/sessions/:id/stream", async (c) => {
   const id = c.req.param("id");
-  const session = await sessionService.getSession(id);
+  const client = getSupabaseAdmin(c);
+  const session = await sessionService.getSession(client, id);
 
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
@@ -78,7 +85,7 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
   }
 
   return streamSSE(c, async (stream) => {
-    const stored = await sessionService.getStoredEvents(id);
+    const stored = await sessionService.getStoredEvents(client, id);
     for (const event of stored) {
       await stream.writeSSE({
         event: event.type,
@@ -137,7 +144,7 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
 
         try {
           const payload = JSON.parse(dataLine) as Record<string, unknown>;
-          await sessionService.persistEvent(id, eventType, payload);
+          await sessionService.persistEvent(client, id, eventType, payload);
 
           if (eventType === "report.section") {
             const section =
@@ -145,14 +152,14 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
             const content =
               typeof payload.content === "string" ? payload.content : null;
             if (section && content) {
-              await sessionService.persistReportSection(id, section, content);
+              await sessionService.persistReportSection(client, id, section, content);
             }
           }
 
           if (eventType === "run.completed") {
-            const report = await sessionService.getSessionReport(id);
+            const report = await sessionService.getSessionReport(client, id);
             if (report !== "not_found" && report !== "not_ready") {
-              await sessionService.markSessionCompleted(id, {
+              await sessionService.markSessionCompleted(client, id, {
                 markdown: report.markdown,
                 sections: report.sections,
                 decision: report.decision,
@@ -165,10 +172,10 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
               typeof payload.message === "string"
                 ? payload.message
                 : "Run failed";
-            await sessionService.markSessionError(id, message);
+            await sessionService.markSessionError(client, id, message);
           }
         } catch {
-          await sessionService.persistEvent(id, eventType, { raw: dataLine });
+          await sessionService.persistEvent(client, id, eventType, { raw: dataLine });
         }
       }
     }

@@ -6,6 +6,7 @@
 
 import { Hono } from "hono";
 import type { ProviderCredentials } from "@tradingagents/api-types";
+import { getSupabaseAdmin } from "../db/client.js";
 import { getRequestUserId, requireUserId } from "../middleware/user-context.js";
 import {
   getUserCredentialsMasked,
@@ -18,7 +19,8 @@ credentialsRoutes.use("*", requireUserId());
 
 credentialsRoutes.get("/credentials", async (c) => {
   const userId = getRequestUserId(c);
-  const credentials = await getUserCredentialsMasked(userId);
+  const client = getSupabaseAdmin(c);
+  const credentials = await getUserCredentialsMasked(client, userId);
   return c.json({ providerCredentials: credentials });
 });
 
@@ -27,8 +29,10 @@ credentialsRoutes.put("/credentials", async (c) => {
   const body = (await c.req.json()) as {
     providerCredentials?: ProviderCredentials;
   };
+  const client = getSupabaseAdmin(c);
 
   const credentials = await saveUserCredentials(
+    client,
     userId,
     body.providerCredentials ?? {},
   );

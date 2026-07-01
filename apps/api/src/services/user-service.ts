@@ -4,10 +4,8 @@
  * Clerk-backed user records. The user id is the Clerk user id (user_xxx).
  */
 
-import { eq } from "drizzle-orm";
 import type { UpdateUserRequest, User } from "@tradingagents/api-types";
-import { db } from "../db/index.js";
-import { users, type UserRow } from "../db/schema.js";
+import type { AppSupabaseClient, UserRow } from "../db/database.js";
 
 export interface UpsertUserInput {
   id: string;
@@ -21,76 +19,107 @@ function rowToUser(row: UserRow): User {
   return {
     id: row.id,
     email: row.email,
-    firstName: row.firstName,
-    lastName: row.lastName,
-    imageUrl: row.imageUrl,
-    createdAt: new Date(row.createdAt).toISOString(),
-    updatedAt: new Date(row.updatedAt).toISOString(),
+    firstName: row.first_name,
+    lastName: row.last_name,
+    imageUrl: row.image_url,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
-export async function getUserById(id: string): Promise<User | null> {
-  const row = (await db.select().from(users).where(eq(users.id, id)).limit(1))[0];
+export async function getUserById(
+  client: AppSupabaseClient,
+  id: string,
+): Promise<User | null> {
+  const { data, error } = await client
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row = data as UserRow | null;
   return row ? rowToUser(row) : null;
 }
 
-export async function upsertUser(input: UpsertUserInput): Promise<User> {
-  const now = new Date();
-  const existing = (
-    await db.select().from(users).where(eq(users.id, input.id)).limit(1)
-  )[0];
+export async function upsertUser(
+  client: AppSupabaseClient,
+  input: UpsertUserInput,
+): Promise<User> {
+  const now = new Date().toISOString();
+  const { data: existing, error: existingError } = await client
+    .from("users")
+    .select("*")
+    .eq("id", input.id)
+    .maybeSingle();
 
-  if (existing) {
-    const nextEmail = input.email !== undefined ? input.email : existing.email;
-    const nextFirstName =
-      input.firstName !== undefined ? input.firstName : existing.firstName;
-    const nextLastName =
-      input.lastName !== undefined ? input.lastName : existing.lastName;
-    const nextImageUrl =
-      input.imageUrl !== undefined ? input.imageUrl : existing.imageUrl;
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
 
-    await db
-      .update(users)
-      .set({
-        email: nextEmail,
-        firstName: nextFirstName,
-        lastName: nextLastName,
-        imageUrl: nextImageUrl,
-        updatedAt: now,
+  const existingRow = existing as UserRow | null;
+
+  if (existingRow) {
+    const { error } = await client
+      .from("users")
+      .update({
+        email: input.email !== undefined ? input.email : existingRow.email,
+        first_name:
+          input.firstName !== undefined ? input.firstName : existingRow.first_name,
+        last_name:
+          input.lastName !== undefined ? input.lastName : existingRow.last_name,
+        image_url:
+          input.imageUrl !== undefined ? input.imageUrl : existingRow.image_url,
+        updated_at: now,
       })
-      .where(eq(users.id, input.id));
+      .eq("id", input.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   } else {
-    await db.insert(users).values({
+    const { error } = await client.from("users").insert({
       id: input.id,
       email: input.email ?? null,
-      firstName: input.firstName ?? null,
-      lastName: input.lastName ?? null,
-      imageUrl: input.imageUrl ?? null,
-      createdAt: now,
-      updatedAt: now,
+      first_name: input.firstName ?? null,
+      last_name: input.lastName ?? null,
+      image_url: input.imageUrl ?? null,
+      created_at: now,
+      updated_at: now,
     });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
-  const row = (await db.select().from(users).where(eq(users.id, input.id)).limit(1))[0];
-  if (!row) {
+  const user = await getUserById(client, input.id);
+  if (!user) {
     throw new Error("Failed to upsert user");
   }
-  return rowToUser(row);
+  return user;
 }
 
-export async function ensureUser(id: string): Promise<User> {
-  const existing = await getUserById(id);
+export async function ensureUser(
+  client: AppSupabaseClient,
+  id: string,
+): Promise<User> {
+  const existing = await getUserById(client, id);
   if (existing) {
     return existing;
   }
-  return upsertUser({ id });
+  return upsertUser(client, { id });
 }
 
 export async function updateUserProfile(
+  client: AppSupabaseClient,
   id: string,
   profile: UpdateUserRequest,
 ): Promise<User> {
-  return upsertUser({
+  return upsertUser(client, {
     id,
     email: profile.email,
     firstName: profile.firstName,
@@ -99,15 +128,19 @@ export async function updateUserProfile(
   });
 }
 
-export async function deleteUser(id: string): Promise<boolean> {
-  const existing = (
-    await db.select().from(users).where(eq(users.id, id)).limit(1)
-  )[0];
+export async function deleteUser(
+  client: AppSupabaseClient,
+  id: string,
+): Promise<boolean> {
+  const existing = await getUserById(client, id);
   if (!existing) {
     return false;
   }
 
-  await db.delete(users).where(eq(users.id, id));
+  const { error } = await client.from("users").delete().eq("id", id);
+  if (error) {
+    throw new Error(error.message);
+  }
   return true;
 }
 
