@@ -5,22 +5,27 @@
  * SQLite is used for local development; swap the driver for Postgres in production.
  */
 
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
 
-export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey(),
-  ticker: text("ticker").notNull(),
-  analysisDate: text("analysis_date").notNull(),
-  status: text("status").notNull(),
-  config: text("config", { mode: "json" }).notNull(),
-  runId: text("run_id"),
-  reportMarkdown: text("report_markdown"),
-  reportSections: text("report_sections", { mode: "json" }),
-  decision: text("decision"),
-  error: text("error"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-});
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id"),
+    ticker: text("ticker").notNull(),
+    analysisDate: text("analysis_date").notNull(),
+    status: text("status").notNull(),
+    config: text("config", { mode: "json" }).notNull(),
+    runId: text("run_id"),
+    reportMarkdown: text("report_markdown"),
+    reportSections: text("report_sections", { mode: "json" }),
+    decision: text("decision"),
+    error: text("error"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("idx_sessions_user_id").on(table.userId)],
+);
 
 export const events = sqliteTable("events", {
   id: integer("id").primaryKey({ autoIncrement: true }),

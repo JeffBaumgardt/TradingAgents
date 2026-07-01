@@ -7,12 +7,13 @@
 
 import type { Context } from "hono";
 import type { ProviderCredentials } from "@tradingagents/api-types";
+import { getRequestUserId } from "../middleware/user-context.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 
 export async function resolveRequestCredentials(
   c: Context,
 ): Promise<ProviderCredentials | null> {
-  const userId = c.req.header("X-User-Id")?.trim();
+  const userId = c.get("userId") as string | undefined;
   if (!userId) {
     return null;
   }
@@ -21,6 +22,7 @@ export async function resolveRequestCredentials(
 }
 
 export async function requireRequestCredentials(c: Context): Promise<ProviderCredentials> {
+  getRequestUserId(c);
   const credentials = await resolveRequestCredentials(c);
   if (!credentials || Object.keys(credentials).length === 0) {
     throw new Error("No stored credentials found for this user");

@@ -135,6 +135,7 @@ export interface CreateSessionRequest {
 
 export interface Session {
   id: string;
+  userId?: string | null;
   status: SessionStatus;
   ticker: string;
   analysisDate: string;

@@ -1,13 +1,7 @@
 /**
  * @file apps/web/src/lib/user-id.ts
- * Helpers for attaching the Clerk user id to API requests.
+ * Deprecated: user identity is derived from verified Clerk JWTs on the API.
+ * Kept as a re-export for any remaining imports during migration.
  */
 
-import { getCurrentUserId } from "@/lib/auth-user-store";
-
-export function buildUserIdHeader(userId: string | null = getCurrentUserId()): HeadersInit {
-  if (!userId) {
-    return {};
-  }
-  return { "X-User-Id": userId };
-}
+export { buildAuthHeaders, getCurrentUserId, requireCurrentUserId } from "@/lib/auth-user-store";

@@ -5,6 +5,7 @@
  */
 
 import "server-only";
+import { auth } from "@clerk/nextjs/server";
 import type {
   CredentialsSchemaResponse,
   Session,
@@ -15,6 +16,15 @@ import { API_BASE } from "@/lib/api-client";
 const SESSIONS_REVALIDATE_SECONDS = 15;
 const CREDENTIALS_SCHEMA_REVALIDATE_SECONDS = 3600;
 const SERVER_FETCH_TIMEOUT_MS = 5000;
+
+async function buildServerAuthHeaders(): Promise<HeadersInit> {
+  const { getToken } = await auth();
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+  return { Authorization: `Bearer ${token}` };
+}
 
 async function fetchWithTimeout(
   input: string,
@@ -57,6 +67,7 @@ export async function fetchSessionsServer(
     offset: String(offset),
   });
   const response = await fetchWithTimeout(`${API_BASE}/sessions?${params.toString()}`, {
+    headers: await buildServerAuthHeaders(),
     next: { revalidate: SESSIONS_REVALIDATE_SECONDS },
   });
   return parseJson<SessionListResponse>(response);
@@ -65,6 +76,7 @@ export async function fetchSessionsServer(
 /** Fetch session metadata for run page shell (short cache). */
 export async function fetchSessionServer(sessionId: string): Promise<Session> {
   const response = await fetchWithTimeout(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: await buildServerAuthHeaders(),
     next: { revalidate: SESSIONS_REVALIDATE_SECONDS },
   });
   return parseJson<Session>(response);

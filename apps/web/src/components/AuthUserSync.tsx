@@ -8,15 +8,16 @@
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useEffect, useRef } from "react";
 import { syncCurrentUser } from "@/lib/api-client";
-import { setCurrentUserId } from "@/lib/auth-user-store";
+import { setCurrentUserId, setTokenGetter } from "@/lib/auth-user-store";
 
 export default function AuthUserSync() {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const { user } = useUser();
   const syncedForUserId = useRef<string | null>(null);
 
   if (isLoaded) {
     setCurrentUserId(isSignedIn && userId ? userId : null);
+    setTokenGetter(isSignedIn ? () => getToken() : null);
   }
 
   useEffect(() => {
