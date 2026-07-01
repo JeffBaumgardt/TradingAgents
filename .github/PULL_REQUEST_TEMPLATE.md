@@ -6,7 +6,7 @@
 
 - [ ] This PR is intentionally scoped to a single feature/bug.
 - [ ] Out-of-scope improvements discovered during review should be routed to follow-up issues.
-- [ ] Owner plain-English change requests can be treated as in-scope fix-loop input unless marked out-of-scope.
+- [ ] Plain-English (non-bot) change requests can be treated as in-scope fix-loop input unless marked out-of-scope.
 
 ## Testing
 
@@ -28,3 +28,6 @@ Use these commands in review comments to trigger automation:
   - Use for useful but out-of-scope changes that should spawn a new loop/issue.
 - `/agent-ready`
   - Ask the orchestrator to approve if checks are green and review threads are resolved.
+
+Automation note:
+- If the `CI` workflow fails on this PR, the orchestrator will auto-post a fix-loop prompt with failed job links.

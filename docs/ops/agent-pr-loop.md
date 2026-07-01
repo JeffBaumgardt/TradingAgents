@@ -25,8 +25,10 @@ This runbook defines a repeatable agent loop for feature and bug delivery when y
    - `/agent-fix <optional guidance>` run an in-scope fix cycle on current PR branch.
    - `/agent-followup <one-line follow-up prompt>` create a new follow-up loop issue.
    - `/agent-ready` request approval gate check and auto-approval by orchestrator.
-5. Owner shortcut:
-   - Plain-English PR comments by the repo owner that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
+5. Plain-language shortcut:
+   - Non-bot PR comments/reviews that look like work requests are auto-routed into fix prompts (for example, “switch provider from XYZ to ABC and update tests”).
+6. Failing CI shortcut:
+   - A failed `CI` run on a PR automatically posts a fix-loop prompt with failed job links.
 
 ---
 
@@ -118,13 +120,14 @@ Requested follow-up:
 3. Orchestrator auto-posts a reviewer cycle prompt on every PR update.
 4. Reviewer agent(s) leave comments/reviews with actionable findings.
 5. Loop agent consumes feedback and updates the branch.
-6. If you leave a plain-English PR comment with a change request, orchestrator converts it into a fix-loop prompt automatically.
+6. Plain-English feedback comments are converted into fix-loop prompts automatically.
 7. Use `/agent-followup ...` for valuable but out-of-scope feedback.
-8. After fixes are done, agent posts `/agent-ready`.
-9. Orchestrator approves only when:
+8. If CI fails, orchestrator also posts an automatic fix prompt for the failure run.
+9. After fixes are done, agent posts `/agent-ready`.
+10. Orchestrator approves only when:
    - all checks are green, and
    - there are no unresolved review threads.
-10. You merge manually.
+11. You merge manually.
 
 ---
 

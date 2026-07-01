@@ -3,6 +3,9 @@ name: Agent PR Loop Orchestrator
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -71,6 +74,120 @@ jobs:
               body: commentBody,
             });
 
+  ci-failure-loop-prompt:
+    name: Post fix prompt for failing CI
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - name: Publish loop prompt for failed CI runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            if (!run) {
+              core.info("No workflow_run payload.");
+              return;
+            }
+
+            if (run.name !== "CI") {
+              core.info(`Skipping workflow_run with unexpected name: ${run.name}`);
+              return;
+            }
+
+            const prRefs = run.pull_requests || [];
+            if (prRefs.length === 0) {
+              core.info("No pull requests attached to failing CI run.");
+              return;
+            }
+
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+
+            const failedJobs = (jobs.data.jobs || []).filter(
+              (job) => job.conclusion === "failure"
+            );
+            const failedJobLines =
+              failedJobs.length > 0
+                ? failedJobs.map((job) => `- ${job.name}: ${job.html_url}`)
+                : ["- CI run failed but no individual failed jobs were enumerated."];
+
+            for (const prRef of prRefs) {
+              const prNumber = prRef.number;
+
+              const pr = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+
+              if (pr.data.state !== "open") {
+                core.info(`Skipping closed PR #${prNumber}.`);
+                continue;
+              }
+
+              const marker = `<!-- agent-ci-failure-run:${run.id}:pr:${prNumber} -->`;
+              const existingComments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                per_page: 100,
+              });
+
+              const alreadyPosted = existingComments.data.some((comment) =>
+                (comment.body || "").includes(marker)
+              );
+              if (alreadyPosted) {
+                core.info(`Failure prompt already posted for run ${run.id} on PR #${prNumber}.`);
+                continue;
+              }
+
+              const fixPrompt = [
+                "You are the PR loop implementation agent.",
+                "",
+                `Target PR: ${pr.data.html_url} (#${prNumber})`,
+                `Failing CI run: ${run.html_url}`,
+                "",
+                "Task:",
+                "1) Inspect the failing CI jobs and identify root cause(s).",
+                "2) Plan the fix in pseudocode before coding.",
+                "3) Implement minimal, correct changes.",
+                "4) Add/update tests if behavior changed.",
+                "5) Run relevant checks locally.",
+                "6) Commit and push to the same PR branch.",
+                "7) Reply with what changed and evidence.",
+                "8) If all clear, post `/agent-review` (or `/agent-ready` if no concerns remain).",
+              ].join("\n");
+
+              const commentBody = [
+                "### CI failure detected (auto)",
+                "",
+                `A failing CI run was detected and this fix-loop prompt was generated automatically.`,
+                "",
+                `Failing run: ${run.html_url}`,
+                "",
+                "Failed jobs:",
+                ...failedJobLines,
+                "",
+                "```text",
+                fixPrompt,
+                "```",
+                marker,
+              ].join("\n");
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+            }
+
   route-loop-events:
     name: Route fix/follow-up/review/ready events
     runs-on: ubuntu-latest
@@ -85,7 +202,6 @@ jobs:
           script: |
             const eventName = context.eventName;
             const payload = context.payload;
-            const ownerLogin = context.repo.owner.toLowerCase();
 
             function parseCommands(bodyText) {
               if (!bodyText || !bodyText.trim()) {
@@ -437,19 +553,25 @@ jobs:
             const sourceAuthorLower = sourceAuthor.toLowerCase();
 
             if (commands.length === 0) {
-              const isOwnerPlainComment =
-                eventName === "issue_comment" &&
-                sourceAuthorLower === ownerLogin &&
-                looksLikeWorkRequest(bodyText);
-
+              const reviewState = (payload.review?.state || "").toLowerCase();
+              const reviewCanTriggerImplicitFix =
+                eventName !== "pull_request_review" ||
+                reviewState === "commented" ||
+                reviewState === "changes_requested";
               const isChangesRequestedReview =
                 eventName === "pull_request_review" &&
-                (payload.review?.state || "").toLowerCase() === "changes_requested";
+                reviewState === "changes_requested";
+              const isPlainLanguageFixRequest =
+                reviewCanTriggerImplicitFix &&
+                looksLikeWorkRequest(bodyText) &&
+                !sourceAuthorLower.endsWith("[bot]");
 
-              if (isOwnerPlainComment) {
+              if (isPlainLanguageFixRequest) {
                 commands.push({
                   type: "fix",
-                  guidance: bodyText.trim(),
+                  guidance:
+                    bodyText.trim() ||
+                    "Address the linked feedback request and update tests/docs as needed.",
                   implicit: true,
                 });
               } else if (isChangesRequestedReview) {
@@ -485,7 +607,7 @@ jobs:
                 });
 
                 const heading = command.implicit
-                  ? "### Agent loop prompt generated from owner/review feedback"
+                  ? "### Agent loop prompt generated from plain-language feedback"
                   : "### Agent loop prompt generated (`/agent-fix`)";
 
                 const commentBody = [
