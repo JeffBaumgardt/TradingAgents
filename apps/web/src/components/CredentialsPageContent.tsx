@@ -12,7 +12,7 @@ import CredentialsSetup from "@/components/CredentialsSetup";
 import { useUserSession } from "@/context/UserSessionContext";
 
 interface CredentialsPageContentProps {
-  initialSchema: CredentialsSchemaResponse;
+  initialSchema?: CredentialsSchemaResponse;
 }
 
 export default function CredentialsPageContent({

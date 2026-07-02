@@ -79,7 +79,7 @@ Exit `0` = skip build. Exit `1` = build. Adjust if you add shared packages the w
 
 | Variable | Example | Required | Notes |
 |----------|---------|----------|-------|
-| `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` | **Yes** | Public API origin — no trailing slash |
+| `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` | **Yes** | Public API origin — include `https://`, no trailing slash |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` / `pk_test_…` | **Yes** | From Clerk → API Keys |
 | `CLERK_SECRET_KEY` | `sk_live_…` / `sk_test_…` | **Yes** | Server-side Clerk (middleware, SSE route) |
 
@@ -91,6 +91,26 @@ Copy from `apps/web/.env.local.example`. Do **not** add LLM provider keys here �
 |----------|----------------------------------|
 | **Simplest (today)** | Same as production API |
 | **Isolated staging** | Separate staging API URL |
+
+---
+
+## Troubleshooting
+
+### `Missing publishableKey` during build
+
+Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` on Vercel for **Production**, **Preview**, and **Development**, then redeploy. The name must include the `NEXT_PUBLIC_` prefix.
+
+### `Failed to parse URL` / `ERR_INVALID_URL` during build
+
+`NEXT_PUBLIC_API_URL` must be a valid absolute URL. Include the protocol:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api-production-xxxx.up.railway.app
+```
+
+### `Application not found` during build
+
+Railway returns this when `NEXT_PUBLIC_API_URL` points at a domain with no deployed service. The web build must **not** call the API at build time — ensure you have the latest `apps/web` (credentials page uses `force-dynamic`). Even then, set the correct Railway API URL before testing the live app.
 
 ---
 

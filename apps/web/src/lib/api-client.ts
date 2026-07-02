@@ -22,8 +22,21 @@ import type {
 } from "@tradingagents/api-types";
 import { buildAuthHeaders } from "@/lib/auth-headers";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
+function resolveApiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!raw) {
+    return "http://localhost:4000";
+  }
+
+  const withoutTrailingSlash = raw.replace(/\/$/, "");
+  if (/^https?:\/\//i.test(withoutTrailingSlash)) {
+    return withoutTrailingSlash;
+  }
+
+  return `https://${withoutTrailingSlash}`;
+}
+
+const API_BASE = resolveApiBase();
 
 export class ApiClientError extends Error {
   status: number;
