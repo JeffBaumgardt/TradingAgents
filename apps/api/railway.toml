@@ -1,0 +1,15 @@
+# Railway config for the API gateway service.
+# In the Railway dashboard: Root Directory = repo root (/),
+# Config file path = apps/api/railway.toml
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "apps/api/Dockerfile"
+
+[deploy]
+# Runtime image has no pnpm — use Node directly (matches Dockerfile CMD).
+startCommand = "node dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

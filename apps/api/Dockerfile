@@ -22,10 +22,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm --filter @tradingagents/api build
 
-FROM base AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=4000
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/node_modules ./node_modules

@@ -48,6 +48,7 @@ See `apps/api/.env.example` for a full template. Database schema and migrations 
 
 - [Architecture](../architecture.md) — system design and Python/TypeScript split
 - **[Vercel deployment (web)](./vercel.md)** — project settings, env vars, Clerk, checklist
+- **[Railway deployment (API + agents)](./railway.md)** — Docker services, env vars, troubleshooting
 - [API deployment](./apps/api.md)
 - [Web deployment (AWS)](./apps/web.md)
 - [Agents service deployment](./apps/agents-service.md)
