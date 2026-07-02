@@ -3,7 +3,8 @@
 # TypeScript API gateway for TradingAgents.
 
 FROM node:20-alpine AS base
-RUN corepack enable
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 FROM base AS deps
 WORKDIR /app
@@ -13,7 +14,7 @@ COPY packages/api-types/package.json ./packages/api-types/
 COPY packages/supabase/package.json ./packages/supabase/
 COPY packages/utils/package.json ./packages/utils/
 COPY packages/typescript-config/package.json ./packages/typescript-config/
-RUN pnpm install --filter @tradingagents/api...
+RUN pnpm install --frozen-lockfile --filter @tradingagents/api...
 
 FROM base AS builder
 WORKDIR /app

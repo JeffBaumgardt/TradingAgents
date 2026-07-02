@@ -6,10 +6,15 @@
 import { auth } from "@clerk/nextjs/server";
 import { API_BASE } from "@/lib/api-client";
 
+/** Analysis runs can last minutes; requires Vercel Pro (Hobby limit ~10s). */
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _request: Request,
-  context: { params: { sessionId: string } },
+  context: { params: Promise<{ sessionId: string }> },
 ): Promise<Response> {
+  const { sessionId } = await context.params;
   const { getToken } = await auth();
   const token = await getToken();
   if (!token) {
@@ -17,7 +22,7 @@ export async function GET(
   }
 
   const upstream = await fetch(
-    `${API_BASE}/sessions/${encodeURIComponent(context.params.sessionId)}/stream`,
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/stream`,
     {
       headers: { Authorization: `Bearer ${token}` },
     },
