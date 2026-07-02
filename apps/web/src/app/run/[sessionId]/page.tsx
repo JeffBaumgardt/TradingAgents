@@ -9,9 +9,9 @@ import RunViewSkeleton from "@/components/RunViewSkeleton";
 import { fetchSessionServer } from "@/lib/api-server";
 
 interface RunPageProps {
-  params: {
+  params: Promise<{
     sessionId: string;
-  };
+  }>;
 }
 
 async function RunPageContent({ sessionId }: { sessionId: string }) {
@@ -25,10 +25,11 @@ async function RunPageContent({ sessionId }: { sessionId: string }) {
   return <RunView sessionId={sessionId} initialSession={initialSession} />;
 }
 
-export default function RunPage({ params }: RunPageProps) {
+export default async function RunPage({ params }: RunPageProps) {
+  const { sessionId } = await params;
   return (
     <Suspense fallback={<RunViewSkeleton />}>
-      <RunPageContent sessionId={params.sessionId} />
+      <RunPageContent sessionId={sessionId} />
     </Suspense>
   );
 }

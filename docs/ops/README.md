@@ -47,7 +47,8 @@ See `apps/api/.env.example` for a full template. Database schema and migrations 
 ## Documentation map
 
 - [Architecture](../architecture.md) — system design and Python/TypeScript split
+- **[Vercel deployment (web)](./vercel.md)** — project settings, env vars, Clerk, checklist
 - [API deployment](./apps/api.md)
-- [Web deployment](./apps/web.md)
+- [Web deployment (AWS)](./apps/web.md)
 - [Agents service deployment](./apps/agents-service.md)
 - [Agent PR loop](./agent-pr-loop.md) — Cursor + GitHub review/fix iteration workflow
