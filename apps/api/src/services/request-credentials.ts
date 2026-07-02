@@ -7,14 +7,17 @@
 
 import type { Context } from "hono";
 import type { ProviderCredentials } from "@tradingagents/api-types";
-import { getSupabaseAdmin } from "../db/client.js";
+import { getSupabaseAdmin } from "@tradingagents/supabase";
+import { getRequestUserId } from "../middleware/user-context.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 
 export async function resolveRequestCredentials(
   c: Context,
 ): Promise<ProviderCredentials | null> {
-  const userId = c.req.header("X-User-Id")?.trim();
-  if (!userId) {
+  let userId: string;
+  try {
+    userId = getRequestUserId(c);
+  } catch {
     return null;
   }
 

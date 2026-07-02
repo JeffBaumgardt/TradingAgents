@@ -36,7 +36,7 @@ docker compose up --build
 - `SUPABASE_JWKS_URL` — JWKS endpoint for JWT verification (`auth: 'user'`)
 - `CORS_ORIGIN` — allowed browser origin
 
-See `apps/api/.env.example` for a full template.
+See `apps/api/.env.example` for a full template. Database schema and migrations live in `packages/supabase/supabase/`.
 
 ### Agents service (`apps/agents-service`)
 

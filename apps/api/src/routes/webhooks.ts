@@ -6,7 +6,7 @@
 
 import { verifyWebhook } from "@clerk/backend/webhooks";
 import { Hono } from "hono";
-import { getSupabaseAdmin } from "../db/client.js";
+import { getSupabaseAdmin } from "@tradingagents/supabase";
 import {
   deleteUser,
   primaryEmailFromClerkUser,

@@ -2,7 +2,13 @@
  * In-memory Supabase client for unit tests.
  */
 
-import type { AppSupabaseClient, EventRow, SessionRow, UserCredentialRow, UserRow } from "../db/database.js";
+import type {
+  AppSupabaseClient,
+  EventRow,
+  SessionRow,
+  UserCredentialRow,
+  UserRow,
+} from "../database.js";
 
 function credentialKey(userId: string, providerId: string, fieldName: string): string {
   return `${userId}:${providerId}:${fieldName}`;
@@ -213,6 +219,21 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 if (existing) {
                   sessions.set(String(value), { ...existing, ...values });
                 }
+              } else if (table === "user_credentials") {
+                for (const [key, row] of credentials.entries()) {
+                  if (rowValue(row as unknown as Record<string, unknown>, column) === value) {
+                    const nextRow = { ...row, ...values } as UserCredentialRow;
+                    credentials.delete(key);
+                    credentials.set(
+                      credentialKey(
+                        nextRow.user_id,
+                        nextRow.provider_id,
+                        nextRow.field_name,
+                      ),
+                      nextRow,
+                    );
+                  }
+                }
               }
               return Promise.resolve(ok(null));
             },
@@ -227,7 +248,10 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 sessions.delete(String(value));
               } else if (table === "events") {
                 for (let index = events.length - 1; index >= 0; index -= 1) {
-                  if (rowValue(events[index] as unknown as Record<string, unknown>, column) === value) {
+                  if (
+                    rowValue(events[index] as unknown as Record<string, unknown>, column) ===
+                    value
+                  ) {
                     events.splice(index, 1);
                   }
                 }

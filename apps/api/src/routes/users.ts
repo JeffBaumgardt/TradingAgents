@@ -6,7 +6,7 @@
 
 import { Hono } from "hono";
 import type { UpdateUserRequest } from "@tradingagents/api-types";
-import { getSupabaseAdmin } from "../db/client.js";
+import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { getRequestUserId, requireUserId } from "../middleware/user-context.js";
 import {
   ensureUser,

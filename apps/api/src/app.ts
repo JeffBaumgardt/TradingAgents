@@ -5,8 +5,7 @@
  * Mounts health, config, and session routes defined in the OpenAPI spec.
  */
 
-import { withSupabase } from "@supabase/server/adapters/hono";
-import { AuthError } from "@supabase/server";
+import { AuthError, withSupabase } from "@tradingagents/supabase/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -22,7 +21,7 @@ import "./types/hono.js";
 type AppEnv = {
   Variables: {
     userId: string;
-    supabaseContext: import("@supabase/server").SupabaseContext;
+    supabaseContext: import("@tradingagents/supabase/server").SupabaseContext;
   };
 };
 
@@ -35,19 +34,19 @@ export function createApp() {
     cors({
       origin: process.env.CORS_ORIGIN ?? "*",
       allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization", "apikey", "X-User-Id"],
+      allowHeaders: ["Content-Type", "Authorization", "apikey"],
     }),
   );
 
   // Provides ctx.supabase (RLS-scoped) and ctx.supabaseAdmin on every request.
-  // Routes use supabaseAdmin with existing Clerk / X-User-Id auth until Supabase JWT auth is wired up.
+  // Protected routes verify Clerk session tokens via requireUserId().
   app.use("*", withSupabase({ auth: "none" }));
 
   app.route("/", healthRoutes);
   app.route("/", configRoutes);
+  app.route("/", webhookRoutes);
   app.route("/", credentialsRoutes);
   app.route("/", userRoutes);
-  app.route("/", webhookRoutes);
   app.route("/", sessionRoutes);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));

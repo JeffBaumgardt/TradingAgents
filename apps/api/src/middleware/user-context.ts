@@ -1,21 +1,77 @@
 /**
  * apps/api/src/middleware/user-context.ts
  *
- * Associates requests with a caller user id via the X-User-Id header.
- * The web client generates and persists this id locally until auth is added.
+ * Resolves the caller from a verified Clerk session token (Authorization header).
+ * The web app obtains the token via Clerk's getToken(); cookies are not sent
+ * cross-origin to the API on a separate port.
  */
 
+import { verifyToken } from "@clerk/backend";
+import {
+  TokenVerificationError,
+  TokenVerificationErrorReason,
+} from "@clerk/backend/errors";
 import type { Context, Next } from "hono";
+import {
+  extractBearerToken,
+  getClerkAuthorizedParties,
+} from "../clerk-client.js";
+
+async function verifySessionToken(token: string) {
+  const verifyOptions: Parameters<typeof verifyToken>[1] = {
+    secretKey: process.env.CLERK_SECRET_KEY,
+    authorizedParties: getClerkAuthorizedParties(),
+  };
+
+  if (process.env.CLERK_JWT_KEY) {
+    verifyOptions.jwtKey = process.env.CLERK_JWT_KEY;
+  }
+
+  try {
+    return await verifyToken(token, verifyOptions);
+  } catch (error) {
+    if (
+      process.env.NODE_ENV !== "production" &&
+      error instanceof TokenVerificationError &&
+      error.reason === TokenVerificationErrorReason.TokenInvalidAuthorizedParties
+    ) {
+      console.warn(
+        "Clerk token azp did not match authorized parties",
+        verifyOptions.authorizedParties,
+        "- retrying without authorizedParties in development",
+      );
+      const { authorizedParties: _ignored, ...withoutParties } = verifyOptions;
+      return verifyToken(token, withoutParties);
+    }
+    throw error;
+  }
+}
 
 export function requireUserId() {
   return async (c: Context, next: Next) => {
-    const userId = c.req.header("X-User-Id")?.trim();
-    if (!userId) {
-      return c.json({ error: "Missing X-User-Id header" }, 401);
+    const token = extractBearerToken(c.req.header("Authorization"));
+    if (!token) {
+      return c.json({ error: "Unauthorized" }, 401);
     }
 
-    c.set("userId", userId);
-    await next();
+    try {
+      const payload = await verifySessionToken(token);
+      const userId = payload.sub;
+      if (!userId) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      c.set("userId", userId);
+      await next();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const reason =
+        error && typeof error === "object" && "reason" in error
+          ? String(error.reason)
+          : "unknown";
+      console.error("Clerk token verification failed:", reason, message);
+      return c.json({ error: "Unauthorized" }, 401);
+    }
   };
 }
 

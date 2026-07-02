@@ -22,15 +22,12 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.4
         version: 1.19.14(hono@4.12.27)
-      '@supabase/server':
-        specifier: ^1.2.0
-        version: 1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.27)
-      '@supabase/supabase-js':
-        specifier: ^2.110.0
-        version: 2.110.0
       '@tradingagents/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
+      '@tradingagents/supabase':
+        specifier: workspace:*
+        version: link:../../packages/supabase
       '@tradingagents/utils':
         specifier: workspace:*
         version: link:../../packages/utils
@@ -114,6 +111,28 @@ importers:
       typescript-eslint:
         specifier: ^8.33.0
         version: 8.62.0(eslint@9.39.4)(typescript@5.9.3)
+
+  packages/supabase:
+    dependencies:
+      '@supabase/server':
+        specifier: ^1.2.0
+        version: 1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.27)
+      '@supabase/supabase-js':
+        specifier: ^2.110.0
+        version: 2.110.0
+      '@tradingagents/api-types':
+        specifier: workspace:*
+        version: link:../api-types
+    devDependencies:
+      '@tradingagents/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      hono:
+        specifier: ^4.7.11
+        version: 4.12.27
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
 
   packages/typescript-config: {}
 

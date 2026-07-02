@@ -9,6 +9,7 @@ export type AppSupabaseClient = SupabaseClient;
 
 export interface SessionRow {
   id: string;
+  user_id: string | null;
   ticker: string;
   analysis_date: string;
   status: string;

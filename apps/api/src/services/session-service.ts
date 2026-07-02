@@ -20,13 +20,14 @@ import {
   validateResearchDepth,
   validateTicker,
 } from "@tradingagents/utils";
-import type { AppSupabaseClient, EventRow, SessionRow } from "../db/database.js";
+import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
 import * as agentsClient from "./agents-client.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 
 function rowToSession(row: SessionRow): Session {
   return {
     id: row.id,
+    userId: row.user_id,
     status: row.status as SessionStatus,
     ticker: row.ticker,
     analysisDate: row.analysis_date,
@@ -37,6 +38,10 @@ function rowToSession(row: SessionRow): Session {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function isSessionOwnedByUser(row: SessionRow, userId: string): boolean {
+  return row.user_id === userId;
 }
 
 function sectionsToMarkdown(sections: Record<string, string | null>): string {
@@ -134,6 +139,7 @@ export async function createSession(
 
   const { error: insertError } = await client.from("sessions").insert({
     id,
+    user_id: userId,
     ticker: normalized.ticker,
     analysis_date: normalized.analysisDate,
     status: "pending",
@@ -157,7 +163,7 @@ export async function createSession(
     throw new Error(updateError.message);
   }
 
-  const session = await getSession(client, id);
+  const session = await getSession(client, id, userId);
   if (!session) {
     throw new Error("Failed to create session");
   }
@@ -167,6 +173,7 @@ export async function createSession(
 export async function getSession(
   client: AppSupabaseClient,
   id: string,
+  userId?: string,
 ): Promise<Session | null> {
   const { data, error } = await client
     .from("sessions")
@@ -178,17 +185,28 @@ export async function getSession(
     throw new Error(error.message);
   }
 
-  return data ? rowToSession(data as SessionRow) : null;
+  if (!data) {
+    return null;
+  }
+
+  const row = data as SessionRow;
+  if (userId && !isSessionOwnedByUser(row, userId)) {
+    return null;
+  }
+
+  return rowToSession(row);
 }
 
 export async function listSessions(
   client: AppSupabaseClient,
+  userId: string,
   limit = 20,
   offset = 0,
 ): Promise<SessionListResponse> {
   const { data: items, error, count } = await client
     .from("sessions")
     .select("*", { count: "exact" })
+    .eq("user_id", userId)
     .order("analysis_date", { ascending: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -208,6 +226,7 @@ export async function listSessions(
 export async function cancelSession(
   client: AppSupabaseClient,
   id: string,
+  userId?: string,
 ): Promise<Session | null> {
   const { data: row, error } = await client
     .from("sessions")
@@ -223,6 +242,9 @@ export async function cancelSession(
   }
 
   const sessionRow = row as SessionRow;
+  if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
+    return null;
+  }
 
   if (sessionRow.run_id && sessionRow.status === "running") {
     await agentsClient.cancelRun(sessionRow.run_id);
@@ -237,12 +259,13 @@ export async function cancelSession(
     throw new Error(updateError.message);
   }
 
-  return getSession(client, id);
+  return getSession(client, id, userId);
 }
 
 export async function deleteSession(
   client: AppSupabaseClient,
   id: string,
+  userId?: string,
 ): Promise<boolean> {
   const { data: row, error } = await client
     .from("sessions")
@@ -258,6 +281,9 @@ export async function deleteSession(
   }
 
   const sessionRow = row as SessionRow;
+  if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
+    return false;
+  }
 
   if (sessionRow.run_id && sessionRow.status === "running") {
     try {
@@ -392,6 +418,7 @@ export async function markSessionError(
 export async function getSessionReport(
   client: AppSupabaseClient,
   id: string,
+  userId?: string,
 ): Promise<SessionReport | "not_found" | "not_ready"> {
   const { data: row, error } = await client
     .from("sessions")
@@ -407,6 +434,9 @@ export async function getSessionReport(
   }
 
   const sessionRow = row as SessionRow;
+  if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
+    return "not_found";
+  }
 
   if (sessionRow.status === "completed" && sessionRow.report_markdown) {
     return {

@@ -7,7 +7,7 @@
 
 import type { ProviderCredentials } from "@tradingagents/api-types";
 import { SECRET_CREDENTIAL_PLACEHOLDER } from "@tradingagents/api-types";
-import type { AppSupabaseClient, UserCredentialRow } from "../db/database.js";
+import type { AppSupabaseClient, UserCredentialRow } from "@tradingagents/supabase";
 
 const SECRET_FIELD_NAMES = new Set(["apiKey"]);
 

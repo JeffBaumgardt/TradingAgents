@@ -1,4 +1,4 @@
-import type { SupabaseContext } from "@supabase/server";
+import type { SupabaseContext } from "@tradingagents/supabase/server";
 import type { Context } from "hono";
 
 declare module "hono" {

@@ -2,6 +2,7 @@
 
 create table if not exists public.sessions (
   id text primary key,
+  user_id text references public.users (id),
   ticker text not null,
   analysis_date text not null,
   status text not null,
@@ -14,6 +15,8 @@ create table if not exists public.sessions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists idx_sessions_user_id on public.sessions (user_id);
 
 create table if not exists public.events (
   id bigserial primary key,

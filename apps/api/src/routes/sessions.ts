@@ -2,29 +2,32 @@
  * apps/api/src/routes/sessions.ts
  *
  * Session CRUD, report retrieval, and SSE streaming endpoints.
- * Streams proxy the Python agents-service while persisting events to Supabase.
+ * All routes require a verified Clerk session and are scoped to the owner.
  */
 
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
-import { getSupabaseAdmin } from "../db/client.js";
+import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { requireUserId, getRequestUserId } from "../middleware/user-context.js";
 import { getRunStreamUrl } from "../services/agents-client.js";
 import * as sessionService from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
 
+sessionRoutes.use("*", requireUserId());
+
 sessionRoutes.get("/sessions", async (c) => {
+  const userId = getRequestUserId(c);
   const limit = Number(c.req.query("limit") ?? "20");
   const offset = Number(c.req.query("offset") ?? "0");
   const client = getSupabaseAdmin(c);
-  const result = await sessionService.listSessions(client, limit, offset);
+  const result = await sessionService.listSessions(client, userId, limit, offset);
   return c.json(result);
 });
 
-sessionRoutes.post("/sessions", requireUserId(), async (c) => {
+sessionRoutes.post("/sessions", async (c) => {
   const body = (await c.req.json()) as CreateSessionRequest;
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
@@ -39,8 +42,9 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id", async (c) => {
+  const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
-  const session = await sessionService.getSession(client, c.req.param("id"));
+  const session = await sessionService.getSession(client, c.req.param("id"), userId);
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
   }
@@ -48,8 +52,9 @@ sessionRoutes.get("/sessions/:id", async (c) => {
 });
 
 sessionRoutes.delete("/sessions/:id", async (c) => {
+  const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
-  const deleted = await sessionService.deleteSession(client, c.req.param("id"));
+  const deleted = await sessionService.deleteSession(client, c.req.param("id"), userId);
   if (!deleted) {
     return c.json({ error: "Session not found" }, 404);
   }
@@ -57,9 +62,10 @@ sessionRoutes.delete("/sessions/:id", async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id/report", async (c) => {
+  const userId = getRequestUserId(c);
   const id = c.req.param("id");
   const client = getSupabaseAdmin(c);
-  const report = await sessionService.getSessionReport(client, id);
+  const report = await sessionService.getSessionReport(client, id, userId);
 
   if (report === "not_found") {
     return c.json({ error: "Session not found" }, 404);
@@ -72,9 +78,10 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
 });
 
 sessionRoutes.get("/sessions/:id/stream", async (c) => {
+  const userId = getRequestUserId(c);
   const id = c.req.param("id");
   const client = getSupabaseAdmin(c);
-  const session = await sessionService.getSession(client, id);
+  const session = await sessionService.getSession(client, id, userId);
 
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
@@ -157,7 +164,7 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
           }
 
           if (eventType === "run.completed") {
-            const report = await sessionService.getSessionReport(client, id);
+            const report = await sessionService.getSessionReport(client, id, userId);
             if (report !== "not_found" && report !== "not_ready") {
               await sessionService.markSessionCompleted(client, id, {
                 markdown: report.markdown,

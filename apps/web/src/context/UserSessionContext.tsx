@@ -43,13 +43,6 @@ interface UserSessionContextValue {
 
 const UserSessionContext = createContext<UserSessionContextValue | null>(null);
 
-function readStoredReady(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return window.sessionStorage.getItem(STORAGE_KEYS.ready) === "true";
-}
-
 export function UserSessionProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const [providerCredentials, setProviderCredentialsState] = useState<ProviderCredentials>({});
@@ -73,20 +66,19 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !userId) {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!isSignedIn || !userId) {
       setHydrating(false);
       return;
     }
 
     let cancelled = false;
+    setHydrating(true);
 
     async function hydrate() {
-      const storedReady = readStoredReady();
-      if (!storedReady) {
-        setHydrating(false);
-        return;
-      }
-
       try {
         const [storedCredentials, resolved] = await Promise.all([
           fetchUserCredentials(),
@@ -103,15 +95,23 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
         }
 
         setProviderCredentialsState(storedCredentials);
-        if (resolved.providers.length > 0) {
+        const ready = resolved.providers.length > 0;
+        setCredentialsReadyState(ready);
+        if (ready) {
           setResolvedConfig(resolved);
-          setCredentialsReadyState(true);
         } else {
-          setCredentialsReadyState(false);
+          setResolvedConfig(null);
+        }
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(STORAGE_KEYS.ready, ready ? "true" : "false");
         }
       } catch {
         if (!cancelled) {
           setCredentialsReadyState(false);
+          setResolvedConfig(null);
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(STORAGE_KEYS.ready, "false");
+          }
         }
       } finally {
         if (!cancelled) {

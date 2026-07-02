@@ -1,0 +1,31 @@
+{
+  "name": "@tradingagents/supabase",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./test": "./src/test/in-memory-supabase.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "db:start": "supabase start --workdir .",
+    "db:stop": "supabase stop --workdir .",
+    "db:reset": "supabase db reset --workdir ."
+  },
+  "dependencies": {
+    "@supabase/server": "^1.2.0",
+    "@supabase/supabase-js": "^2.110.0",
+    "@tradingagents/api-types": "workspace:*"
+  },
+  "peerDependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tradingagents/typescript-config": "workspace:*",
+    "hono": "^4.7.11",
+    "typescript": "^5.8.3"
+  }
+}

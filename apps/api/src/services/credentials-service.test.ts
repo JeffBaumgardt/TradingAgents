@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { SECRET_CREDENTIAL_PLACEHOLDER } from "@tradingagents/api-types";
-import { createInMemorySupabase } from "../test/in-memory-supabase.js";
+import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import {
   getUserCredentialsMasked,
   getUserCredentialsRaw,
