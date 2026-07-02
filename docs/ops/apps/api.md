@@ -7,7 +7,7 @@ TypeScript Hono service on port 4000. Proxies analysis runs to the Python agents
 **Why ECS/Fargate over Lambda**
 
 - SSE streaming (`GET /sessions/{id}/stream`) requires long-lived connections
-- SQLite (dev) should be replaced with RDS Postgres or Aurora in production
+- Session persistence uses Supabase Postgres (`@supabase/server` + `@supabase/supabase-js`)
 - Low operational overhead compared to managing EC2
 
 ### Architecture
@@ -15,7 +15,7 @@ TypeScript Hono service on port 4000. Proxies analysis runs to the Python agents
 ```
 Internet → ALB → ECS Service (api) → ECS Service (agents-service)
                       ↓
-                 RDS Postgres
+                 Supabase Postgres
 ```
 
 ### Task definition highlights
@@ -24,7 +24,7 @@ Internet → ALB → ECS Service (api) → ECS Service (agents-service)
 - **Health check**: `GET /health`
 - **Environment**:
   - `AGENTS_SERVICE_URL=http://agents-service.internal:8000`
-  - `DATABASE_URL=postgres://...` (when Postgres driver is configured)
+  - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_JWKS_URL`
   - `CORS_ORIGIN=https://app.example.com`
 
 ### Alternative: Lambda + API Gateway

@@ -6,6 +6,7 @@
 
 import { Hono } from "hono";
 import type { UpdateUserRequest } from "@tradingagents/api-types";
+import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { getRequestUserId, requireUserId } from "../middleware/user-context.js";
 import {
   ensureUser,
@@ -19,14 +20,16 @@ userRoutes.use("*", requireUserId());
 
 userRoutes.get("/users/me", async (c) => {
   const userId = getRequestUserId(c);
-  const user = await ensureUser(userId);
+  const client = getSupabaseAdmin(c);
+  const user = await ensureUser(client, userId);
   return c.json(user);
 });
 
 userRoutes.put("/users/me", async (c) => {
   const userId = getRequestUserId(c);
   const body = (await c.req.json()) as UpdateUserRequest;
-  const user = await updateUserProfile(userId, body);
+  const client = getSupabaseAdmin(c);
+  const user = await updateUserProfile(client, userId, body);
   return c.json(user);
 });
 
@@ -37,7 +40,8 @@ userRoutes.get("/users/:id", async (c) => {
     return c.json({ error: "Forbidden" }, 403);
   }
 
-  const user = await getUserById(id);
+  const client = getSupabaseAdmin(c);
+  const user = await getUserById(client, id);
   if (!user) {
     return c.json({ error: "User not found" }, 404);
   }

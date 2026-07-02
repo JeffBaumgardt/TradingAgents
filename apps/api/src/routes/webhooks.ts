@@ -1,11 +1,12 @@
 /**
  * apps/api/src/routes/webhooks.ts
  *
- * Clerk webhook handler for user lifecycle sync into SQLite.
+ * Clerk webhook handler for user lifecycle sync into Supabase.
  */
 
 import { verifyWebhook } from "@clerk/backend/webhooks";
 import { Hono } from "hono";
+import { getSupabaseAdmin } from "@tradingagents/supabase";
 import {
   deleteUser,
   primaryEmailFromClerkUser,
@@ -25,9 +26,11 @@ webhookRoutes.post("/webhooks/clerk", async (c) => {
     return c.json({ error: "Webhook verification failed" }, 400);
   }
 
+  const client = getSupabaseAdmin(c);
+
   if (event.type === "user.created" || event.type === "user.updated") {
     const { id, first_name, last_name, image_url } = event.data;
-    await upsertUser({
+    await upsertUser(client, {
       id,
       email: primaryEmailFromClerkUser(event.data),
       firstName: first_name,
@@ -39,7 +42,7 @@ webhookRoutes.post("/webhooks/clerk", async (c) => {
   if (event.type === "user.deleted") {
     const id = event.data.id;
     if (id) {
-      await deleteUser(id);
+      await deleteUser(client, id);
     }
   }
 

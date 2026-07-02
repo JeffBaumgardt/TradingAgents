@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/AuthUserSync.tsx
- * Keeps the in-memory user id and API user row in sync with Clerk.
+ * Keeps the API user row in sync with Clerk and registers the session token getter.
  */
 
 "use client";
@@ -8,17 +8,14 @@
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useEffect, useRef } from "react";
 import { syncCurrentUser } from "@/lib/api-client";
-import { setCurrentUserId, setTokenGetter } from "@/lib/auth-user-store";
+import { setClerkTokenGetter } from "@/lib/auth-headers";
 
 export default function AuthUserSync() {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const { user } = useUser();
   const syncedForUserId = useRef<string | null>(null);
 
-  if (isLoaded) {
-    setCurrentUserId(isSignedIn && userId ? userId : null);
-    setTokenGetter(isSignedIn ? () => getToken() : null);
-  }
+  setClerkTokenGetter(() => getToken());
 
   useEffect(() => {
     if (!isLoaded) {

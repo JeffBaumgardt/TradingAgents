@@ -48,15 +48,14 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    env_file:
+      - .env
     environment:
       - PORT=4000
       - AGENTS_SERVICE_URL=http://agents-service:8000
-      - DATABASE_PATH=/data/tradingagents-api.db
       - CORS_ORIGIN=http://localhost:3000
     ports:
       - "4000:4000"
-    volumes:
-      - api_data:/data
     depends_on:
       - agents-service
 
@@ -88,5 +87,4 @@ services:
 volumes:
   tradingagents_data:
   ollama_data:
-  api_data:
   postgres_data:

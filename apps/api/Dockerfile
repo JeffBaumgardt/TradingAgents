@@ -10,6 +10,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/api-types/package.json ./packages/api-types/
+COPY packages/supabase/package.json ./packages/supabase/
 COPY packages/utils/package.json ./packages/utils/
 COPY packages/typescript-config/package.json ./packages/typescript-config/
 RUN pnpm install --filter @tradingagents/api...

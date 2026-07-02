@@ -20,7 +20,7 @@ import type {
   UpdateUserRequest,
   User,
 } from "@tradingagents/api-types";
-import { buildAuthHeaders, requireCurrentUserId } from "@/lib/auth-user-store";
+import { buildAuthHeaders } from "@/lib/auth-headers";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:4000";
@@ -35,12 +35,17 @@ export class ApiClientError extends Error {
   }
 }
 
+async function buildUserHeaders(): Promise<HeadersInit> {
+  return buildAuthHeaders();
+}
+
 /** Ensure the API has a user row and sync Clerk profile fields. */
 export async function syncCurrentUser(
   _userId: string,
   profile: UpdateUserRequest,
 ): Promise<User> {
   const authHeaders = await buildAuthHeaders();
+
   await fetch(`${API_BASE}/users/me`, {
     headers: authHeaders,
     cache: "no-store",
@@ -50,16 +55,12 @@ export async function syncCurrentUser(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...(await buildAuthHeaders()),
+      ...authHeaders,
     },
     body: JSON.stringify(profile),
     cache: "no-store",
   });
   return parseJson<User>(updateResponse);
-}
-
-export function getApiUserId(): string {
-  return requireCurrentUserId();
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -87,7 +88,7 @@ export async function fetchCredentialsSchema(): Promise<CredentialsSchemaRespons
 /** Load stored credentials (secret fields are masked). */
 export async function fetchUserCredentials(): Promise<ProviderCredentials> {
   const response = await fetch(`${API_BASE}/credentials`, {
-    headers: await buildAuthHeaders(),
+    headers: await buildUserHeaders(),
     cache: "no-store",
   });
   const body = await parseJson<StoredCredentialsResponse>(response);
@@ -102,7 +103,7 @@ export async function saveUserCredentials(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...(await buildAuthHeaders()),
+      ...(await buildUserHeaders()),
     },
     body: JSON.stringify({ providerCredentials }),
     cache: "no-store",
@@ -117,7 +118,7 @@ export async function resolveConfig(): Promise<ResolvedConfigResponse> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(await buildAuthHeaders()),
+      ...(await buildUserHeaders()),
     },
     body: JSON.stringify({}),
     cache: "no-store",
@@ -144,7 +145,7 @@ export async function fetchProviderModels(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(await buildAuthHeaders()),
+        ...(await buildUserHeaders()),
       },
       body: JSON.stringify({ mode }),
       cache: "no-store",
@@ -160,7 +161,7 @@ export async function createSession(config: CreateSessionRequest): Promise<Sessi
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(await buildAuthHeaders()),
+      ...(await buildUserHeaders()),
     },
     body: JSON.stringify(payload),
   });

@@ -5,11 +5,9 @@
  * returned from read paths — callers receive a fixed placeholder instead.
  */
 
-import { eq } from "drizzle-orm";
 import type { ProviderCredentials } from "@tradingagents/api-types";
 import { SECRET_CREDENTIAL_PLACEHOLDER } from "@tradingagents/api-types";
-import { db } from "../db/index.js";
-import { userCredentials } from "../db/schema.js";
+import type { AppSupabaseClient, UserCredentialRow } from "@tradingagents/supabase";
 
 const SECRET_FIELD_NAMES = new Set(["apiKey"]);
 
@@ -59,14 +57,14 @@ export function isSecretPlaceholder(value: string): boolean {
 }
 
 function rowsToProviderCredentials(
-  rows: Array<{ providerId: string; fieldName: string; fieldValue: string }>,
+  rows: Array<{ provider_id: string; field_name: string; field_value: string }>,
 ): ProviderCredentials {
   const credentials: ProviderCredentials = {};
 
   for (const row of rows) {
-    credentials[row.providerId] = {
-      ...(credentials[row.providerId] ?? {}),
-      [row.fieldName]: row.fieldValue,
+    credentials[row.provider_id] = {
+      ...(credentials[row.provider_id] ?? {}),
+      [row.field_name]: row.field_value,
     };
   }
 
@@ -94,26 +92,37 @@ function maskSecretFields(credentials: ProviderCredentials): ProviderCredentials
   return masked;
 }
 
-export async function getUserCredentialsRaw(userId: string): Promise<ProviderCredentials> {
-  const rows = await db
-    .select()
-    .from(userCredentials)
-    .where(eq(userCredentials.userId, userId));
+export async function getUserCredentialsRaw(
+  client: AppSupabaseClient,
+  userId: string,
+): Promise<ProviderCredentials> {
+  const { data, error } = await client
+    .from("user_credentials")
+    .select("provider_id, field_name, field_value")
+    .eq("user_id", userId);
 
-  return rowsToProviderCredentials(rows);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return rowsToProviderCredentials((data ?? []) as UserCredentialRow[]);
 }
 
-export async function getUserCredentialsMasked(userId: string): Promise<ProviderCredentials> {
-  const raw = await getUserCredentialsRaw(userId);
+export async function getUserCredentialsMasked(
+  client: AppSupabaseClient,
+  userId: string,
+): Promise<ProviderCredentials> {
+  const raw = await getUserCredentialsRaw(client, userId);
   return maskSecretFields(raw);
 }
 
 export async function saveUserCredentials(
+  client: AppSupabaseClient,
   userId: string,
   incoming: ProviderCredentials,
 ): Promise<ProviderCredentials> {
   const normalized = normalizeProviderCredentials(incoming);
-  const now = new Date();
+  const now = new Date().toISOString();
 
   for (const [providerId, fields] of Object.entries(normalized)) {
     if (!fields) {
@@ -125,28 +134,22 @@ export async function saveUserCredentials(
         continue;
       }
 
-      await db
-        .insert(userCredentials)
-        .values({
-          userId,
-          providerId,
-          fieldName,
-          fieldValue: value,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [
-            userCredentials.userId,
-            userCredentials.providerId,
-            userCredentials.fieldName,
-          ],
-          set: {
-            fieldValue: value,
-            updatedAt: now,
-          },
-        });
+      const { error } = await client.from("user_credentials").upsert(
+        {
+          user_id: userId,
+          provider_id: providerId,
+          field_name: fieldName,
+          field_value: value,
+          updated_at: now,
+        },
+        { onConflict: "user_id,provider_id,field_name" },
+      );
+
+      if (error) {
+        throw new Error(error.message);
+      }
     }
   }
 
-  return getUserCredentialsMasked(userId);
+  return getUserCredentialsMasked(client, userId);
 }

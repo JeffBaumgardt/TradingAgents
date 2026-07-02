@@ -79,7 +79,7 @@ Config options (`GET /config/options`) mirror `cli/utils.py` and `tradingagents/
 
 | Concern | Development | Production |
 |---------|-------------|------------|
-| API database | SQLite (`better-sqlite3`) | RDS Postgres |
+| API database | Supabase Postgres (`packages/supabase`; local via Supabase CLI) | Supabase Postgres |
 | Agents storage | In-memory run manager | Redis queue + EFS checkpoints |
 | Secrets | `.env` file | AWS Secrets Manager |
 | Web | Next.js on Amplify or ECS + ALB |

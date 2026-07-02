@@ -9,7 +9,7 @@ This directory contains deployment guidance for AWS and production operations te
 | `apps/web` | 3000 | Node.js (Next.js) | Multi-step wizard + live agent streaming UI |
 | `apps/api` | 4000 | Node.js (Hono) | Public API gateway, session persistence |
 | `apps/agents-service` | 8000 | Python (FastAPI) | LangGraph agent execution, SSE streaming |
-| `postgres` | 5432 | PostgreSQL | Optional production database (SQLite in dev) |
+| Supabase | — | PostgreSQL | API gateway persistence (hosted or local via Supabase CLI) |
 
 ## Local development
 
@@ -30,8 +30,13 @@ docker compose up --build
 
 - `PORT` — default `4000`
 - `AGENTS_SERVICE_URL` — default `http://localhost:8000`
-- `DATABASE_PATH` — SQLite file path (dev), default `./data/tradingagents-api.db`
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_PUBLISHABLE_KEY` — publishable key for client-facing auth modes
+- `SUPABASE_SECRET_KEY` — secret key for `supabaseAdmin` (server-side DB access)
+- `SUPABASE_JWKS_URL` — JWKS endpoint for JWT verification (`auth: 'user'`)
 - `CORS_ORIGIN` — allowed browser origin
+
+See `apps/api/.env.example` for a full template. Database schema and migrations live in `packages/supabase/supabase/`.
 
 ### Agents service (`apps/agents-service`)
 

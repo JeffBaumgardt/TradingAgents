@@ -10,7 +10,7 @@ trading framework + CLI, wrapped by a Turborepo web stack.
 | Service | Path | Port | Dev command | Notes |
 |---------|------|------|-------------|-------|
 | agents-service | `apps/agents-service` | 8000 | `pnpm --filter @tradingagents/agents-service dev` | Python FastAPI; wraps LangGraph engine. Dev script sets `PYTHONPATH=../..` and runs `uvicorn`. |
-| api | `apps/api` | 4000 | `pnpm --filter @tradingagents/api dev` | Hono gateway; SQLite via better-sqlite3 (auto-created at `apps/api/data/`). Proxies to agents-service. |
+| api | `apps/api` | 4000 | `pnpm --filter @tradingagents/api dev` | Hono gateway; Supabase Postgres via `@tradingagents/supabase`. Proxies to agents-service. |
 | web | `apps/web` | 3000 | `pnpm --filter @trading-agents/web dev` | Next.js 14 UI. |
 
 `pnpm dev` (turbo) starts all three at once. Standard commands live in
