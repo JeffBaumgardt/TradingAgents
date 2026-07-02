@@ -16,20 +16,31 @@ Vercel (web) ──public──▶ Railway API (:PORT)
 
 Railway was almost certainly doing **two wrong things**:
 
-### 1. Wrong Dockerfile (your build log proves this)
+### 1. Using Railpack instead of Docker (your latest api log)
 
-If build logs show `pip install .`, `tradingagents`, and `/opt/venv`, Railway built the **CLI** image from `Dockerfile.cli` at the repo root — **not** the microservice.
+If build logs show:
 
-The repo used to have a root `Dockerfile` for the Python CLI. Railway auto-picks any root `Dockerfile` unless you override the path. That file is now renamed to **`Dockerfile.cli`** so Railway stops grabbing it by default.
+```text
+using build driver railpack-v0.30.0
+Detected Python
+$ pnpm --filter @tradingagents/api build
+```
 
-**You want:**
+Railway is **not** using `apps/api/Dockerfile`. It auto-detected the Python monorepo root and tried to run pnpm without installing it.
 
-| Service | Dockerfile |
-|---------|------------|
-| `api` | `apps/api/Dockerfile` (Node, `node dist/index.js`) |
-| `agents-service` | `apps/agents-service/Dockerfile` (Python, `uvicorn`) |
+**Fix:** the repo now includes **`/railway.json` at the repo root** with `"builder": "DOCKERFILE"`. Railway loads this by default for the **api** service. Push latest `main` and redeploy.
 
-### 2. Wrong start command (`pnpm could not be found`)
+After fix, api build logs should show `FROM node:20-alpine`, not Railpack.
+
+### 2. Wrong Dockerfile for agents-service (earlier log)
+
+If build logs show `pip install .`, `tradingagents`, and `/opt/venv`, Railway built the **CLI** image — not the microservice.
+
+The CLI Dockerfile is **`Dockerfile.cli`** (renamed so Railway does not auto-select it).
+
+**Fix for agents-service:** set **Config file path** to `/apps/agents-service/railway.json` (required — root config points at the API).
+
+### 3. Wrong start command (`pnpm could not be found`)
 
 When Railway imports a pnpm monorepo, it often auto-sets:
 
@@ -37,9 +48,9 @@ When Railway imports a pnpm monorepo, it often auto-sets:
 pnpm --filter @tradingagents/api start
 ```
 
-The production Docker image has **no pnpm** at runtime (only Node or Python). Build succeeds; **deploy** fails when Railway runs that start command.
+The production Docker image has **no pnpm** at runtime. Build may succeed; **deploy** fails.
 
-**Fix:** clear the custom start command or use the `railway.json` config below.
+**Fix:** clear the custom start command. Root `railway.json` sets `node dist/index.js` for api.
 
 ---
 
@@ -57,9 +68,11 @@ Do **not** set Root Directory to `apps/api` or `apps/agents-service` — the Doc
 
 ### `agents-service`
 
+**Must** override the root config (root `railway.json` is for the API).
+
 | Setting | Value |
 |---------|-------|
-| **Config file path** | `/apps/agents-service/railway.json` |
+| **Config file path** | `/apps/agents-service/railway.json` **(required)** |
 | **Public networking** | Off (private) |
 
 **Or** add a service variable (if not using config-as-code):
@@ -82,21 +95,20 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ### `api`
 
+Uses **`/railway.json` at the repo root** automatically (forces Docker, not Railpack).
+
 | Setting | Value |
 |---------|-------|
-| **Config file path** | `/apps/api/railway.json` |
+| **Config file path** | `/railway.json` *(default — leave empty or set explicitly)* |
+| **Root Directory** | *(empty — repo root)* |
 | **Public networking** | On → generate domain |
 
-**Or** service variable:
+**Deploy → Custom Start Command:** empty, or `node dist/index.js` (must **not** contain `pnpm`).
+
+Optional override variable:
 
 ```bash
 RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile
-```
-
-**Deploy → Custom Start Command:** empty, or:
-
-```bash
-node dist/index.js
 ```
 
 **Variables:**
