@@ -1,6 +1,8 @@
 services:
   tradingagents:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
     env_file:
       - .env
     volumes:
@@ -16,7 +18,9 @@ services:
       - ollama
 
   tradingagents-ollama:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.cli
     env_file:
       - .env
     environment:

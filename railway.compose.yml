@@ -1,0 +1,15 @@
+# Railway import file — drag this onto your Railway project canvas to create
+# api + agents-service with the correct Dockerfiles and build context.
+#
+# Or configure existing services manually (see docs/ops/railway.md).
+
+services:
+  agents-service:
+    build:
+      context: .
+      dockerfile: apps/agents-service/Dockerfile
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
