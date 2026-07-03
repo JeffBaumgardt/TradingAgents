@@ -465,7 +465,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           status = session.status;
         } catch {
           if (!cancelled) {
-            startLiveStream();
+            setRunError({
+              message: "Failed to load session",
+              hint: "Try refreshing this page.",
+            });
           }
           return;
         }

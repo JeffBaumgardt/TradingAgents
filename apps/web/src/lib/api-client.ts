@@ -286,13 +286,71 @@ export function subscribeToSessionStream(
   let rotateTimer: ReturnType<typeof setTimeout> | null = null;
   let terminal = false;
   let closed = false;
-  let intentionalClose = false;
+  let connectionGen = 0;
+  let lastEventId = 0;
 
   function clearRotateTimer() {
     if (rotateTimer !== null) {
       clearTimeout(rotateTimer);
       rotateTimer = null;
     }
+  }
+
+  function applyStoredEvent(item: SessionEventsResponse["items"][number]) {
+    if (!SSE_EVENT_TYPES.includes(item.type as SseEventType)) {
+      return;
+    }
+
+    const eventType = item.type as SseEventType;
+    callbacks.onEvent(eventType, item.payload as unknown as SseEventMap[typeof eventType]);
+    if (eventType === "run.completed" || eventType === "run.error") {
+      terminal = true;
+      clearRotateTimer();
+    }
+  }
+
+  async function refreshLastEventId() {
+    try {
+      const { items } = await fetchSessionEvents(sessionId);
+      if (items.length > 0) {
+        lastEventId = Math.max(lastEventId, ...items.map((item) => item.id));
+      }
+    } catch {
+      // Best-effort sync; rotation will retry.
+    }
+  }
+
+  async function syncMissedEvents() {
+    try {
+      const { items } = await fetchSessionEvents(sessionId);
+      for (const item of items) {
+        if (item.id <= lastEventId) {
+          continue;
+        }
+        applyStoredEvent(item);
+        lastEventId = item.id;
+      }
+    } catch {
+      // Rotation still proceeds; the next reconnect can retry.
+    }
+  }
+
+  async function rotateConnection() {
+    if (terminal || closed) {
+      return;
+    }
+
+    callbacks.onReconnect?.();
+    await syncMissedEvents();
+    if (terminal || closed) {
+      return;
+    }
+
+    const staleSource = eventSource;
+    connectionGen += 1;
+    staleSource?.close();
+    eventSource = null;
+    connect(true);
   }
 
   function scheduleRotation() {
@@ -302,15 +360,7 @@ export function subscribeToSessionStream(
     }
 
     rotateTimer = setTimeout(() => {
-      if (terminal || closed) {
-        return;
-      }
-      callbacks.onReconnect?.();
-      intentionalClose = true;
-      eventSource?.close();
-      eventSource = null;
-      intentionalClose = false;
-      connect(true);
+      void rotateConnection();
     }, rotateMs);
   }
 
@@ -319,15 +369,25 @@ export function subscribeToSessionStream(
       return;
     }
 
-    eventSource = new EventSource(buildStreamUrl(sessionId, liveOnly));
+    const gen = connectionGen;
+    const source = new EventSource(buildStreamUrl(sessionId, liveOnly));
+    eventSource = source;
 
-    eventSource.onopen = () => {
+    source.onopen = () => {
+      if (gen !== connectionGen) {
+        return;
+      }
       callbacks.onOpen?.();
+      void refreshLastEventId();
       scheduleRotation();
     };
 
     for (const eventType of SSE_EVENT_TYPES) {
-      eventSource.addEventListener(eventType, (raw) => {
+      source.addEventListener(eventType, (raw) => {
+        if (gen !== connectionGen) {
+          return;
+        }
+
         try {
           const data = JSON.parse((raw as MessageEvent).data) as SseEventMap[typeof eventType];
           callbacks.onEvent(eventType, data);
@@ -343,12 +403,18 @@ export function subscribeToSessionStream(
       });
     }
 
-    eventSource.onerror = () => {
-      clearRotateTimer();
-      eventSource?.close();
-      eventSource = null;
+    source.onerror = () => {
+      if (gen !== connectionGen) {
+        return;
+      }
 
-      if (intentionalClose || closed) {
+      clearRotateTimer();
+      source.close();
+      if (eventSource === source) {
+        eventSource = null;
+      }
+
+      if (closed) {
         return;
       }
 
@@ -399,8 +465,8 @@ export function subscribeToSessionStream(
 
   return () => {
     closed = true;
+    connectionGen += 1;
     clearRotateTimer();
-    intentionalClose = true;
     eventSource?.close();
     eventSource = null;
   };
