@@ -14,12 +14,18 @@ interface AuthPageShellProps {
 
 export default function AuthPageShell({ title, subtitle, children }: AuthPageShellProps) {
   return (
-    <section className={styles.shell} aria-labelledby="auth-page-title">
+    <section
+      className={styles.shell}
+      aria-labelledby="auth-page-title"
+      aria-describedby="auth-page-subtitle"
+    >
       <header className={styles.brand}>
         <h1 id="auth-page-title" className={styles.title}>
           {title}
         </h1>
-        <p className={styles.subtitle}>{subtitle}</p>
+        <p id="auth-page-subtitle" className={styles.subtitle}>
+          {subtitle}
+        </p>
       </header>
       <div className={styles.clerkHost}>{children}</div>
     </section>

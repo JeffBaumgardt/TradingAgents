@@ -12,7 +12,7 @@
   width: calc(100% + 3rem);
   max-width: none;
   margin: -1.5rem;
-  min-height: calc(100vh - 4.5rem);
+  min-height: 100dvh;
   padding: 2.5rem 1.5rem 3rem;
   background-color: var(--clerk-auth-shell-bg);
   background-image: var(--clerk-auth-shell-accent);
@@ -51,9 +51,9 @@
 
 @media (max-width: 720px) {
   .shell {
-    width: calc(100% + 2rem);
-    margin: -1rem;
-    min-height: calc(100vh - 5rem);
+    width: calc(100% + 3rem);
+    margin: -1.5rem;
+    min-height: 100dvh;
     padding: 2rem 1rem 2.5rem;
   }
 

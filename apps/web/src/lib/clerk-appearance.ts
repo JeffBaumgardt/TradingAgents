@@ -43,7 +43,7 @@ export const clerkAppearance = {
   variables: {
     colorBackground: cssVar("--clerk-bg"),
     colorInputBackground: cssVar("--clerk-bg-deep"),
-    colorInput: cssVar("--clerk-bg-deep"),
+    colorInput: cssVar("--clerk-border-strong"),
     colorInputForeground: cssVar("--clerk-text"),
     colorText: cssVar("--clerk-text"),
     colorTextSecondary: cssVar("--clerk-text-muted"),
@@ -57,7 +57,7 @@ export const clerkAppearance = {
     colorBorder: cssVar("--clerk-border"),
     colorModalBackdrop: cssVar("--clerk-modal-backdrop"),
     borderRadius: "0.5rem",
-    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: "var(--font-family)",
   },
   elements: {
     card: {
@@ -102,11 +102,10 @@ export const clerkAppearance = {
       backgroundColor: cssVar("--clerk-bg"),
     },
     headerTitle: {
-      color: cssVar("--clerk-text"),
-      fontWeight: 600,
+      display: "none",
     },
     headerSubtitle: {
-      color: cssVar("--clerk-text-subtle"),
+      display: "none",
     },
     profileSectionTitleText: {
       color: cssVar("--clerk-text-subtle"),
@@ -225,24 +224,23 @@ export const clerkAppearance = {
       color: cssVar("--clerk-text-subtle"),
     },
     socialButtonsBlockButton: {
-      backgroundColor: "#ffffff",
-      color: "#3c4043",
-      border: "1px solid #dadce0",
-      boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.12)",
+      backgroundColor: cssVar("--clerk-bg-deep"),
+      color: cssVar("--clerk-text"),
+      border: `1px solid ${cssVar("--clerk-border-strong")}`,
+      boxShadow: "none",
       height: "2.5rem",
       "&:hover": {
-        backgroundColor: "#f8f9fa",
-        borderColor: "#c6c6c6",
-        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.16)",
+        backgroundColor: cssVar("--clerk-bg-hover"),
+        borderColor: cssVar("--clerk-primary"),
       },
       "&:focus": {
-        backgroundColor: "#f8f9fa",
-        borderColor: "#4285f4",
-        boxShadow: "0 0 0 2px rgba(66, 133, 244, 0.25)",
+        backgroundColor: cssVar("--clerk-bg-hover"),
+        borderColor: cssVar("--clerk-primary"),
+        boxShadow: `0 0 0 2px color-mix(in srgb, ${cssVar("--clerk-focus-ring")} 25%, transparent)`,
       },
     },
     socialButtonsBlockButtonText: {
-      color: "#3c4043",
+      color: cssVar("--clerk-text"),
       fontWeight: 500,
     },
     socialButtonsProviderIcon: {

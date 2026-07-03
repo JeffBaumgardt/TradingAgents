@@ -85,7 +85,7 @@
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-family-display: var(--font-family);
   --shadow-header: none;
-  /* Clerk auth UI — follows app theme tokens; overridden per theme where needed */
+  /* Clerk auth UI — aliases app tokens; paper overrides shadows/backdrop below */
   --clerk-bg: var(--color-bg-surface-raised);
   --clerk-bg-deep: var(--color-bg-input);
   --clerk-bg-muted: var(--color-bg-muted);
