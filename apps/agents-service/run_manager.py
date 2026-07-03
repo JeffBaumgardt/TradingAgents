@@ -212,10 +212,6 @@ class RunManager:
             provider_credentials = payload.get("providerCredentials") or {}
             config["provider_api_keys"] = provider_credentials
 
-            ollama_creds = provider_credentials.get("ollama") or {}
-            if ollama_creds.get("baseUrl"):
-                config["backend_url"] = ollama_creds["baseUrl"]
-
             env_updates = credentials_to_env_updates(provider_credentials)
             active_key = active_provider_api_key(
                 payload["llmProvider"],

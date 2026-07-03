@@ -6,7 +6,6 @@ Used to filter available providers/models based on user-supplied API keys.
 
 Model catalogs are maintained statically in model_catalog.py (manually updated).
 OpenRouter additionally supports live model discovery when an API key is provided.
-Ollama requires no key — only an optional base URL.
 """
 
 from __future__ import annotations
@@ -46,7 +45,6 @@ PROVIDER_ENV_VARS: dict[str, dict[str, str]] = {
         "endpoint": "AZURE_OPENAI_ENDPOINT",
         "deployment": "AZURE_OPENAI_DEPLOYMENT_NAME",
     },
-    "ollama": {"baseUrl": "OLLAMA_BASE_URL"},
 }
 
 
@@ -209,29 +207,6 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
             },
         ],
     },
-    {
-        "id": "ollama",
-        "label": "Ollama (local)",
-        "backendUrl": "http://localhost:11434/v1",
-        "requiresApiKey": False,
-        "modelSource": "static_or_live",
-        "credentialFields": [
-            {
-                "name": "enabled",
-                "label": "Use local Ollama",
-                "secret": False,
-                "required": False,
-                "placeholder": None,
-            },
-            {
-                "name": "baseUrl",
-                "label": "Ollama Base URL (optional)",
-                "secret": False,
-                "required": False,
-                "placeholder": "http://localhost:11434/v1",
-            },
-        ],
-    },
 ]
 
 
@@ -242,8 +217,7 @@ def get_credentials_schema() -> dict[str, Any]:
         "modelCatalogNote": (
             "Most providers use a curated static model list (model_catalog.py) "
             "updated with releases. OpenRouter fetches live models when a key "
-            "is provided. Ollama can use the static list or query your local "
-            "instance when enabled."
+            "is provided."
         ),
     }
 
@@ -279,9 +253,6 @@ def is_provider_available(
     )
     if not definition:
         return False
-
-    if provider_key == "ollama":
-        return creds.get("enabled", "").lower() in ("true", "1", "yes", "on")
 
     if not definition["requiresApiKey"]:
         return True

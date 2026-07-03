@@ -81,25 +81,6 @@ def _fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
         return []
 
 
-def _fetch_ollama_models(base_url: str) -> list[dict[str, str]]:
-    """Fetch tags from a local Ollama instance."""
-    root = base_url.rstrip("/").removesuffix("/v1")
-    try:
-        response = requests.get(f"{root}/api/tags", timeout=5)
-        response.raise_for_status()
-        models = response.json().get("models", [])
-        return [
-            {
-                "id": item.get("name", ""),
-                "label": f"{item.get('name', '')} (local)",
-            }
-            for item in models
-            if item.get("name")
-        ]
-    except Exception:
-        return []
-
-
 def get_config_options(
     provider_credentials: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, Any]:
@@ -169,18 +150,6 @@ def get_provider_models(
             ]
         else:
             models = [_model_entry(provider_key, "custom", "Custom deployment name")]
-    elif provider_key == "ollama":
-        base_url = creds.get("baseUrl") or "http://localhost:11434/v1"
-        live = _fetch_ollama_models(base_url)
-        if live:
-            models = [
-                _model_entry(provider_key, item["id"], item["label"]) for item in live
-            ]
-        else:
-            models = [
-                _model_entry(provider_key, model_id, label)
-                for label, model_id in get_model_options(provider_key, mode)
-            ]
     else:
         models = [
             _model_entry(provider_key, model_id, label)

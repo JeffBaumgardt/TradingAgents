@@ -39,7 +39,6 @@ function formatProviderLabel(provider: string): string {
     glm: "GLM",
     openrouter: "OpenRouter",
     azure: "Azure OpenAI",
-    ollama: "Ollama",
   };
   return labels[provider.toLowerCase()] ?? provider;
 }

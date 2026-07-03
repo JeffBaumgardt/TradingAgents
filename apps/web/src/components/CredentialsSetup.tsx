@@ -21,20 +21,10 @@ import {
 import { useUserSession } from "@/context/UserSessionContext";
 import styles from "./CredentialsSetup.module.css";
 
-function isTruthyFlag(value: string | undefined): boolean {
-  if (!value) {
-    return false;
-  }
-  return ["true", "1", "yes", "on"].includes(value.toLowerCase());
-}
-
 function countAvailableProviders(credentials: ProviderCredentials): number {
-  return Object.entries(credentials).filter(([providerId, fields]) => {
+  return Object.entries(credentials).filter(([, fields]) => {
     if (!fields) {
       return false;
-    }
-    if (providerId === "ollama") {
-      return isTruthyFlag(fields.enabled);
     }
     return Boolean(fields.apiKey?.trim());
   }).length;
@@ -128,14 +118,10 @@ export default function CredentialsSetup({
     setError(null);
   }
 
-  function handleToggleOllama(checked: boolean) {
-    updateField("ollama", "enabled", checked ? "true" : "false");
-  }
-
   async function handleContinue() {
     const availableCount = countAvailableProviders(localCredentials);
     if (availableCount === 0) {
-      setError("Enter at least one provider API key, or enable local Ollama.");
+      setError("Enter at least one provider API key.");
       return;
     }
 
@@ -177,15 +163,11 @@ export default function CredentialsSetup({
           models will appear in the analysis wizard. Keys are saved on the
           server and never returned to the browser.
         </p>
-        {modelCatalogNote ? (
-          <p className={styles.note}>{modelCatalogNote}</p>
-        ) : null}
       </div>
 
       <div className={styles.grid}>
         {credentialDefinitions.map((provider) => {
           const values = localCredentials[provider.id] ?? {};
-          const isOllama = provider.id === "ollama";
 
           return (
             <section key={provider.id} className={styles.card}>
@@ -194,22 +176,7 @@ export default function CredentialsSetup({
                 <span className={styles.badge}>{provider.modelSource}</span>
               </header>
 
-              {isOllama ? (
-                <label className={styles.checkboxRow}>
-                  <input
-                    type="checkbox"
-                    checked={isTruthyFlag(values.enabled)}
-                    onChange={(event) => handleToggleOllama(event.target.checked)}
-                  />
-                  <span>Use local Ollama instance</span>
-                </label>
-              ) : null}
-
               {provider.credentialFields.map((field) => {
-                if (isOllama && field.name === "enabled") {
-                  return null;
-                }
-
                 const storedValue = values[field.name] ?? "";
                 const inputType = field.secret ? "password" : "text";
                 const isStoredSecret = field.secret && hasStoredSecret(storedValue);
@@ -218,7 +185,7 @@ export default function CredentialsSetup({
                   <label key={field.name} className={styles.field}>
                     <span>
                       {field.label}
-                      {field.required && !isOllama ? " *" : ""}
+                      {field.required ? " *" : ""}
                     </span>
                     <input
                       type={inputType}

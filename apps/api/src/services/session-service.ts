@@ -103,14 +103,8 @@ export function validateCreateRequest(
   if (!creds) {
     return `No credentials provided for selected provider: ${body.llmProvider}`;
   }
-  if (providerKey !== "ollama" && !creds.apiKey?.trim()) {
+  if (!creds.apiKey?.trim()) {
     return `API key required for provider: ${body.llmProvider}`;
-  }
-  if (providerKey === "ollama") {
-    const enabled = creds.enabled?.toLowerCase();
-    if (!enabled || !["true", "1", "yes", "on"].includes(enabled)) {
-      return "Ollama must be enabled in credentials before selecting it";
-    }
   }
   return null;
 }
