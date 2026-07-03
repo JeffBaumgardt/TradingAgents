@@ -14,7 +14,7 @@
 
 .block {
   border-radius: 4px;
-  background: #243041;
+  background: var(--color-skeleton);
 }
 
 .line {
@@ -38,9 +38,9 @@
 }
 
 .panel {
-  border: 1px solid #2a3848;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #151c24;
+  background: var(--color-bg-surface);
   overflow: hidden;
 }
 
@@ -50,7 +50,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid #243041;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .row:last-child {

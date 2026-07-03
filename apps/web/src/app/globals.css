@@ -1,7 +1,235 @@
 /**
  * @file apps/web/src/app/globals.css
- * Global styles for the TradingAgents web UI.
+ * Global styles and theme tokens for the TradingAgents web UI.
  */
+
+/* Shared tokens — overridden per [data-theme] below */
+:root {
+  --color-bg-page: #0f1419;
+  --color-bg-surface: #151c24;
+  --color-bg-surface-raised: #121820;
+  --color-bg-input: #0f1419;
+  --color-bg-hover: #1a2330;
+  --color-bg-muted: #1a2430;
+  --color-bg-active-row: rgba(96, 165, 250, 0.06);
+  --color-border: #2a3848;
+  --color-border-subtle: #243041;
+  --color-border-strong: #334155;
+  --color-text: #e7ecf1;
+  --color-text-muted: #b8c5d3;
+  --color-text-subtle: #9aa7b5;
+  --color-text-faint: #7d8fa3;
+  --color-link: #6eb6ff;
+  --color-link-hover: #9fd0ff;
+  --color-error: #ff8a8a;
+  --color-error-strong: #f87171;
+  --color-success: #4ade80;
+  --color-success-text: #bbf7d0;
+  --color-success-bg: #14241a;
+  --color-success-border: #14532d;
+  --color-warning: #fbbf24;
+  --color-primary: #2563eb;
+  --color-primary-text: #e7ecf1;
+  --color-primary-border: #2563eb;
+  --color-accent: #22c55e;
+  --color-accent-text: #052e16;
+  --color-button-secondary-bg: #1e2936;
+  --color-button-secondary-border: #334155;
+  --color-status-pending: #fbbf24;
+  --color-status-progress: #60a5fa;
+  --color-status-completed: #4ade80;
+  --color-status-error: #f87171;
+  --color-status-cancelled: #64748b;
+  --color-scrollbar-thumb: #334155;
+  --color-scrollbar-thumb-hover: #475569;
+  --color-scrollbar-thumb-active: #64748b;
+  --color-banner-info-bg: #1a2330;
+  --color-banner-info-border: #334155;
+  --color-banner-info-text: #cbd5e1;
+  --color-banner-info-accent: #1e3a5f;
+  --color-banner-error-bg: #2a1515;
+  --color-banner-error-border: #7f1d1d;
+  --color-banner-error-text: #fecaca;
+  --color-banner-error-strong: #fca5a5;
+  --color-banner-complete-bg: #14241a;
+  --color-banner-complete-border: #14532d;
+  --color-banner-complete-text: #bbf7d0;
+  --color-working-banner-bg: linear-gradient(90deg, #121820 0%, #1a2430 50%, #121820 100%);
+  --color-working-banner-border: #1e3a5f;
+  --color-working-banner-deep-bg: linear-gradient(90deg, #121820 0%, #1e1b4b 50%, #121820 100%);
+  --color-working-banner-deep-border: #4338ca;
+  --color-pulse-dot: #60a5fa;
+  --color-skeleton: #243041;
+  --color-focus-ring: #6eb6ff;
+  --color-skip-link-bg: #2563eb;
+  --color-skip-link-text: #ffffff;
+  --color-callout-bg: #1a2430;
+  --color-callout-border: #2a3848;
+  --color-callout-text: #b8c5d3;
+  --color-optional-badge-bg: rgba(110, 182, 255, 0.12);
+  --color-optional-badge-border: rgba(110, 182, 255, 0.35);
+  --color-optional-badge-text: #9fd0ff;
+  --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-display: var(--font-family);
+  --shadow-header: none;
+}
+
+[data-theme="midnight"] {
+  color-scheme: dark;
+}
+
+[data-theme="ocean"] {
+  color-scheme: dark;
+  --color-bg-page: #0a1218;
+  --color-bg-surface: #0f1c26;
+  --color-bg-surface-raised: #0c171f;
+  --color-bg-input: #081018;
+  --color-bg-hover: #132430;
+  --color-bg-muted: #12202c;
+  --color-border: #1e3a4a;
+  --color-border-subtle: #183040;
+  --color-border-strong: #2a5068;
+  --color-text: #e4f4f8;
+  --color-text-muted: #a8c8d8;
+  --color-text-subtle: #7aa8bc;
+  --color-text-faint: #5a8898;
+  --color-link: #38bdf8;
+  --color-link-hover: #7dd3fc;
+  --color-primary: #0891b2;
+  --color-primary-border: #0891b2;
+  --color-focus-ring: #38bdf8;
+  --color-status-progress: #22d3ee;
+  --color-pulse-dot: #22d3ee;
+  --color-working-banner-border: #155e75;
+  --color-working-banner-bg: linear-gradient(90deg, #0c171f 0%, #0f2a38 50%, #0c171f 100%);
+  --color-banner-info-accent: #164e63;
+  --color-optional-badge-bg: rgba(56, 189, 248, 0.12);
+  --color-optional-badge-border: rgba(56, 189, 248, 0.35);
+  --color-optional-badge-text: #7dd3fc;
+}
+
+[data-theme="terminal"] {
+  color-scheme: dark;
+  --color-bg-page: #050805;
+  --color-bg-surface: #0a100a;
+  --color-bg-surface-raised: #070c07;
+  --color-bg-input: #030603;
+  --color-bg-hover: #0f180f;
+  --color-bg-muted: #0c140c;
+  --color-border: #1a3a1a;
+  --color-border-subtle: #142e14;
+  --color-border-strong: #2a5a2a;
+  --color-text: #c8f0c8;
+  --color-text-muted: #8fd88f;
+  --color-text-subtle: #6ab86a;
+  --color-text-faint: #4a984a;
+  --color-link: #4ade80;
+  --color-link-hover: #86efac;
+  --color-error: #ff8080;
+  --color-primary: #16a34a;
+  --color-primary-border: #16a34a;
+  --color-accent: #22c55e;
+  --color-button-secondary-bg: #0f180f;
+  --color-button-secondary-border: #2a5a2a;
+  --color-status-progress: #4ade80;
+  --color-pulse-dot: #4ade80;
+  --color-focus-ring: #4ade80;
+  --color-working-banner-border: #166534;
+  --color-working-banner-bg: linear-gradient(90deg, #070c07 0%, #0f2410 50%, #070c07 100%);
+  --color-banner-info-bg: #0a140a;
+  --color-banner-info-border: #1a3a1a;
+  --color-optional-badge-bg: rgba(74, 222, 128, 0.12);
+  --color-optional-badge-border: rgba(74, 222, 128, 0.35);
+  --color-optional-badge-text: #86efac;
+  --font-family-display: "SF Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+[data-theme="slate"] {
+  color-scheme: dark;
+  --color-bg-page: #111318;
+  --color-bg-surface: #181b22;
+  --color-bg-surface-raised: #14171d;
+  --color-bg-input: #111318;
+  --color-bg-hover: #1f232b;
+  --color-bg-muted: #1c2028;
+  --color-border: #2d3340;
+  --color-border-subtle: #252a34;
+  --color-border-strong: #3d4454;
+  --color-text: #eceef4;
+  --color-text-muted: #b4b8c8;
+  --color-text-subtle: #8a90a4;
+  --color-text-faint: #6b7288;
+  --color-link: #a78bfa;
+  --color-link-hover: #c4b5fd;
+  --color-primary: #7c3aed;
+  --color-primary-border: #7c3aed;
+  --color-focus-ring: #a78bfa;
+  --color-status-progress: #a78bfa;
+  --color-pulse-dot: #a78bfa;
+  --color-working-banner-border: #5b21b6;
+  --color-working-banner-bg: linear-gradient(90deg, #14171d 0%, #1e1530 50%, #14171d 100%);
+  --color-working-banner-deep-border: #6d28d9;
+  --color-working-banner-deep-bg: linear-gradient(90deg, #14171d 0%, #2e1065 50%, #14171d 100%);
+  --color-optional-badge-bg: rgba(167, 139, 250, 0.12);
+  --color-optional-badge-border: rgba(167, 139, 250, 0.35);
+  --color-optional-badge-text: #c4b5fd;
+}
+
+[data-theme="paper"] {
+  color-scheme: light;
+  --color-bg-page: #f7f3ed;
+  --color-bg-surface: #ffffff;
+  --color-bg-surface-raised: #faf7f2;
+  --color-bg-input: #ffffff;
+  --color-bg-hover: #f0ebe3;
+  --color-bg-muted: #ede8df;
+  --color-bg-active-row: rgba(37, 99, 235, 0.06);
+  --color-border: #ddd5c8;
+  --color-border-subtle: #e8e2d8;
+  --color-border-strong: #c4b8a8;
+  --color-text: #1c1917;
+  --color-text-muted: #44403c;
+  --color-text-subtle: #78716c;
+  --color-text-faint: #a8a29e;
+  --color-link: #1d4ed8;
+  --color-link-hover: #2563eb;
+  --color-error: #b91c1c;
+  --color-error-strong: #dc2626;
+  --color-success: #15803d;
+  --color-success-text: #166534;
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #86efac;
+  --color-primary: #1d4ed8;
+  --color-primary-text: #ffffff;
+  --color-button-secondary-bg: #f5f0e8;
+  --color-button-secondary-border: #c4b8a8;
+  --color-banner-info-bg: #eff6ff;
+  --color-banner-info-border: #bfdbfe;
+  --color-banner-info-text: #1e3a8a;
+  --color-banner-info-accent: #dbeafe;
+  --color-banner-error-bg: #fef2f2;
+  --color-banner-error-border: #fecaca;
+  --color-banner-error-text: #991b1b;
+  --color-banner-error-strong: #b91c1c;
+  --color-banner-complete-bg: #ecfdf5;
+  --color-banner-complete-border: #86efac;
+  --color-banner-complete-text: #166534;
+  --color-working-banner-bg: linear-gradient(90deg, #faf7f2 0%, #eff6ff 50%, #faf7f2 100%);
+  --color-working-banner-border: #93c5fd;
+  --color-working-banner-deep-bg: linear-gradient(90deg, #faf7f2 0%, #ede9fe 50%, #faf7f2 100%);
+  --color-working-banner-deep-border: #c4b5fd;
+  --color-pulse-dot: #2563eb;
+  --color-skeleton: #e7e0d5;
+  --color-focus-ring: #2563eb;
+  --color-skip-link-bg: #1d4ed8;
+  --color-callout-bg: #faf7f2;
+  --color-callout-border: #ddd5c8;
+  --color-callout-text: #44403c;
+  --color-optional-badge-bg: rgba(29, 78, 216, 0.08);
+  --color-optional-badge-border: rgba(29, 78, 216, 0.25);
+  --color-optional-badge-text: #1d4ed8;
+  --shadow-header: 0 1px 0 #e8e2d8;
+}
 
 * {
   box-sizing: border-box;
@@ -16,9 +244,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #0f1419;
-  color: #e7ecf1;
+  font-family: var(--font-family);
+  background: var(--color-bg-page);
+  color: var(--color-text);
   min-height: 100%;
 }
 
@@ -26,10 +254,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Thin, pill-shaped scrollbars aligned with the dark UI palette */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3d4f63 transparent;
+  scrollbar-color: var(--color-scrollbar-thumb) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -42,18 +269,18 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: #334155;
+  background-color: var(--color-scrollbar-thumb);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #475569;
+  background-color: var(--color-scrollbar-thumb-hover);
 }
 
 *::-webkit-scrollbar-thumb:active {
-  background-color: #64748b;
+  background-color: var(--color-scrollbar-thumb-active);
 }
 
 *::-webkit-scrollbar-corner {
@@ -61,12 +288,26 @@ body {
 }
 
 a {
-  color: #6eb6ff;
+  color: var(--color-link);
+}
+
+a:hover {
+  color: var(--color-link-hover);
 }
 
 button {
   cursor: pointer;
   font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 input,
@@ -85,13 +326,71 @@ h1,
 h2,
 h3 {
   margin-top: 0;
+  font-family: var(--font-family-display);
 }
 
 .error {
-  color: #ff8a8a;
+  color: var(--color-error);
   font-size: 0.9rem;
 }
 
 .muted {
-  color: #9aa7b5;
+  color: var(--color-text-subtle);
+}
+
+.skipLink {
+  position: absolute;
+  left: -9999px;
+  top: 0.75rem;
+  z-index: 1000;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  background: var(--color-skip-link-bg);
+  color: var(--color-skip-link-text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.skipLink:focus {
+  left: 0.75rem;
+}
+
+.pageIntro {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  max-width: 42rem;
+  line-height: 1.55;
+}
+
+.pageTitle {
+  margin-bottom: 0.35rem;
+}
+
+.optionalBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-optional-badge-text);
+  background: var(--color-optional-badge-bg);
+  border: 1px solid var(--color-optional-badge-border);
+}
+
+.callout {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: var(--color-callout-bg);
+  border: 1px solid var(--color-callout-border);
+  color: var(--color-callout-text);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.callout strong {
+  color: var(--color-text);
 }

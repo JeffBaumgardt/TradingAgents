@@ -12,25 +12,64 @@
 .stepHeader {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 1rem;
+}
+
+.stepHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .stepTitle {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.35rem;
+}
+
+.stepDescription {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
+.stepMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .stepIndicator {
-  color: #9aa7b5;
+  color: var(--color-text-subtle);
   font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  width: 8rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--color-border-subtle);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
 }
 
 .panel {
-  border: 1px solid #2a3848;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 1.25rem;
-  background: #151c24;
+  background: var(--color-bg-surface);
 }
 
 .field {
@@ -38,6 +77,17 @@
   flex-direction: column;
   gap: 0.4rem;
   margin-bottom: 1rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.fieldLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .field label {
@@ -49,9 +99,14 @@
 .field textarea {
   padding: 0.55rem 0.65rem;
   border-radius: 6px;
-  border: 1px solid #334155;
-  background: #0f1419;
-  color: #e7ecf1;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-input);
+  color: var(--color-text);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 8rem;
 }
 
 .checkboxGroup {
@@ -62,49 +117,121 @@
 
 .checkboxRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
+  line-height: 1.45;
+}
+
+.checkboxHint {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  color: var(--color-text-faint);
+  font-weight: 400;
 }
 
 .actions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.actionGroup {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .button {
   padding: 0.55rem 1rem;
   border-radius: 6px;
-  border: 1px solid #334155;
-  background: #1e2936;
-  color: #e7ecf1;
+  border: 1px solid var(--color-button-secondary-border);
+  background: var(--color-button-secondary-bg);
+  color: var(--color-text);
 }
 
 .buttonPrimary {
   padding: 0.55rem 1rem;
   border-radius: 6px;
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #e7ecf1;
+  border: 1px solid var(--color-primary-border);
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  font-weight: 600;
+}
+
+.buttonGhost {
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  border: 1px dashed var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.buttonGhost:hover:not(:disabled) {
+  border-color: var(--color-link);
+  color: var(--color-link);
+  background: var(--color-bg-hover);
 }
 
 .button:disabled,
-.buttonPrimary:disabled {
+.buttonPrimary:disabled,
+.buttonGhost:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
 .hint {
   font-size: 0.85rem;
-  color: #9aa7b5;
+  color: var(--color-text-subtle);
+  line-height: 1.45;
+}
+
+.exampleList {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+}
+
+.exampleList li {
+  margin-bottom: 0.25rem;
 }
 
 .loading {
   padding: 2rem;
   text-align: center;
-  color: #9aa7b5;
+  color: var(--color-text-subtle);
 }
 
 .customModelRow {
   margin-top: 0.5rem;
+}
+
+.liveRegion {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .stepHeader {
+    flex-direction: column;
+  }
+
+  .stepMeta {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .progressTrack {
+    width: 100%;
+  }
 }

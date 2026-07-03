@@ -94,6 +94,23 @@ function statusClass(status: AgentStatusValue): string {
   }
 }
 
+function humanAgentStatus(status: AgentStatusValue): string {
+  switch (status) {
+    case "pending":
+      return "Waiting";
+    case "in_progress":
+      return "Working";
+    case "completed":
+      return "Done";
+    case "error":
+      return "Failed";
+    case "cancelled":
+      return "Skipped";
+    default:
+      return status;
+  }
+}
+
 function formatEventTime(timestamp: string): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
@@ -541,16 +558,25 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   }
 
   function renderStatusCell(status: AgentStatusValue) {
+    const label = humanAgentStatus(status);
     if (status === "in_progress") {
       return (
         <span className={styles.statusCell}>
           <span className={styles.pulseDot} aria-hidden />
-          <span className={statusClass(status)}>{status}</span>
+          <span className={statusClass(status)}>{label}</span>
         </span>
       );
     }
-    return <span className={statusClass(status)}>{status}</span>;
+    return <span className={statusClass(status)}>{label}</span>;
   }
+
+  const runTitle = sessionMeta
+    ? `${sessionMeta.config.ticker} analysis`
+    : "Analysis run";
+  const runSubtitle = sessionMeta
+    ? `Report date ${sessionMeta.config.analysisDate}`
+    : null;
+  const showTimingNotice = isRunning || (!connected && !completed && !runError);
 
   const activitySummary = useMemo(() => {
     let messages = 0;
@@ -582,11 +608,28 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   return (
     <div className={styles.runLayout}>
       <div className={styles.runHeader}>
-        <Link href="/" className={styles.backLink}>
+        <Link href="/" className={styles.backLink} aria-label="Return to home page">
           ← Back to home
         </Link>
       </div>
-      <h1>Analysis Run</h1>
+      <div className={styles.runTitleBlock}>
+        <h1>{runTitle}</h1>
+        {runSubtitle ? <p className={styles.runSubtitle}>{runSubtitle}</p> : null}
+      </div>
+
+      {showTimingNotice && (
+        <div className={styles.bannerInfo} role="status" aria-live="polite">
+          <strong>Analysis in progress</strong>
+          <p>
+            Multiple specialist agents are working through market data, news, and debate rounds.
+            A full run typically takes about <strong>10 minutes</strong>, depending on research
+            depth and provider speed.
+          </p>
+          <p className={styles.bannerInfoFootnote}>
+            This page updates automatically — you do not need to refresh.
+          </p>
+        </div>
+      )}
 
       <RunSettingsPanel
         session={sessionMeta}
@@ -612,8 +655,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       )}
 
       {completed && !runError && (
-        <div className={styles.bannerComplete}>
-          Analysis complete — expand any report below to read the details.
+        <div className={styles.bannerComplete} role="status">
+          <strong>Analysis complete</strong>
+          <p>Expand any report section below to read the full write-up and final recommendation.</p>
         </div>
       )}
 
@@ -691,7 +735,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         <div className={styles.reportsPanelHeader}>
           <h2 className={styles.reportsPanelTitle}>Reports</h2>
           <p className={styles.reportsPanelHint}>
-            Collapsed by default — expand a section when you want to read it.
+            Each section is written by a different agent team. Expand a row to read the full report.
           </p>
         </div>
 

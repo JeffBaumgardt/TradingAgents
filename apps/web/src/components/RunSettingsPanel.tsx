@@ -116,7 +116,7 @@ export default function RunSettingsPanel({
           >
             ›
           </span>
-          Run settings
+          Run configuration
         </span>
         <span className={styles.summary}>
           {session.ticker} · {formatAnalysisDate(session.analysisDate)}
@@ -138,7 +138,12 @@ export default function RunSettingsPanel({
               <dt>Your context</dt>
               <dd className={styles.multiline}>{config.userContext.trim()}</dd>
             </div>
-          ) : null}
+          ) : (
+            <div className={styles.row}>
+              <dt>Your context</dt>
+              <dd className="muted">None — general market analysis</dd>
+            </div>
+          )}
           <div className={styles.row}>
             <dt>Analysts</dt>
             <dd>{analystLabels.join(", ")}</dd>

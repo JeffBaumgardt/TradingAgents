@@ -34,9 +34,11 @@ export default function CredentialsPageContent({
           </p>
         )}
       </div>
-      <h1 style={{ marginBottom: "0.25rem" }}>API Keys</h1>
-      <p className="muted" style={{ marginTop: 0, marginBottom: "1.5rem" }}>
-        Keys are stored securely on the server and never sent back to your browser.
+      <h1 className="pageTitle">Provider API keys</h1>
+      <p className="muted pageIntro">
+        TradingAgents calls your chosen LLM provider on your behalf. Keys are encrypted on the
+        server and are never shown again in the browser after you save them. You need at least one
+        provider before starting an analysis.
       </p>
       <CredentialsSetup
         initialSchema={initialSchema}
@@ -44,7 +46,7 @@ export default function CredentialsPageContent({
           router.push("/");
         }}
         continueLabel={
-          credentialsReady ? "Save and return home" : "Continue to analysis setup"
+          credentialsReady ? "Save keys and return home" : "Save keys and start setup"
         }
       />
     </>
