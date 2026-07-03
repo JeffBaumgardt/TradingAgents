@@ -85,6 +85,37 @@
   --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-family-display: var(--font-family);
   --shadow-header: none;
+  /* Clerk auth UI — aliases app tokens; paper overrides shadows/backdrop below */
+  --clerk-bg: var(--color-bg-surface-raised);
+  --clerk-bg-deep: var(--color-bg-input);
+  --clerk-bg-muted: var(--color-bg-muted);
+  --clerk-bg-hover: var(--color-bg-hover);
+  --clerk-bg-active: var(--color-banner-info-accent);
+  --clerk-border: var(--color-border-subtle);
+  --clerk-border-strong: var(--color-border-strong);
+  --clerk-text: var(--color-text);
+  --clerk-text-muted: var(--color-text-muted);
+  --clerk-text-subtle: var(--color-text-subtle);
+  --clerk-primary: var(--color-link);
+  --clerk-primary-hover: var(--color-link-hover);
+  --clerk-primary-fg: var(--color-primary-text);
+  --clerk-danger: var(--color-error);
+  --clerk-focus-ring: var(--color-focus-ring);
+  --clerk-primary-button-bg: var(--color-accent);
+  --clerk-primary-button-border: var(--color-accent);
+  --clerk-primary-button-text: var(--color-accent-text);
+  --clerk-primary-button-hover-bg: var(--color-primary);
+  --clerk-primary-button-hover-border: var(--color-primary-border);
+  --clerk-badge-bg: var(--color-optional-badge-bg);
+  --clerk-badge-border: var(--color-optional-badge-border);
+  --clerk-badge-text: var(--color-optional-badge-text);
+  --clerk-modal-backdrop: rgba(5, 10, 16, 0.72);
+  --clerk-card-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --clerk-modal-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  --clerk-menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  --clerk-auth-shell-bg: var(--color-bg-page);
+  --clerk-auth-shell-accent: var(--color-working-banner-bg);
+  --clerk-auth-shell-border: var(--color-border-subtle);
 }
 
 [data-theme="midnight"] {
@@ -268,6 +299,10 @@
   --color-decision-badge-bg: #fffbeb;
   --color-decision-badge-border: #fbbf24;
   --shadow-header: 0 1px 0 #e8e2d8;
+  --clerk-modal-backdrop: rgba(28, 25, 23, 0.45);
+  --clerk-card-shadow: 0 12px 40px rgba(28, 25, 23, 0.1);
+  --clerk-modal-shadow: 0 20px 56px rgba(28, 25, 23, 0.14);
+  --clerk-menu-shadow: 0 8px 24px rgba(28, 25, 23, 0.12);
 }
 
 * {

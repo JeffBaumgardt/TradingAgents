@@ -1,0 +1,63 @@
+/**
+ * @file apps/web/src/components/AuthPageShell.module.css
+ * Full-page shell for Clerk sign-in and sign-up routes.
+ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  width: calc(100% + 3rem);
+  max-width: none;
+  margin: -1.5rem;
+  min-height: 100dvh;
+  padding: 2.5rem 1.5rem 3rem;
+  background-color: var(--clerk-auth-shell-bg);
+  background-image: var(--clerk-auth-shell-accent);
+  border-top: 1px solid var(--clerk-auth-shell-border);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 28rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-text-subtle);
+}
+
+.clerkHost {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    width: calc(100% + 3rem);
+    margin: -1.5rem;
+    min-height: 100dvh;
+    padding: 2rem 1rem 2.5rem;
+  }
+
+  .title {
+    font-size: 1.25rem;
+  }
+}
