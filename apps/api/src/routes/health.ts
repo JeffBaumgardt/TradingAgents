@@ -10,10 +10,14 @@ import { checkAgentsHealth } from "../services/agents-client.js";
 export const healthRoutes = new Hono();
 
 healthRoutes.get("/health", async (c) => {
-  const agentsOk = await checkAgentsHealth();
+  const agents = await checkAgentsHealth();
+  const agentsOk = agents.reachable && !agents.misconfigured;
+
   return c.json({
     status: agentsOk ? "ok" : "degraded",
     service: "tradingagents-api",
-    agentsService: agentsOk ? "ok" : "unreachable",
+    agentsService: agentsOk ? "ok" : agents.reachable ? "misconfigured" : "unreachable",
+    ...(agents.hint ? { agentsServiceHint: agents.hint } : {}),
+    ...(agents.service ? { agentsServiceIdentity: agents.service } : {}),
   });
 });

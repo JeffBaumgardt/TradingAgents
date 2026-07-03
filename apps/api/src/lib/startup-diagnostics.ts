@@ -184,4 +184,18 @@ export async function logStartupDiagnostics(): Promise<void> {
   } else {
     console.log("[startup] createSupabaseContext probe: ok");
   }
+
+  const agentsUrl = process.env.AGENTS_SERVICE_URL?.trim();
+  if (!agentsUrl) {
+    console.error("[startup] AGENTS_SERVICE_URL is required in production");
+  } else {
+    console.log(`[startup] AGENTS_SERVICE_URL host=${tryHost(agentsUrl) ?? "INVALID_URL"}`);
+    const { checkAgentsHealth } = await import("../services/agents-client.js");
+    const agents = await checkAgentsHealth();
+    if (agents.reachable && !agents.misconfigured) {
+      console.log(`[startup] agents-service probe: ok (${agents.service})`);
+    } else {
+      console.error("[startup] agents-service probe failed:", agents);
+    }
+  }
 }

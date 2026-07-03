@@ -14,8 +14,38 @@ import type {
   ResolvedConfigResponse,
 } from "@tradingagents/api-types";
 
+export const EXPECTED_AGENTS_SERVICE = "tradingagents-agents-service";
+
 const AGENTS_SERVICE_URL =
   process.env.AGENTS_SERVICE_URL ?? "http://localhost:8000";
+
+export type AgentsHealthStatus = {
+  reachable: boolean;
+  service?: string;
+  misconfigured?: boolean;
+  hint?: string;
+};
+
+function formatAgentsTargetHint(body: string, status: number): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: string; code?: string; service?: string };
+    if (parsed.code === "MISSING_SUPABASE_URL") {
+      return (
+        "AGENTS_SERVICE_URL is hitting a Node API instance (Supabase middleware error), not the Python agents-service. " +
+        "Use the agents-service private domain on port 8000, e.g. http://<agents>.railway.internal:8000"
+      );
+    }
+    if (parsed.service === "tradingagents-api") {
+      return (
+        "AGENTS_SERVICE_URL points at the Node API. Set it to the Python agents-service private URL on port 8000."
+      );
+    }
+  } catch {
+    // body is not JSON — fall through
+  }
+
+  return `Agents service error (${status}): ${body}`;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${AGENTS_SERVICE_URL}${path}`, {
@@ -28,18 +58,43 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Agents service error (${response.status}): ${body}`);
+    throw new Error(formatAgentsTargetHint(body, response.status));
   }
 
   return response.json() as Promise<T>;
 }
 
-export async function checkAgentsHealth(): Promise<boolean> {
+export async function checkAgentsHealth(): Promise<AgentsHealthStatus> {
   try {
     const response = await fetch(`${AGENTS_SERVICE_URL}/health`);
-    return response.ok;
-  } catch {
-    return false;
+    if (!response.ok) {
+      return {
+        reachable: false,
+        hint: `HTTP ${response.status} from ${AGENTS_SERVICE_URL}/health`,
+      };
+    }
+
+    const body = (await response.json()) as { service?: string };
+    if (body.service !== EXPECTED_AGENTS_SERVICE) {
+      const misconfiguredHint =
+        body.service === "tradingagents-api"
+          ? "AGENTS_SERVICE_URL points at the Node API, not Python agents-service. Use the agents-service private domain on port 8000."
+          : `Unexpected service "${body.service ?? "unknown"}" at AGENTS_SERVICE_URL (expected ${EXPECTED_AGENTS_SERVICE}).`;
+
+      return {
+        reachable: true,
+        service: body.service,
+        misconfigured: true,
+        hint: misconfiguredHint,
+      };
+    }
+
+    return { reachable: true, service: body.service };
+  } catch (error) {
+    return {
+      reachable: false,
+      hint: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -100,4 +155,8 @@ export async function fetchRunReport(runId: string): Promise<{
   decision: string | null;
 }> {
   return request(`/internal/runs/${runId}/report`);
+}
+
+export function getAgentsServiceUrl(): string {
+  return AGENTS_SERVICE_URL;
 }
