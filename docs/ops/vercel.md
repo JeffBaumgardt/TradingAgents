@@ -54,7 +54,7 @@ Open **Settings → General** after the project is created:
 | Setting | Value |
 |---------|-------|
 | **Framework Preset** | Next.js |
-| **Build Command** | `cd ../.. && pnpm --filter @trading-agents/web build` |
+| **Build Command** | `cd ../.. && pnpm --filter @trading-agents/web... build` |
 | **Install Command** | `cd ../.. && pnpm install --frozen-lockfile` |
 | **Output Directory** | *(leave default — Next.js manages `.next`)* |
 | **Development Command** | `next dev --port 3000` *(default)* |
@@ -111,6 +111,16 @@ NEXT_PUBLIC_API_URL=https://api-production-xxxx.up.railway.app
 ### `Application not found` during build
 
 Railway returns this when `NEXT_PUBLIC_API_URL` points at a domain with no deployed service. The web build must **not** call the API at build time — ensure you have the latest `apps/web` (credentials page uses `force-dynamic`). Even then, set the correct Railway API URL before testing the live app.
+
+### `Module not found: Can't resolve '@tradingagents/api-types'`
+
+Workspace packages export compiled `dist/` output. The web build must compile dependencies first:
+
+```bash
+pnpm --filter @trading-agents/web... build
+```
+
+The `...` suffix includes `@tradingagents/api-types` and `@tradingagents/utils`. This is set in `apps/web/vercel.json`.
 
 ---
 
@@ -290,7 +300,7 @@ Node: 22.x
 Package manager: pnpm
 
 Install:  cd ../.. && pnpm install --frozen-lockfile
-Build:    cd ../.. && pnpm --filter @trading-agents/web build
+Build:    cd ../.. && pnpm --filter @trading-agents/web... build
 
 Env:
   NEXT_PUBLIC_API_URL=https://api.yourdomain.com
