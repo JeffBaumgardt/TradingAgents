@@ -22,7 +22,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # COPY . . replaces apps/api/ and drops workspace node_modules links — relink after source copy.
 RUN pnpm install --frozen-lockfile --filter @tradingagents/api...
-RUN pnpm --filter @tradingagents/api build
+RUN pnpm --filter @tradingagents/api... build
 
 FROM node:20-alpine AS runner
 WORKDIR /app

@@ -4,9 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.ts",
-    "./test": "./src/test/in-memory-supabase.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./test": {
+      "types": "./dist/test/in-memory-supabase.d.ts",
+      "default": "./dist/test/in-memory-supabase.js"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
