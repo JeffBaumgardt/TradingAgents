@@ -47,7 +47,17 @@ Required execution contract:
 6) Fix failures raised by tests/checks.
 7) Update docs/comments where needed for maintainability.
 8) Commit with clear message(s), push branch, create/update PR.
-9) Provide concise change summary and test evidence.
+9) Sync with latest base before handoff: `git fetch origin main`, merge/rebase `origin/main` into the PR branch, resolve conflicts, re-run checks, push again.
+10) Verify GitHub mergeability: `gh pr view <n> --json mergeable,mergeStateStatus` must be `MERGEABLE` / `CLEAN` (not `CONFLICTING`).
+11) Provide concise change summary and test evidence.
+12) Watch PR CI **and merge status** to finish; if base moves or conflicts appear, repeat step 9 before continuing.
+13) Spin up a review agent for a full code review; address valid feedback and push fixes.
+14) Do not mark the PR done until CI is green, mergeability is clean, and review feedback is addressed.
+
+Branch freshness (required):
+- Branch from latest `origin/main` (`git fetch origin main` first).
+- Before final handoff, merge/rebase `origin/main` again and resolve conflicts locally.
+- Never declare complete while GitHub reports `mergeable: CONFLICTING`.
 
 Rules:
 - Prefer existing project patterns/components over introducing new abstractions.
@@ -56,7 +66,7 @@ Rules:
 - If blocked, explain blocker and best fallback.
 
 Work request:
-<PASTE FEATURE OR BUG REQUEST HERE>
+
 ```
 
 ---
@@ -102,6 +112,8 @@ A PR is loop-complete when all are true:
 
 - No unresolved actionable review comments remain.
 - CI checks are green.
+- GitHub reports `mergeable: MERGEABLE` and no merge conflicts with base.
+- Branch includes latest `origin/main` (or documents why not).
 - Requested scope is fully implemented and documented.
 - Tests relevant to touched behavior exist and pass.
 - Out-of-scope suggestions are captured as follow-up issues/loops.
