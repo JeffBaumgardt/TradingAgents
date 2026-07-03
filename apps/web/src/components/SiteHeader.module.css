@@ -3,9 +3,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid #243041;
+  border-bottom: 1px solid var(--color-border-subtle);
   padding: 1rem 1.5rem;
-  background: #121820;
+  background: var(--color-bg-surface-raised);
+  box-shadow: var(--shadow-header);
 }
 
 .brand {
@@ -16,17 +17,18 @@
 }
 
 .titleLink {
-  color: #e7ecf1;
+  color: var(--color-text);
   font-weight: 700;
   text-decoration: none;
+  font-family: var(--font-family-display);
 }
 
 .titleLink:hover {
-  color: #6eb6ff;
+  color: var(--color-link);
 }
 
 .subtitle {
-  color: #7d8fa3;
+  color: var(--color-text-faint);
   font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
@@ -41,13 +43,20 @@
 }
 
 .navLink {
-  color: #b8c5d3;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   text-decoration: none;
 }
 
 .navLink:hover {
-  color: #6eb6ff;
+  color: var(--color-link);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .authControls {
@@ -57,10 +66,10 @@
 }
 
 .signInButton {
-  border: 1px solid #3a4a5c;
+  border: 1px solid var(--color-border-strong);
   border-radius: 0.5rem;
-  background: #1a2430;
-  color: #e7ecf1;
+  background: var(--color-bg-hover);
+  color: var(--color-text);
   cursor: pointer;
   font: inherit;
   font-size: 0.9rem;
@@ -68,12 +77,26 @@
 }
 
 .signInButton:hover {
-  border-color: #6eb6ff;
-  color: #6eb6ff;
+  border-color: var(--color-link);
+  color: var(--color-link);
+}
+
+.signInButton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 @media (max-width: 720px) {
   .subtitle {
     display: none;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .controls {
+    width: 100%;
+    justify-content: flex-end;
   }
 }

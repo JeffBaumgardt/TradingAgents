@@ -5,9 +5,9 @@
 }
 
 .panel {
-  border: 1px solid #2a3848;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #151c24;
+  background: var(--color-bg-surface);
   max-height: 400px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border-bottom: 1px solid #243041;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .item:last-child {
@@ -45,7 +45,7 @@
 }
 
 .rowLink:hover {
-  background: #1a2330;
+  background: var(--color-bg-hover);
 }
 
 .primary {
@@ -58,12 +58,12 @@
 .ticker {
   font-weight: 700;
   font-size: 1rem;
-  color: #e8eef4;
+  color: var(--color-text);
 }
 
 .date {
   font-size: 0.82rem;
-  color: #7d8fa3;
+  color: var(--color-text-faint);
 }
 
 .meta {
@@ -78,7 +78,7 @@
   font-weight: 700;
   padding: 0.12rem 0.5rem;
   border-radius: 4px;
-  color: #fbbf24;
+  color: var(--color-warning);
   background: rgba(251, 191, 36, 0.1);
   border: 1px solid rgba(251, 191, 36, 0.3);
 }
@@ -94,15 +94,15 @@
 }
 
 .statusRunning {
-  color: #6eb6ff;
+  color: var(--color-link);
 }
 
 .statusError {
-  color: #fca5a5;
+  color: var(--color-status-error);
 }
 
 .statusOther {
-  color: #94a3b8;
+  color: var(--color-text-faint);
 }
 
 .deleteButton {
@@ -115,9 +115,9 @@
   margin-right: 0.75rem;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid #475569;
+  border: 1px solid var(--color-border-strong);
   background: transparent;
-  color: #94a3b8;
+  color: var(--color-text-faint);
 }
 
 .deleteIcon {
@@ -127,7 +127,7 @@
 .deleteButton:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.45);
-  color: #fca5a5;
+  color: var(--color-status-error);
 }
 
 .deleteButton:disabled {
@@ -137,6 +137,6 @@
 
 .error {
   margin: 0;
-  color: #fca5a5;
+  color: var(--color-status-error);
   font-size: 0.9rem;
 }

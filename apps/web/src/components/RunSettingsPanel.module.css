@@ -1,7 +1,7 @@
 .panel {
-  border: 1px solid #2a3848;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #151c24;
+  background: var(--color-bg-surface);
   overflow: hidden;
 }
 
@@ -13,15 +13,15 @@
   gap: 1rem;
   padding: 0.65rem 0.85rem;
   border: none;
-  background: #121820;
-  color: #b8c5d3;
+  background: var(--color-bg-surface-raised);
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   cursor: pointer;
   text-align: left;
 }
 
 .toggle:hover {
-  background: #1a2330;
+  background: var(--color-bg-hover);
 }
 
 .toggleLabel {
@@ -29,14 +29,14 @@
   align-items: center;
   gap: 0.4rem;
   font-weight: 600;
-  color: #e8eef4;
+  color: var(--color-text);
 }
 
 .chevron {
   display: inline-block;
   font-size: 1.1rem;
   line-height: 1;
-  color: #7d8fa3;
+  color: var(--color-text-faint);
   transition: transform 0.15s ease;
 }
 
@@ -46,14 +46,14 @@
 
 .summary {
   font-size: 0.82rem;
-  color: #7d8fa3;
+  color: var(--color-text-faint);
   white-space: nowrap;
 }
 
 .details {
   margin: 0;
   padding: 0.75rem 1rem 1rem;
-  border-top: 1px solid #2a3848;
+  border-top: 1px solid var(--color-border);
   display: grid;
   gap: 0.65rem;
 }
@@ -71,13 +71,13 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #7d8fa3;
+  color: var(--color-text-faint);
 }
 
 .row dd {
   margin: 0;
   font-size: 0.9rem;
-  color: #e8eef4;
+  color: var(--color-text);
 }
 
 .multiline {

@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/Wizard.tsx
- * Multi-step configuration wizard mirroring CLI steps (language fixed to English).
+ * Multi-step configuration wizard for starting a new analysis run.
  */
 
 "use client";
@@ -29,14 +29,25 @@ import styles from "./Wizard.module.css";
 const TOTAL_STEPS = 8;
 
 const STEP_TITLES: Record<number, string> = {
-  1: "Ticker Symbol",
-  2: "Your Context",
-  3: "Analysis Date",
-  4: "Analysts Team",
-  5: "Research Depth",
-  6: "LLM Provider",
-  7: "Thinking Agents",
-  8: "Provider Configuration",
+  1: "Choose a ticker",
+  2: "Add your investing context",
+  3: "Pick the analysis date",
+  4: "Select analyst agents",
+  5: "Set research depth",
+  6: "Choose an LLM provider",
+  7: "Configure thinking models",
+  8: "Fine-tune provider settings",
+};
+
+const STEP_DESCRIPTIONS: Record<number, string> = {
+  1: "Enter the stock or ETF symbol you want the agents to analyze.",
+  2: "Tell the agents about your situation so recommendations fit your goals. Leave this blank if you only want a general market analysis.",
+  3: "Agents will use market data available on or before this date.",
+  4: "Each analyst focuses on a different angle — market trends, news, sentiment, or fundamentals.",
+  5: "Higher depth runs more debate rounds between agents. Deeper runs take longer and use more tokens.",
+  6: "Pick the provider whose API key you saved on the API keys page.",
+  7: "Quick models handle routine steps; deep models power the final investment debate.",
+  8: "Optional provider-specific settings that affect reasoning quality and speed.",
 };
 
 interface WizardFormState {
@@ -160,6 +171,7 @@ export default function Wizard() {
     ],
   );
   const effectiveTotalSteps = showProviderConfig ? TOTAL_STEPS : 7;
+  const progressPercent = Math.round((step / effectiveTotalSteps) * 100);
 
   function patchForm(partial: Partial<WizardFormState>) {
     setForm((prev) => ({ ...prev, ...partial }));
@@ -206,6 +218,11 @@ export default function Wizard() {
     return true;
   }
 
+  function goToStep(nextStep: number) {
+    setFieldError(null);
+    setStep(nextStep);
+  }
+
   function handleNext() {
     if (!validateCurrentStep()) {
       return;
@@ -215,7 +232,7 @@ export default function Wizard() {
       return;
     }
     if (step < effectiveTotalSteps) {
-      setStep((s) => s + 1);
+      goToStep(step + 1);
     } else {
       void handleSubmit();
     }
@@ -224,6 +241,11 @@ export default function Wizard() {
   function handleBack() {
     setFieldError(null);
     setStep((s) => Math.max(1, s - 1));
+  }
+
+  function handleSkipContext() {
+    patchForm({ userContext: "" });
+    goToStep(3);
   }
 
   async function handleSubmit() {
@@ -265,10 +287,19 @@ export default function Wizard() {
     }
   }
 
+  const primaryButtonLabel =
+    step === effectiveTotalSteps || (step === 7 && !showProviderConfig)
+      ? submitting
+        ? "Starting analysis…"
+        : "Start analysis run"
+      : "Continue to next step";
+
   if (!options) {
     return (
       <div className={styles.panel}>
-        <p className="error">No provider credentials configured. Go back and add API keys.</p>
+        <p className="error" role="alert">
+          No provider credentials configured. Add at least one API key on the API keys page first.
+        </p>
       </div>
     );
   }
@@ -276,21 +307,45 @@ export default function Wizard() {
   if (options.providers.length === 0) {
     return (
       <div className={styles.panel}>
-        <p className="error">No LLM providers available with your current credentials.</p>
+        <p className="error" role="alert">
+          No LLM providers are available with your current credentials.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className={styles.wizard}>
+    <div className={styles.wizard} aria-labelledby="wizard-step-title">
       <div className={styles.stepHeader}>
-        <h1 className={styles.stepTitle}>
-          Step {step}: {STEP_TITLES[step]}
-        </h1>
-        <span className={styles.stepIndicator}>
-          {step} / {effectiveTotalSteps}
-        </span>
+        <div className={styles.stepHeading}>
+          <h3 id="wizard-step-title" className={styles.stepTitle}>
+            Step {step} of {effectiveTotalSteps}: {STEP_TITLES[step]}
+          </h3>
+          <p className={styles.stepDescription}>{STEP_DESCRIPTIONS[step]}</p>
+        </div>
+        <div className={styles.stepMeta}>
+          <span className={styles.stepIndicator} aria-hidden>
+            {step} / {effectiveTotalSteps}
+          </span>
+          <div
+            className={styles.progressTrack}
+            role="progressbar"
+            aria-valuemin={1}
+            aria-valuemax={effectiveTotalSteps}
+            aria-valuenow={step}
+            aria-label={`Setup progress: step ${step} of ${effectiveTotalSteps}`}
+          >
+            <div
+              className={styles.progressFill}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
       </div>
+
+      <p className={styles.liveRegion} aria-live="polite" aria-atomic="true">
+        Step {step}: {STEP_TITLES[step]}
+      </p>
 
       <div className={styles.panel}>
         {step === 1 && (
@@ -301,24 +356,49 @@ export default function Wizard() {
               value={form.ticker}
               onChange={(e) => patchForm({ ticker: e.target.value })}
               placeholder="SPY"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby="ticker-hint"
             />
-            <p className={styles.hint}>
-              Examples: SPY, CNC.TO, 7203.T, 0700.HK
+            <p id="ticker-hint" className={styles.hint}>
+              Use the exchange symbol for the security you want analyzed.
             </p>
+            <ul className={styles.exampleList} aria-label="Ticker examples">
+              <li>US stocks &amp; ETFs: SPY, AAPL, MSFT</li>
+              <li>Canadian: CNC.TO</li>
+              <li>International: 7203.T, 0700.HK</li>
+            </ul>
           </div>
         )}
 
         {step === 2 && (
-          <div className={styles.field}>
-            <label htmlFor="userContext">Your context (optional)</label>
-            <textarea
-              id="userContext"
-              rows={6}
-              value={form.userContext}
-              onChange={(e) => patchForm({ userContext: e.target.value })}
-              placeholder="Describe holdings, options questions, or time horizon…"
-            />
-          </div>
+          <>
+            <p className={`callout ${styles.stepCallout}`}>
+              <strong>This step is optional.</strong> Without your input, the agents still
+              produce a full market analysis of {form.ticker.trim() || "your ticker"}. Your
+              context helps them tailor recommendations to your portfolio, risk tolerance, or
+              specific questions.
+            </p>
+            <div className={styles.field}>
+              <div className={styles.fieldLabelRow}>
+                <label htmlFor="userContext">Your investing context</label>
+                <span className="optionalBadge">Optional</span>
+              </div>
+              <textarea
+                id="userContext"
+                rows={6}
+                value={form.userContext}
+                onChange={(e) => patchForm({ userContext: e.target.value })}
+                placeholder="Example: I hold 200 shares with a $180 cost basis and am considering adding on a dip. I have a 3–5 year horizon and moderate risk tolerance."
+                aria-describedby="user-context-hint"
+              />
+              <p id="user-context-hint" className={styles.hint}>
+                Share holdings, options positions, time horizon, risk tolerance, or the decision
+                you are trying to make. The more specific you are, the more focused the final
+                recommendation.
+              </p>
+            </div>
+          </>
         )}
 
         {step === 3 && (
@@ -330,12 +410,17 @@ export default function Wizard() {
               value={form.analysisDate}
               max={todayIsoDate()}
               onChange={(e) => patchForm({ analysisDate: e.target.value })}
+              aria-describedby="analysis-date-hint"
             />
+            <p id="analysis-date-hint" className={styles.hint}>
+              Agents use market data available on or before this date. Today is selected by default.
+            </p>
           </div>
         )}
 
         {step === 4 && (
-          <div className={styles.checkboxGroup}>
+          <fieldset className={styles.checkboxGroup}>
+            <legend className={styles.checkboxLegend}>Select at least one analyst</legend>
             {options.analysts.map((analyst) => (
               <label key={analyst.value} className={styles.checkboxRow}>
                 <input
@@ -343,10 +428,18 @@ export default function Wizard() {
                   checked={form.analysts.includes(analyst.value as AnalystType)}
                   onChange={() => toggleAnalyst(analyst.value as AnalystType)}
                 />
-                {analyst.label}
+                <span>
+                  {analyst.label}
+                  <span className={styles.checkboxHint}>
+                    {analyst.value === "market" && "Price action, indicators, and technical outlook"}
+                    {analyst.value === "social" && "Social media sentiment and retail buzz"}
+                    {analyst.value === "news" && "Headlines, macro events, and company news"}
+                    {analyst.value === "fundamentals" && "Financials, valuation, and business quality"}
+                  </span>
+                </span>
               </label>
             ))}
-          </div>
+          </fieldset>
         )}
 
         {step === 5 && (
@@ -358,6 +451,7 @@ export default function Wizard() {
               onChange={(e) =>
                 patchForm({ researchDepth: Number(e.target.value) as ResearchDepth })
               }
+              aria-describedby="research-depth-hint"
             >
               {options.researchDepths.map((depth) => (
                 <option key={depth.value} value={depth.value}>
@@ -365,6 +459,10 @@ export default function Wizard() {
                 </option>
               ))}
             </select>
+            <p id="research-depth-hint" className={styles.hint}>
+              More depth means more back-and-forth debate between bull and bear researchers before
+              the final decision.
+            </p>
           </div>
         )}
 
@@ -381,6 +479,7 @@ export default function Wizard() {
                   backendUrl: provider?.backendUrl ?? null,
                 });
               }}
+              aria-describedby="llm-provider-hint"
             >
               {options.providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
@@ -388,13 +487,18 @@ export default function Wizard() {
                 </option>
               ))}
             </select>
+            <p id="llm-provider-hint" className={styles.hint}>
+              Only providers with saved API keys appear here.
+            </p>
           </div>
         )}
 
         {step === 7 && (
           <>
             {loadingModels ? (
-              <p className={styles.hint}>Loading models…</p>
+              <p className={styles.hint} aria-live="polite">
+                Loading available models…
+              </p>
             ) : (
               <>
                 <div className={styles.field}>
@@ -403,6 +507,7 @@ export default function Wizard() {
                     id="quickModel"
                     value={form.quickThinkLlm}
                     onChange={(e) => patchForm({ quickThinkLlm: e.target.value })}
+                    aria-describedby="quick-model-hint"
                   >
                     {quickModels.map((model) => (
                       <option key={model.id} value={model.id}>
@@ -416,8 +521,12 @@ export default function Wizard() {
                       placeholder="Enter model ID"
                       value={form.customQuickModel}
                       onChange={(e) => patchForm({ customQuickModel: e.target.value })}
+                      aria-label="Custom quick-thinking model ID"
                     />
                   )}
+                  <p id="quick-model-hint" className={styles.hint}>
+                    Used for faster steps like data gathering and initial summaries.
+                  </p>
                 </div>
                 <div className={styles.field}>
                   <label htmlFor="deepModel">Deep-thinking model</label>
@@ -425,6 +534,7 @@ export default function Wizard() {
                     id="deepModel"
                     value={form.deepThinkLlm}
                     onChange={(e) => patchForm({ deepThinkLlm: e.target.value })}
+                    aria-describedby="deep-model-hint"
                   >
                     {deepModels.map((model) => (
                       <option key={model.id} value={model.id}>
@@ -438,8 +548,12 @@ export default function Wizard() {
                       placeholder="Enter model ID"
                       value={form.customDeepModel}
                       onChange={(e) => patchForm({ customDeepModel: e.target.value })}
+                      aria-label="Custom deep-thinking model ID"
                     />
                   )}
+                  <p id="deep-model-hint" className={styles.hint}>
+                    Powers the investment debate and final trade recommendation.
+                  </p>
                 </div>
               </>
             )}
@@ -504,8 +618,16 @@ export default function Wizard() {
           </>
         )}
 
-        {fieldError && <p className="error">{fieldError}</p>}
-        {error && <p className="error">{error}</p>}
+        {fieldError && (
+          <p className="error" role="alert">
+            {fieldError}
+          </p>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className={styles.actions}>
@@ -514,21 +636,32 @@ export default function Wizard() {
           className={styles.button}
           onClick={handleBack}
           disabled={step === 1 || submitting}
+          aria-label="Go back to the previous setup step"
         >
           Back
         </button>
-        <button
-          type="button"
-          className={styles.buttonPrimary}
-          onClick={handleNext}
-          disabled={submitting || (step === 7 && loadingModels)}
-        >
-          {step === effectiveTotalSteps || (step === 7 && !showProviderConfig)
-            ? submitting
-              ? "Starting…"
-              : "Start Analysis"
-            : "Next"}
-        </button>
+        <div className={styles.actionGroup}>
+          {step === 2 && (
+            <button
+              type="button"
+              className={styles.buttonGhost}
+              onClick={handleSkipContext}
+              disabled={submitting}
+              aria-label="Skip optional context and continue with a general market analysis"
+            >
+              Skip — use general analysis
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.buttonPrimary}
+            onClick={handleNext}
+            disabled={submitting || (step === 7 && loadingModels)}
+            aria-label={primaryButtonLabel}
+          >
+            {primaryButtonLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

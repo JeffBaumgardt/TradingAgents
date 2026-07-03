@@ -20,13 +20,13 @@
 .field input {
   padding: 0.55rem 0.65rem;
   border-radius: 6px;
-  border: 1px solid #334155;
-  background: #0f1419;
-  color: #e8eef4;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-input);
+  color: var(--color-text);
 }
 
 .error {
-  color: #f87171;
+  color: var(--color-error-strong);
   margin: 0;
 }
 
@@ -39,8 +39,8 @@
   padding: 0.65rem 1.25rem;
   border-radius: 6px;
   border: none;
-  background: #22c55e;
-  color: #052e16;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
   font-weight: 600;
   cursor: pointer;
 }

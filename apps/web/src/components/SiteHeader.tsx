@@ -6,6 +6,7 @@
 import Link from "next/link";
 import SiteHeaderNav from "@/components/SiteHeaderNav";
 import SiteHeaderAuth from "@/components/SiteHeaderAuth";
+import ThemePicker from "@/components/ThemePicker";
 import styles from "./SiteHeader.module.css";
 
 export default function SiteHeader() {
@@ -16,11 +17,14 @@ export default function SiteHeader() {
           TradingAgents
         </Link>
         <span className={styles.subtitle}>
-          Multi-Agents LLM Financial Trading Framework
+          AI-powered multi-agent market analysis
         </span>
       </div>
       <SiteHeaderNav />
-      <SiteHeaderAuth />
+      <div className={styles.controls}>
+        <ThemePicker />
+        <SiteHeaderAuth />
+      </div>
     </header>
   );
 }
