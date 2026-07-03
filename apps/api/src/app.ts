@@ -38,11 +38,13 @@ export function createApp() {
     }),
   );
 
+  // Liveness probe — must not depend on Supabase or auth (Railway/load balancers).
+  app.route("/", healthRoutes);
+
   // Provides ctx.supabase (RLS-scoped) and ctx.supabaseAdmin on every request.
   // Protected routes verify Clerk session tokens via requireUserId().
   app.use("*", withSupabase({ auth: "none" }));
 
-  app.route("/", healthRoutes);
   app.route("/", configRoutes);
   app.route("/", webhookRoutes);
   app.route("/", credentialsRoutes);
