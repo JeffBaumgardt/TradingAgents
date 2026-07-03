@@ -16,9 +16,15 @@ export interface ThemeDefinition {
 
 export const THEMES: ThemeDefinition[] = [
   {
+    id: "paper",
+    label: "Paper",
+    description: "Warm light mode — the default look.",
+    colorScheme: "light",
+  },
+  {
     id: "midnight",
     label: "Midnight",
-    description: "Deep navy with blue accents — the default look.",
+    description: "Deep navy with blue accents.",
     colorScheme: "dark",
   },
   {
@@ -39,12 +45,6 @@ export const THEMES: ThemeDefinition[] = [
     description: "Muted charcoal with soft violet highlights.",
     colorScheme: "dark",
   },
-  {
-    id: "paper",
-    label: "Paper",
-    description: "Warm light mode for daytime reading.",
-    colorScheme: "light",
-  },
 ];
 
 export const THEME_IDS = THEMES.map((theme) => theme.id);
@@ -57,7 +57,7 @@ export const THEME_COLOR_SCHEMES: Record<ThemeId, "dark" | "light"> = {
   paper: "light",
 };
 
-export const DEFAULT_THEME_ID: ThemeId = "midnight";
+export const DEFAULT_THEME_ID: ThemeId = "paper";
 
 export function isThemeId(value: string | null | undefined): value is ThemeId {
   return THEMES.some((theme) => theme.id === value);
@@ -78,7 +78,7 @@ export function buildThemeBootstrapScript(): string {
     var stored = localStorage.getItem(key);
     var theme = allowed.indexOf(stored) !== -1 ? stored : fallback;
     document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = schemes[theme] || "dark";
+    document.documentElement.style.colorScheme = schemes[theme] || "light";
   } catch (e) {}
 })();
 `.trim();

@@ -28,7 +28,7 @@
 }
 
 .subtitle {
-  color: var(--color-text-faint);
+  color: var(--color-text-subtle);
   font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
