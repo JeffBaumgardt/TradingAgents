@@ -40,19 +40,6 @@ function tryHost(url: string | undefined): string | null {
   }
 }
 
-function parseJsonKeys(name: string): string[] | null {
-  const raw = process.env[name]?.trim();
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as Record<string, string>;
-    return Object.keys(parsed);
-  } catch {
-    return ["INVALID_JSON"];
-  }
-}
-
 /** Log env presence and Supabase hints at process start. */
 export function logStartupDiagnostics(): void {
   console.log("[startup] TradingAgents API boot diagnostics");
@@ -62,11 +49,8 @@ export function logStartupDiagnostics(): void {
     "NODE_ENV",
     "SUPABASE_URL",
     "SUPABASE_PUBLISHABLE_KEY",
-    "SUPABASE_PUBLISHABLE_KEYS",
     "SUPABASE_SECRET_KEY",
-    "SUPABASE_SECRET_KEYS",
     "SUPABASE_JWKS_URL",
-    "SUPABASE_JWKS",
     "CLERK_SECRET_KEY",
     "AGENTS_SERVICE_URL",
     "CORS_ORIGIN",
@@ -74,24 +58,14 @@ export function logStartupDiagnostics(): void {
     console.log(`[startup] ${name}: ${envStatus(name)}`);
   }
 
-  const publishableHint =
-    keyHint("SUPABASE_PUBLISHABLE_KEY") ?? keyHint("SUPABASE_PUBLISHABLE_KEYS");
-  const secretHint = keyHint("SUPABASE_SECRET_KEY") ?? keyHint("SUPABASE_SECRET_KEYS");
+  const publishableHint = keyHint("SUPABASE_PUBLISHABLE_KEY");
+  const secretHint = keyHint("SUPABASE_SECRET_KEY");
 
   if (publishableHint) {
     console.log(`[startup] publishable key ${publishableHint}`);
   }
   if (secretHint) {
     console.log(`[startup] secret key ${secretHint}`);
-  }
-
-  const pluralPublishable = parseJsonKeys("SUPABASE_PUBLISHABLE_KEYS");
-  const pluralSecret = parseJsonKeys("SUPABASE_SECRET_KEYS");
-  if (pluralPublishable) {
-    console.log(`[startup] SUPABASE_PUBLISHABLE_KEYS names: ${pluralPublishable.join(", ")}`);
-  }
-  if (pluralSecret) {
-    console.log(`[startup] SUPABASE_SECRET_KEYS names: ${pluralSecret.join(", ")}`);
   }
 
   const supabaseHost = tryHost(process.env.SUPABASE_URL);
@@ -102,12 +76,8 @@ export function logStartupDiagnostics(): void {
     );
   }
 
-  const hasSecret =
-    Boolean(process.env.SUPABASE_SECRET_KEY?.trim()) ||
-    Boolean(process.env.SUPABASE_SECRET_KEYS?.trim());
-  const hasPublishable =
-    Boolean(process.env.SUPABASE_PUBLISHABLE_KEY?.trim()) ||
-    Boolean(process.env.SUPABASE_PUBLISHABLE_KEYS?.trim());
+  const hasSecret = Boolean(process.env.SUPABASE_SECRET_KEY?.trim());
+  const hasPublishable = Boolean(process.env.SUPABASE_PUBLISHABLE_KEY?.trim());
 
   if (!process.env.SUPABASE_URL?.trim()) {
     console.error("[startup] SUPABASE_URL is required");
@@ -118,9 +88,13 @@ export function logStartupDiagnostics(): void {
     );
   }
   if (!hasPublishable) {
-    console.warn("[startup] SUPABASE_PUBLISHABLE_KEY missing (needed for some auth modes)");
+    console.warn(
+      "[startup] SUPABASE_PUBLISHABLE_KEY missing (needed for some auth modes)",
+    );
   }
-  if (!process.env.SUPABASE_JWKS_URL?.trim() && !process.env.SUPABASE_JWKS?.trim()) {
-    console.warn("[startup] No JWKS configured (SUPABASE_JWKS_URL or SUPABASE_JWKS)");
+  if (!process.env.SUPABASE_JWKS_URL?.trim()) {
+    console.warn(
+      "[startup] No JWKS configured (SUPABASE_JWKS_URL or SUPABASE_JWKS)",
+    );
   }
 }
