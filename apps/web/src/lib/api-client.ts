@@ -341,15 +341,18 @@ export function subscribeToSessionStream(
     }
 
     callbacks.onReconnect?.();
-    await syncMissedEvents();
-    if (terminal || closed) {
-      return;
-    }
+    await refreshLastEventId();
 
     const staleSource = eventSource;
     connectionGen += 1;
     staleSource?.close();
     eventSource = null;
+
+    await syncMissedEvents();
+    if (terminal || closed) {
+      return;
+    }
+
     connect(true);
   }
 
