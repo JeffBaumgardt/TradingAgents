@@ -373,7 +373,7 @@ export default function Wizard() {
 
         {step === 2 && (
           <>
-            <p className="callout" style={{ marginBottom: "1rem" }}>
+            <p className={`callout ${styles.stepCallout}`}>
               <strong>This step is optional.</strong> Without your input, the agents still
               produce a full market analysis of {form.ticker.trim() || "your ticker"}. Your
               context helps them tailor recommendations to your portfolio, risk tolerance, or
@@ -420,7 +420,7 @@ export default function Wizard() {
 
         {step === 4 && (
           <fieldset className={styles.checkboxGroup}>
-            <legend className={styles.liveRegion}>Select at least one analyst</legend>
+            <legend className={styles.checkboxLegend}>Select at least one analyst</legend>
             {options.analysts.map((analyst) => (
               <label key={analyst.value} className={styles.checkboxRow}>
                 <input

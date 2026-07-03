@@ -28,7 +28,6 @@ export default function ThemePicker() {
         className={styles.select}
         value={themeId}
         onChange={handleChange}
-        aria-label="Choose a visual theme"
       >
         {THEMES.map((theme) => (
           <option key={theme.id} value={theme.id} title={theme.description}>

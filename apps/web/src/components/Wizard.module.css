@@ -209,6 +209,12 @@
   margin-top: 0.5rem;
 }
 
+.checkboxLegend {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--color-text);
+}
+
 .liveRegion {
   position: absolute;
   width: 1px;
@@ -219,6 +225,10 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.stepCallout {
+  margin-bottom: 1rem;
 }
 
 @media (max-width: 640px) {

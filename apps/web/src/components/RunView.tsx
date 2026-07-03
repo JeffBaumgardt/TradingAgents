@@ -576,7 +576,15 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const runSubtitle = sessionMeta
     ? `Report date ${sessionMeta.config.analysisDate}`
     : null;
-  const showTimingNotice = isRunning || (!connected && !completed && !runError);
+  const isTerminalSession =
+    completed ||
+    runError != null ||
+    sessionMeta?.status === "completed" ||
+    sessionMeta?.status === "cancelled" ||
+    sessionMeta?.status === "error";
+
+  const showTimingNotice =
+    !isTerminalSession && (isRunning || (!connected && !runError));
 
   const activitySummary = useMemo(() => {
     let messages = 0;
@@ -661,7 +669,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </div>
       )}
 
-      {!connected && !runError && (
+      {!connected && !runError && !showTimingNotice && (
         <div className={styles.banner}>
           Connecting to stream…
           <ThinkingDots />
