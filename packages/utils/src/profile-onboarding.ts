@@ -6,28 +6,12 @@
 export interface ProfileOnboardingInput {
   firstName?: string | null;
   lastName?: string | null;
-  /** Clerk external account provider slugs, e.g. google, oauth_google. */
+  /** Clerk external account provider slugs; any linked account skips onboarding. */
   externalAccountProviders?: string[];
 }
 
-const OAUTH_PROVIDER_MARKERS = [
-  "google",
-  "github",
-  "microsoft",
-  "apple",
-  "facebook",
-  "discord",
-  "linkedin",
-  "oauth_",
-] as const;
-
-function hasOAuthProvider(providers: string[]): boolean {
-  return providers.some((provider) => {
-    const normalized = provider.trim().toLowerCase();
-    return OAUTH_PROVIDER_MARKERS.some(
-      (marker) => normalized === marker || normalized.startsWith(marker),
-    );
-  });
+function hasExternalAccount(providers: string[]): boolean {
+  return providers.some((provider) => provider.trim().length > 0);
 }
 
 function hasDisplayName(firstName?: string | null, lastName?: string | null): boolean {
@@ -40,7 +24,7 @@ export function userNeedsProfileOnboarding(input: ProfileOnboardingInput): boole
     return false;
   }
 
-  if (hasOAuthProvider(input.externalAccountProviders ?? [])) {
+  if (hasExternalAccount(input.externalAccountProviders ?? [])) {
     return false;
   }
 

@@ -44,16 +44,16 @@ export default function ProfileOnboardingForm() {
     setError(null);
 
     try {
-      await user.update({
-        firstName: trimmedFirstName,
-        lastName: trimmedLastName,
-      });
-
       await syncCurrentUser(user.id, {
         email: user.primaryEmailAddress?.emailAddress ?? null,
         firstName: trimmedFirstName,
         lastName: trimmedLastName,
         imageUrl: user.imageUrl ?? null,
+      });
+
+      await user.update({
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
       });
 
       router.replace("/");

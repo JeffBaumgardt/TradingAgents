@@ -189,13 +189,20 @@ export async function logStartupDiagnostics(): Promise<void> {
   if (!agentsUrl) {
     console.error("[startup] AGENTS_SERVICE_URL is required in production");
   } else {
-    console.log(`[startup] AGENTS_SERVICE_URL host=${tryHost(agentsUrl) ?? "INVALID_URL"}`);
+    console.log(`[startup] AGENTS_SERVICE_URL=${agentsUrl}`);
     const { checkAgentsHealth } = await import("../services/agents-client.js");
     const agents = await checkAgentsHealth();
     if (agents.reachable && !agents.misconfigured) {
       console.log(`[startup] agents-service probe: ok (${agents.service})`);
     } else {
       console.error("[startup] agents-service probe failed:", agents);
+      if (agents.service === "tradingagents-api") {
+        console.error(
+          "[startup] The host in AGENTS_SERVICE_URL is running the Node API image, not Python agents-service. " +
+            "On Railway: agents-service → Config file path → /apps/agents-service/railway.json, then redeploy. " +
+            "Build logs must show FROM python:3.12-slim, not node:22-alpine.",
+        );
+      }
     }
   }
 }

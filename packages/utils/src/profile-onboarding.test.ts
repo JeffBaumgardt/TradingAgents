@@ -1,12 +1,12 @@
 /**
- * apps/api/src/lib/profile-onboarding.test.ts
+ * @file packages/utils/src/profile-onboarding.test.ts
  *
  * Verifies profile onboarding eligibility for email vs OAuth users.
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { userNeedsProfileOnboarding } from "@tradingagents/utils";
+import { userNeedsProfileOnboarding } from "./profile-onboarding.js";
 
 describe("userNeedsProfileOnboarding", () => {
   it("requires onboarding for email users without a name", () => {
@@ -42,7 +42,7 @@ describe("userNeedsProfileOnboarding", () => {
     );
   });
 
-  it("skips onboarding for Google OAuth users even without a stored name", () => {
+  it("skips onboarding for users with any linked external account", () => {
     assert.equal(
       userNeedsProfileOnboarding({
         firstName: null,
@@ -53,12 +53,12 @@ describe("userNeedsProfileOnboarding", () => {
     );
   });
 
-  it("skips onboarding for GitHub OAuth users", () => {
+  it("skips onboarding for custom OIDC providers", () => {
     assert.equal(
       userNeedsProfileOnboarding({
         firstName: "",
         lastName: "",
-        externalAccountProviders: ["github"],
+        externalAccountProviders: ["oauth_custom_acme"],
       }),
       false,
     );

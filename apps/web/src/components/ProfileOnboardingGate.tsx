@@ -27,22 +27,19 @@ export default function ProfileOnboardingGate({ children }: ProfileOnboardingGat
   const { user } = useUser();
   const pathname = usePathname();
   const router = useRouter();
+  const bypass = shouldBypassGate(pathname);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user || shouldBypassGate(pathname)) {
+    if (!isLoaded || !isSignedIn || !user || bypass) {
       return;
     }
 
     if (clerkUserNeedsProfileOnboarding(user)) {
       router.replace("/onboarding");
     }
-  }, [isLoaded, isSignedIn, pathname, router, user]);
+  }, [bypass, isLoaded, isSignedIn, pathname, router, user]);
 
-  if (!isLoaded) {
-    return null;
-  }
-
-  if (isSignedIn && user && !shouldBypassGate(pathname) && clerkUserNeedsProfileOnboarding(user)) {
+  if (isLoaded && isSignedIn && user && !bypass && clerkUserNeedsProfileOnboarding(user)) {
     return null;
   }
 
