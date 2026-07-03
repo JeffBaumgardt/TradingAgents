@@ -78,9 +78,9 @@
   font-weight: 700;
   padding: 0.12rem 0.5rem;
   border-radius: 4px;
-  color: var(--color-warning);
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: var(--color-decision-badge-text);
+  background: var(--color-decision-badge-bg);
+  border: 1px solid var(--color-decision-badge-border);
 }
 
 .status {
@@ -90,7 +90,7 @@
 }
 
 .statusCompleted {
-  color: #6ee7a0;
+  color: var(--color-status-completed);
 }
 
 .statusRunning {
