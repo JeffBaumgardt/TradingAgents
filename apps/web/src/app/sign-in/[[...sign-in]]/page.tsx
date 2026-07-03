@@ -1,21 +1,19 @@
 /**
  * @file apps/web/src/app/sign-in/[[...sign-in]]/page.tsx
- * Clerk sign-in page styled for the TradingAgents dark theme.
+ * Clerk sign-in page styled for the active TradingAgents theme.
  */
 
 import { SignIn } from "@clerk/nextjs";
+import AuthPageShell from "@/components/AuthPageShell";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
 export default function SignInPage() {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        padding: "3rem 1rem",
-      }}
+    <AuthPageShell
+      title="Sign in to TradingAgents"
+      subtitle="Access your analysis sessions, saved settings, and agent reports."
     >
       <SignIn appearance={clerkAppearance} />
-    </div>
+    </AuthPageShell>
   );
 }

@@ -6,7 +6,8 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.5",
@@ -21,6 +22,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "tsx": "^4.19.4",
     "typescript": "^5.7.2"
   }
 }
