@@ -27,6 +27,14 @@ export type ReportSectionKey =
 
 export type SessionStatus = "pending" | "running" | "completed" | "error" | "cancelled";
 
+/** True when agents may still be running and the client should use live SSE. */
+export function isLiveSessionStatus(status: SessionStatus): boolean {
+  return status === "pending" || status === "running";
+}
+
+/** Restart SSE before Vercel Hobby's 5-minute function limit (4:30). */
+export const SESSION_STREAM_ROTATE_MS = 270_000;
+
 export type SseEventType =
   | "run.started"
   | "run.heartbeat"
@@ -160,6 +168,18 @@ export interface SessionReport {
   markdown: string;
   sections: Record<string, string | null>;
   decision: string | null;
+}
+
+/** Persisted session event returned for historical replay. */
+export interface SessionEvent {
+  id: number;
+  type: SseEventType | string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface SessionEventsResponse {
+  items: SessionEvent[];
 }
 
 export interface ErrorResponse {

@@ -11,7 +11,7 @@ export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ sessionId: string }> },
 ): Promise<Response> {
   const { sessionId } = await context.params;
@@ -21,12 +21,17 @@ export async function GET(
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const upstream = await fetch(
+  const live = new URL(request.url).searchParams.get("live");
+  const upstreamUrl = new URL(
     `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/stream`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    },
   );
+  if (live) {
+    upstreamUrl.searchParams.set("live", live);
+  }
+
+  const upstream = await fetch(upstreamUrl.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
   if (!upstream.ok || !upstream.body) {
     return new Response(upstream.statusText, { status: upstream.status });

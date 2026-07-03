@@ -23,12 +23,14 @@ import type {
 import {
   AGENT_TEAMS,
   ANALYST_REPORT_SECTIONS,
+  isLiveSessionStatus,
   REPORT_SECTION_TITLES,
   REPORT_TEAM_GROUPS,
 } from "@tradingagents/api-types";
 import { formatElapsed, formatTokens, formatToolArgs, getReportSignalTone, extractReportSignal, truncateText } from "@tradingagents/utils";
 import {
   fetchSession,
+  fetchSessionEvents,
   fetchSessionReport,
   subscribeToSessionStream,
 } from "@/lib/api-client";
@@ -162,6 +164,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     elapsedSeconds: 0,
   });
   const [connected, setConnected] = useState(false);
+  const [usesLiveStream, setUsesLiveStream] = useState(
+    initialSession ? isLiveSessionStatus(initialSession.status) : true,
+  );
   const [completed, setCompleted] = useState(initialSession?.status === "completed");
   const [runError, setRunError] = useState<RunErrorState | null>(
     initialSession?.status === "error"
@@ -302,6 +307,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
     let feedCounter = 0;
 
     function pushFeed(timestamp: string, type: string, content: string) {
@@ -312,105 +319,176 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       ].slice(0, 100));
     }
 
-    const unsubscribe = subscribeToSessionStream(sessionId, {
-      onOpen: () => {
-        setConnected(true);
-        touchActivity();
-      },
-      onEvent: (event, data) => {
-        touchActivity();
+    function handleStreamEvent(event: string, data: unknown) {
+      touchActivity();
 
-        if (event === "run.heartbeat") {
-          const payload = data as RunHeartbeatEvent;
-          setActiveAgent(payload.activeAgent);
-          if (!timerFrozenRef.current && payload.elapsedSeconds >= 0) {
-            setStats((prev) => ({
-              ...prev,
-              elapsedSeconds: payload.elapsedSeconds,
-            }));
-          }
-          return;
-        }
-        if (event === "agent.status") {
-          const payload = data as AgentStatusEvent;
-          setAgentStatus((prev) => ({ ...prev, [payload.agent]: payload.status }));
-          if (payload.status === "in_progress") {
-            setActiveAgent(payload.agent);
-          }
-          return;
-        }
-        if (event === "message") {
-          const payload = data as StreamMessageEvent;
-          pushFeed(
-            formatEventTime(payload.timestamp),
-            payload.messageType,
-            truncateText(payload.content),
-          );
-          return;
-        }
-        if (event === "tool.call") {
-          const payload = data as StreamToolCallEvent;
-          pushFeed(
-            formatEventTime(payload.timestamp),
-            "Tool",
-            `${payload.toolName}: ${formatToolArgs(payload.args)}`,
-          );
-          return;
-        }
-        if (event === "report.section") {
-          const payload = data as StreamReportSectionEvent;
-          setReports((prev) => ({ ...prev, [payload.section]: payload.content }));
-          return;
-        }
-        if (event === "stats") {
-          const payload = data as StreamStatsEvent;
+      if (event === "run.heartbeat") {
+        const payload = data as RunHeartbeatEvent;
+        setActiveAgent(payload.activeAgent);
+        if (!timerFrozenRef.current && payload.elapsedSeconds >= 0) {
           setStats((prev) => ({
             ...prev,
-            llmCalls: payload.llm_calls,
-            toolCalls: payload.tool_calls,
-            tokensIn: payload.tokens_in,
-            tokensOut: payload.tokens_out,
+            elapsedSeconds: payload.elapsedSeconds,
           }));
-          return;
         }
-        if (event === "run.completed") {
-          markRunComplete();
-          return;
+        return;
+      }
+      if (event === "agent.status") {
+        const payload = data as AgentStatusEvent;
+        setAgentStatus((prev) => ({ ...prev, [payload.agent]: payload.status }));
+        if (payload.status === "in_progress") {
+          setActiveAgent(payload.agent);
         }
-        if (event === "run.error") {
-          terminalRef.current = true;
-          if (!timerFrozenRef.current) {
-            freezeElapsed((Date.now() - startTimeRef.current) / 1000);
-          }
-          const payload = data as RunErrorEvent;
-          setRunError({
-            message: payload.message,
-            failedAgent: payload.failedAgent,
-            hint: payload.hint,
-            stoppedAgents: payload.stoppedAgents,
-          });
-          setActiveAgent(null);
+        return;
+      }
+      if (event === "message") {
+        const payload = data as StreamMessageEvent;
+        pushFeed(
+          formatEventTime(payload.timestamp),
+          payload.messageType,
+          truncateText(payload.content),
+        );
+        return;
+      }
+      if (event === "tool.call") {
+        const payload = data as StreamToolCallEvent;
+        pushFeed(
+          formatEventTime(payload.timestamp),
+          "Tool",
+          `${payload.toolName}: ${formatToolArgs(payload.args)}`,
+        );
+        return;
+      }
+      if (event === "report.section") {
+        const payload = data as StreamReportSectionEvent;
+        setReports((prev) => ({ ...prev, [payload.section]: payload.content }));
+        return;
+      }
+      if (event === "stats") {
+        const payload = data as StreamStatsEvent;
+        setStats((prev) => ({
+          ...prev,
+          llmCalls: payload.llm_calls,
+          toolCalls: payload.tool_calls,
+          tokensIn: payload.tokens_in,
+          tokensOut: payload.tokens_out,
+        }));
+        return;
+      }
+      if (event === "run.completed") {
+        markRunComplete();
+        return;
+      }
+      if (event === "run.error") {
+        terminalRef.current = true;
+        if (!timerFrozenRef.current) {
+          freezeElapsed((Date.now() - startTimeRef.current) / 1000);
         }
-      },
-      onStreamEnd: () => {
-        // Normal close after run.completed — not an error.
-        if (!terminalRef.current) {
-          markRunComplete();
-        }
-      },
-      onError: (err) => {
-        if (terminalRef.current) {
-          return;
-        }
+        const payload = data as RunErrorEvent;
         setRunError({
-          message: err.message,
-          hint: "The live stream disconnected before the run finished. Try refreshing this page.",
+          message: payload.message,
+          failedAgent: payload.failedAgent,
+          hint: payload.hint,
+          stoppedAgents: payload.stoppedAgents,
         });
         setActiveAgent(null);
-      },
-    });
+      }
+    }
 
-    return unsubscribe;
+    async function loadTerminalSession() {
+      setUsesLiveStream(false);
+      try {
+        const eventsResponse = await fetchSessionEvents(sessionId);
+        if (cancelled) {
+          return;
+        }
+
+        for (const item of eventsResponse.items) {
+          handleStreamEvent(item.type, item.payload);
+        }
+
+        await hydrateReportFromApi();
+        if (!cancelled) {
+          setConnected(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setRunError({
+            message: "Failed to load run data",
+            hint: "Try refreshing this page.",
+          });
+        }
+      }
+    }
+
+    function startLiveStream() {
+      setUsesLiveStream(true);
+      unsubscribe = subscribeToSessionStream(
+        sessionId,
+        {
+          onOpen: () => {
+            setConnected(true);
+            touchActivity();
+          },
+          onEvent: (event, data) => {
+            handleStreamEvent(event, data);
+          },
+          onStreamEnd: () => {
+            if (!terminalRef.current) {
+              markRunComplete();
+            }
+          },
+          onError: (err) => {
+            if (terminalRef.current) {
+              return;
+            }
+            setRunError({
+              message: err.message,
+              hint: "The live stream disconnected before the run finished. Try refreshing this page.",
+            });
+            setActiveAgent(null);
+          },
+        },
+      );
+    }
+
+    async function initRunData() {
+      let status = sessionMeta?.status ?? initialSession?.status;
+
+      if (!status) {
+        try {
+          const session = await fetchSession(sessionId);
+          if (cancelled) {
+            return;
+          }
+          setSessionMeta(session);
+          status = session.status;
+        } catch {
+          if (!cancelled) {
+            startLiveStream();
+          }
+          return;
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!isLiveSessionStatus(status)) {
+        await loadTerminalSession();
+        return;
+      }
+
+      startLiveStream();
+    }
+
+    void initRunData();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, [sessionId]);
 
   const isRunning = connected && !completed && !runError;
@@ -619,8 +697,17 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
       {!connected && !runError && (
         <div className={styles.banner}>
-          Connecting to stream…
-          <ThinkingDots />
+          {usesLiveStream ? (
+            <>
+              Connecting to stream…
+              <ThinkingDots />
+            </>
+          ) : (
+            <>
+              Loading run data…
+              <ThinkingDots />
+            </>
+          )}
         </div>
       )}
 

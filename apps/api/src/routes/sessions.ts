@@ -77,6 +77,27 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
   return c.json(report);
 });
 
+sessionRoutes.get("/sessions/:id/events", async (c) => {
+  const userId = getRequestUserId(c);
+  const id = c.req.param("id");
+  const client = getSupabaseAdmin(c);
+  const session = await sessionService.getSession(client, id, userId);
+
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const stored = await sessionService.getStoredEvents(client, id);
+  return c.json({
+    items: stored.map((event) => ({
+      id: event.id,
+      type: event.type,
+      payload: event.payload,
+      createdAt: event.created_at,
+    })),
+  });
+});
+
 sessionRoutes.get("/sessions/:id/stream", async (c) => {
   const userId = getRequestUserId(c);
   const id = c.req.param("id");
@@ -92,12 +113,16 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
   }
 
   return streamSSE(c, async (stream) => {
-    const stored = await sessionService.getStoredEvents(client, id);
-    for (const event of stored) {
-      await stream.writeSSE({
-        event: event.type,
-        data: JSON.stringify(event.payload),
-      });
+    const liveOnly = c.req.query("live") === "1" || c.req.query("live") === "true";
+
+    if (!liveOnly) {
+      const stored = await sessionService.getStoredEvents(client, id);
+      for (const event of stored) {
+        await stream.writeSSE({
+          event: event.type,
+          data: JSON.stringify(event.payload),
+        });
+      }
     }
 
     if (session.status === "completed" || session.status === "error" || session.status === "cancelled") {

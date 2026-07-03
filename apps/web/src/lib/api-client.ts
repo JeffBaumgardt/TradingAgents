@@ -12,6 +12,7 @@ import type {
   ProviderModelsResponse,
   ResolvedConfigResponse,
   Session,
+  SessionEventsResponse,
   SessionListResponse,
   SessionReport,
   SseEventMap,
@@ -20,6 +21,7 @@ import type {
   UpdateUserRequest,
   User,
 } from "@tradingagents/api-types";
+import { SESSION_STREAM_ROTATE_MS } from "@tradingagents/api-types";
 import { buildAuthHeaders } from "@/lib/auth-headers";
 
 function resolveApiBase(): string {
@@ -229,12 +231,31 @@ export async function fetchSessionReport(sessionId: string): Promise<SessionRepo
   return parseJson<SessionReport>(response);
 }
 
+/** Fetch all persisted events for a session (historical replay). */
+export async function fetchSessionEvents(sessionId: string): Promise<SessionEventsResponse> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/events`,
+    {
+      headers: await buildAuthHeaders(),
+      cache: "no-store",
+    },
+  );
+  return parseJson<SessionEventsResponse>(response);
+}
+
 export interface SessionStreamCallbacks {
   onEvent: <T extends SseEventType>(event: T, data: SseEventMap[T]) => void;
   onOpen?: () => void;
   /** Stream closed after a normal terminal event (run.completed / run.error). */
   onStreamEnd?: () => void;
   onError?: (error: Error) => void;
+  /** Called before an intentional SSE reconnect (Vercel duration rotation). */
+  onReconnect?: () => void;
+}
+
+export interface SessionStreamOptions {
+  /** Restart the SSE connection before serverless timeout (default 4:30). */
+  rotateMs?: number;
 }
 
 const SSE_EVENT_TYPES: SseEventType[] = [
@@ -249,82 +270,139 @@ const SSE_EVENT_TYPES: SseEventType[] = [
   "run.error",
 ];
 
+function buildStreamUrl(sessionId: string, liveOnly: boolean): string {
+  const base = `/api/sessions/${encodeURIComponent(sessionId)}/stream`;
+  return liveOnly ? `${base}?live=1` : base;
+}
+
 /** Subscribe to SSE stream for a running session. Returns an unsubscribe function. */
 export function subscribeToSessionStream(
   sessionId: string,
   callbacks: SessionStreamCallbacks,
+  options: SessionStreamOptions = {},
 ): () => void {
-  const url = `/api/sessions/${encodeURIComponent(sessionId)}/stream`;
-  const eventSource = new EventSource(url);
+  const rotateMs = options.rotateMs ?? SESSION_STREAM_ROTATE_MS;
+  let eventSource: EventSource | null = null;
+  let rotateTimer: ReturnType<typeof setTimeout> | null = null;
   let terminal = false;
+  let closed = false;
+  let intentionalClose = false;
 
-  eventSource.onopen = () => {
-    callbacks.onOpen?.();
-  };
-
-  for (const eventType of SSE_EVENT_TYPES) {
-    eventSource.addEventListener(eventType, (raw) => {
-      try {
-        const data = JSON.parse((raw as MessageEvent).data) as SseEventMap[typeof eventType];
-        callbacks.onEvent(eventType, data);
-        if (eventType === "run.completed" || eventType === "run.error") {
-          terminal = true;
-        }
-      } catch (error) {
-        callbacks.onError?.(
-          error instanceof Error ? error : new Error("Failed to parse SSE event"),
-        );
-      }
-    });
+  function clearRotateTimer() {
+    if (rotateTimer !== null) {
+      clearTimeout(rotateTimer);
+      rotateTimer = null;
+    }
   }
 
-  eventSource.onerror = () => {
-    eventSource.close();
-
-    if (terminal) {
-      callbacks.onStreamEnd?.();
+  function scheduleRotation() {
+    clearRotateTimer();
+    if (terminal || closed) {
       return;
     }
 
-    void (async () => {
-      try {
-        const session = await fetchSession(sessionId);
-        if (session.status === "completed") {
-          terminal = true;
-          callbacks.onEvent("run.completed", {
-            sessionId,
-            decision: null,
-          });
-          callbacks.onStreamEnd?.();
-          return;
+    rotateTimer = setTimeout(() => {
+      if (terminal || closed) {
+        return;
+      }
+      callbacks.onReconnect?.();
+      intentionalClose = true;
+      eventSource?.close();
+      eventSource = null;
+      intentionalClose = false;
+      connect(true);
+    }, rotateMs);
+  }
+
+  function connect(liveOnly: boolean) {
+    if (closed || terminal) {
+      return;
+    }
+
+    eventSource = new EventSource(buildStreamUrl(sessionId, liveOnly));
+
+    eventSource.onopen = () => {
+      callbacks.onOpen?.();
+      scheduleRotation();
+    };
+
+    for (const eventType of SSE_EVENT_TYPES) {
+      eventSource.addEventListener(eventType, (raw) => {
+        try {
+          const data = JSON.parse((raw as MessageEvent).data) as SseEventMap[typeof eventType];
+          callbacks.onEvent(eventType, data);
+          if (eventType === "run.completed" || eventType === "run.error") {
+            terminal = true;
+            clearRotateTimer();
+          }
+        } catch (error) {
+          callbacks.onError?.(
+            error instanceof Error ? error : new Error("Failed to parse SSE event"),
+          );
         }
-        if (session.status === "error") {
-          terminal = true;
-          callbacks.onEvent("run.error", {
-            message: session.error ?? "Run failed",
-          });
-          return;
-        }
-        if (session.status === "cancelled") {
-          terminal = true;
-          callbacks.onEvent("run.error", {
-            message: "Run cancelled",
-            hint: "This analysis was cancelled.",
-          });
-          return;
-        }
-      } catch {
-        // Fall through to connection error below.
+      });
+    }
+
+    eventSource.onerror = () => {
+      clearRotateTimer();
+      eventSource?.close();
+      eventSource = null;
+
+      if (intentionalClose || closed) {
+        return;
       }
 
-      if (!terminal) {
-        callbacks.onError?.(new Error("Session stream connection error"));
+      if (terminal) {
+        callbacks.onStreamEnd?.();
+        return;
       }
-    })();
-  };
+
+      void (async () => {
+        try {
+          const session = await fetchSession(sessionId);
+          if (session.status === "completed") {
+            terminal = true;
+            callbacks.onEvent("run.completed", {
+              sessionId,
+              decision: null,
+            });
+            callbacks.onStreamEnd?.();
+            return;
+          }
+          if (session.status === "error") {
+            terminal = true;
+            callbacks.onEvent("run.error", {
+              message: session.error ?? "Run failed",
+            });
+            return;
+          }
+          if (session.status === "cancelled") {
+            terminal = true;
+            callbacks.onEvent("run.error", {
+              message: "Run cancelled",
+              hint: "This analysis was cancelled.",
+            });
+            return;
+          }
+        } catch {
+          // Fall through to connection error below.
+        }
+
+        if (!terminal && !closed) {
+          callbacks.onError?.(new Error("Session stream connection error"));
+        }
+      })();
+    };
+  }
+
+  connect(false);
 
   return () => {
-    eventSource.close();
+    closed = true;
+    clearRotateTimer();
+    intentionalClose = true;
+    eventSource?.close();
+    eventSource = null;
   };
 }
 
