@@ -5,11 +5,12 @@
  * Mounts health, config, and session routes defined in the OpenAPI spec.
  */
 
-import { AuthError, withSupabase } from "@tradingagents/supabase/server";
+import { AuthError } from "@tradingagents/supabase/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
+import { withSupabaseContext } from "./middleware/with-supabase.js";
 import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
 import { credentialsRoutes } from "./routes/credentials.js";
@@ -43,7 +44,7 @@ export function createApp() {
 
   // Provides ctx.supabase (RLS-scoped) and ctx.supabaseAdmin on every request.
   // Protected routes verify Clerk session tokens via requireUserId().
-  app.use("*", withSupabase({ auth: "none" }));
+  app.use("*", withSupabaseContext());
 
   app.route("/", configRoutes);
   app.route("/", webhookRoutes);

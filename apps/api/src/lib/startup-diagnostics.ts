@@ -3,6 +3,13 @@
  * Safe startup logging for Railway/deploy debugging (never prints secret values).
  */
 
+import {
+  createAdminClient,
+  createContextClient,
+  resolveEnv,
+} from "@supabase/server/core";
+import { createSupabaseContext } from "@supabase/server";
+
 function envStatus(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -40,8 +47,26 @@ function tryHost(url: string | undefined): string | null {
   }
 }
 
-/** Log env presence and Supabase hints at process start. */
-export function logStartupDiagnostics(): void {
+function logWhitespaceMismatch(name: string): void {
+  const raw = process.env[name];
+  const trimmed = raw?.trim();
+  if (raw && trimmed && raw.length !== trimmed.length) {
+    console.warn(
+      `[startup] ${name} has leading/trailing whitespace (raw len=${raw.length}, trimmed len=${trimmed.length})`,
+    );
+  }
+}
+
+function logError(label: string, error: unknown): void {
+  if (error instanceof Error) {
+    console.error(`[startup] ${label}:`, error.name, error.message);
+    return;
+  }
+  console.error(`[startup] ${label}:`, error);
+}
+
+/** Log env presence, Supabase hints, and live client-creation probes at process start. */
+export async function logStartupDiagnostics(): Promise<void> {
   console.log("[startup] TradingAgents API boot diagnostics");
 
   for (const name of [
@@ -50,12 +75,34 @@ export function logStartupDiagnostics(): void {
     "SUPABASE_URL",
     "SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_SECRET_KEY",
+    "SUPABASE_PUBLISHABLE_KEYS",
+    "SUPABASE_SECRET_KEYS",
     "SUPABASE_JWKS_URL",
     "CLERK_SECRET_KEY",
     "AGENTS_SERVICE_URL",
     "CORS_ORIGIN",
   ]) {
     console.log(`[startup] ${name}: ${envStatus(name)}`);
+  }
+
+  for (const name of [
+    "SUPABASE_PUBLISHABLE_KEYS",
+    "SUPABASE_SECRET_KEYS",
+  ]) {
+    const plural = process.env[name]?.trim();
+    if (plural) {
+      console.warn(
+        `[startup] ${name} is set and overrides the singular key var — ensure JSON includes a "default" entry`,
+      );
+    }
+  }
+
+  for (const name of [
+    "SUPABASE_URL",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_SECRET_KEY",
+  ]) {
+    logWhitespaceMismatch(name);
   }
 
   const publishableHint = keyHint("SUPABASE_PUBLISHABLE_KEY");
@@ -96,5 +143,45 @@ export function logStartupDiagnostics(): void {
     console.warn(
       "[startup] No JWKS configured (SUPABASE_JWKS_URL or SUPABASE_JWKS)",
     );
+  }
+
+  const resolved = resolveEnv();
+  if (resolved.error) {
+    logError("resolveEnv failed", resolved.error);
+    return;
+  }
+
+  console.log("[startup] resolveEnv ok:", {
+    urlHost: tryHost(resolved.data.url),
+    publishableKeyNames: Object.keys(resolved.data.publishableKeys),
+    secretKeyNames: Object.keys(resolved.data.secretKeys),
+    hasJwks: Boolean(resolved.data.jwks),
+  });
+
+  try {
+    createAdminClient();
+    console.log("[startup] createAdminClient: ok");
+  } catch (error) {
+    logError("createAdminClient failed", error);
+  }
+
+  try {
+    createContextClient({ auth: { token: null } });
+    console.log("[startup] createContextClient: ok");
+  } catch (error) {
+    logError("createContextClient failed", error);
+  }
+
+  const probeRequest = new Request("http://127.0.0.1/startup-probe");
+  const { error: probeError } = await createSupabaseContext(probeRequest, {
+    auth: "none",
+  });
+  if (probeError) {
+    console.error("[startup] createSupabaseContext probe failed:", {
+      code: probeError.code,
+      message: probeError.message,
+    });
+  } else {
+    console.log("[startup] createSupabaseContext probe: ok");
   }
 }

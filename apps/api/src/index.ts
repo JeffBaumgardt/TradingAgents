@@ -11,10 +11,17 @@ import { logStartupDiagnostics } from "./lib/startup-diagnostics.js";
 
 const port = Number(process.env.PORT ?? 4000);
 
-logStartupDiagnostics();
+async function main() {
+  await logStartupDiagnostics();
 
-const app = createApp();
+  const app = createApp();
 
-console.log(`TradingAgents API listening on http://localhost:${port}`);
+  console.log(`TradingAgents API listening on http://localhost:${port}`);
 
-serve({ fetch: app.fetch, port });
+  serve({ fetch: app.fetch, port });
+}
+
+main().catch((error) => {
+  console.error("[startup] fatal boot error:", error);
+  process.exit(1);
+});
