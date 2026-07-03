@@ -1,0 +1,51 @@
+/**
+ * @file apps/web/src/components/ProfileOnboardingForm.module.css
+ * Styles for the profile onboarding form.
+ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 28rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.field input {
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #0f1419;
+  color: #e8eef4;
+}
+
+.error {
+  color: #f87171;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.primaryButton {
+  padding: 0.65rem 1.25rem;
+  border-radius: 6px;
+  border: none;
+  background: #22c55e;
+  color: #052e16;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
