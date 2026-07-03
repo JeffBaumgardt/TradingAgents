@@ -121,6 +121,11 @@ export {
   type ReportSignalTone,
 } from "./report-signal.js";
 
+export {
+  userNeedsProfileOnboarding,
+  type ProfileOnboardingInput,
+} from "./profile-onboarding.js";
+
 /** Providers that show step 9 provider-specific config. */
 export const PROVIDERS_WITH_STEP9 = new Set(["google", "openai", "anthropic"]);
 

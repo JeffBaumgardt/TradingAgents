@@ -54,6 +54,15 @@ async function buildUserHeaders(): Promise<HeadersInit> {
   return buildAuthHeaders();
 }
 
+/** Load the current user's profile from the API. */
+export async function fetchCurrentUser(): Promise<User> {
+  const response = await fetch(`${API_BASE}/users/me`, {
+    headers: await buildUserHeaders(),
+    cache: "no-store",
+  });
+  return parseJson<User>(response);
+}
+
 /** Ensure the API has a user row and sync Clerk profile fields. */
 export async function syncCurrentUser(
   _userId: string,

@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import SiteHeader from "@/components/SiteHeader";
 import AuthUserSync from "@/components/AuthUserSync";
+import ProfileOnboardingGate from "@/components/ProfileOnboardingGate";
 import { UserSessionProvider } from "@/context/UserSessionContext";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 import "./globals.css";
@@ -27,8 +28,10 @@ export default function RootLayout({
         <ClerkProvider appearance={clerkAppearance}>
           <AuthUserSync />
           <UserSessionProvider>
-            <SiteHeader />
-            <main>{children}</main>
+            <ProfileOnboardingGate>
+              <SiteHeader />
+              <main>{children}</main>
+            </ProfileOnboardingGate>
           </UserSessionProvider>
         </ClerkProvider>
       </body>
