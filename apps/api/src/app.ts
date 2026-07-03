@@ -56,13 +56,25 @@ export function createApp() {
   app.onError((error, c) => {
     if (error instanceof HTTPException && error.cause instanceof AuthError) {
       const authError = error.cause;
+      console.error("[api] auth middleware error:", {
+        path: c.req.path,
+        method: c.req.method,
+        code: authError.code,
+        message: authError.message,
+        status: authError.status,
+      });
       return c.json(
         { error: authError.message, code: authError.code },
         authError.status as 401 | 500,
       );
     }
 
-    console.error(error);
+    console.error("[api] unhandled error:", {
+      path: c.req.path,
+      method: c.req.method,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return c.json({ error: "Internal server error" }, 500);
   });
 

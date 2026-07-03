@@ -7,8 +7,12 @@
 
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
+import { logStartupDiagnostics } from "./lib/startup-diagnostics.js";
 
 const port = Number(process.env.PORT ?? 4000);
+
+logStartupDiagnostics();
+
 const app = createApp();
 
 console.log(`TradingAgents API listening on http://localhost:${port}`);
