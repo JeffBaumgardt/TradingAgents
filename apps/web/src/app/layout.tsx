@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import SiteHeader from "@/components/SiteHeader";
 import AuthUserSync from "@/components/AuthUserSync";
+import ProfileOnboardingGate from "@/components/ProfileOnboardingGate";
 import ThemeScript from "@/components/ThemeScript";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { UserSessionProvider } from "@/context/UserSessionContext";
@@ -36,8 +37,10 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthUserSync />
             <UserSessionProvider>
-              <SiteHeader />
-              <main id="main-content">{children}</main>
+              <ProfileOnboardingGate>
+                <SiteHeader />
+                <main id="main-content">{children}</main>
+              </ProfileOnboardingGate>
             </UserSessionProvider>
           </ThemeProvider>
         </ClerkProvider>

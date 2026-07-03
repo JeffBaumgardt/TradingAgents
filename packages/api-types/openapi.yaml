@@ -353,6 +353,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /sessions/{id}/events:
+    get:
+      tags: [sessions]
+      summary: List persisted session events
+      operationId: getSessionEvents
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Stored events in chronological order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionEventsResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /sessions/{id}/stream:
     get:
       tags: [sessions]
@@ -360,6 +380,12 @@ paths:
       operationId: streamSession
       parameters:
         - $ref: "#/components/parameters/SessionId"
+        - name: live
+          in: query
+          required: false
+          description: When true, skip replaying stored events (for SSE reconnects).
+          schema:
+            type: boolean
       responses:
         "200":
           description: Server-sent event stream
@@ -789,6 +815,28 @@ components:
           type: integer
         offset:
           type: integer
+    SessionEvent:
+      type: object
+      required: [id, type, payload, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    SessionEventsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionEvent"
     SessionReport:
       type: object
       required: [sessionId, markdown, sections, decision]

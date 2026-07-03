@@ -318,9 +318,9 @@ export default function Wizard() {
     <div className={styles.wizard} aria-labelledby="wizard-step-title">
       <div className={styles.stepHeader}>
         <div className={styles.stepHeading}>
-          <h2 id="wizard-step-title" className={styles.stepTitle}>
+          <h3 id="wizard-step-title" className={styles.stepTitle}>
             Step {step} of {effectiveTotalSteps}: {STEP_TITLES[step]}
-          </h2>
+          </h3>
           <p className={styles.stepDescription}>{STEP_DESCRIPTIONS[step]}</p>
         </div>
         <div className={styles.stepMeta}>

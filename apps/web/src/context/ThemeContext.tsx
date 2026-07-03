@@ -46,8 +46,21 @@ function applyThemeToDocument(themeId: ThemeId) {
   document.documentElement.style.colorScheme = theme.colorScheme;
 }
 
+function readThemeFromDocument(): ThemeId | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const fromDom = document.documentElement.dataset.theme;
+  if (isThemeId(fromDom)) {
+    return fromDom;
+  }
+  return null;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeId, setThemeIdState] = useState<ThemeId>(DEFAULT_THEME_ID);
+  const [themeId, setThemeIdState] = useState<ThemeId>(() => {
+    return readThemeFromDocument() ?? DEFAULT_THEME_ID;
+  });
 
   useEffect(() => {
     const stored = readStoredTheme();
