@@ -40,17 +40,30 @@ The CLI Dockerfile is **`Dockerfile.cli`** (renamed so Railway does not auto-sel
 
 **Fix for agents-service:** set **Config file path** to `/apps/agents-service/railway.json` (required — root config points at the API).
 
-### 3. Wrong start command (`pnpm could not be found`)
+### agents-service deploy shows `pnpm: command not found`
 
-When Railway imports a pnpm monorepo, it often auto-sets:
+Railway auto-imported this monorepo and set a **Custom Start Command** like:
 
 ```bash
-pnpm --filter @tradingagents/api start
+pnpm --filter @tradingagents/agents-service start
 ```
 
-The production Docker image has **no pnpm** at runtime. Build may succeed; **deploy** fails.
+The Python Docker image has **no pnpm**. The build succeeds; deploy fails.
 
-**Fix:** clear the custom start command. Root `railway.json` sets `node dist/index.js` for api.
+**Fix (agents-service → Settings):**
+
+1. **Deploy → Custom Start Command** → **delete all text** (leave empty), **or** set:
+   ```bash
+   /usr/local/bin/start-agents-service.sh
+   ```
+2. **Config-as-code → Config file path** → `/apps/agents-service/railway.json`
+3. Redeploy
+
+When the start command is empty, the image **ENTRYPOINT** runs `start-agents-service.sh` (uvicorn).
+
+### `api` deploy shows `pnpm: command not found`
+
+Same issue — clear **Custom Start Command** or set `node dist/index.js`. Root `/railway.json` should set this automatically once pushed.
 
 ---
 
