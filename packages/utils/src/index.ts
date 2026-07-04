@@ -122,11 +122,6 @@ export {
 } from "./report-signal.js";
 
 export {
-  userNeedsProfileOnboarding,
-  type ProfileOnboardingInput,
-} from "./profile-onboarding.js";
-
-export {
   MAX_USER_CONTEXT_LENGTH,
   sanitizeUserContext,
   validateUserContext,
