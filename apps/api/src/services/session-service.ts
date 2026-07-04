@@ -15,10 +15,12 @@ import type {
 } from "@tradingagents/api-types";
 import {
   normalizeTicker,
+  sanitizeUserContext,
   validateAnalysisDate,
   validateAnalysts,
   validateResearchDepth,
   validateTicker,
+  validateUserContext,
 } from "@tradingagents/utils";
 import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
 import * as agentsClient from "./agents-client.js";
@@ -106,6 +108,10 @@ export function validateCreateRequest(
   if (!creds.apiKey?.trim()) {
     return `API key required for provider: ${body.llmProvider}`;
   }
+  const userContextError = validateUserContext(body.userContext);
+  if (userContextError) {
+    return userContextError;
+  }
   return null;
 }
 
@@ -123,6 +129,7 @@ export async function createSession(
   const normalized: CreateSessionRequest = {
     ...body,
     ticker: normalizeTicker(body.ticker),
+    userContext: sanitizeUserContext(body.userContext),
     providerCredentials: storedCredentials,
   };
 

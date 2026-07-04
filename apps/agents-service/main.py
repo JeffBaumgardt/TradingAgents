@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes_config import router as config_router
 from routes_runs import router as runs_router
+from security_headers import SecurityHeadersMiddleware
 
 app = FastAPI(
     title="TradingAgents Agents Service",
@@ -29,6 +30,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(config_router)
 app.include_router(runs_router)

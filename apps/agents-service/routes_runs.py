@@ -10,8 +10,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from run_manager import run_manager
+from user_context_validation import validate_user_context
 
 router = APIRouter(prefix="/internal/runs", tags=["runs"])
 
@@ -33,6 +34,11 @@ class StartRunRequest(BaseModel):
     anthropicEffort: str | None = None
     checkpointEnabled: bool = False
     providerCredentials: dict[str, dict[str, str]] | None = None
+
+    @field_validator("userContext")
+    @classmethod
+    def validate_user_context_field(cls, value: str | None) -> str | None:
+        return validate_user_context(value)
 
 
 @router.post("")

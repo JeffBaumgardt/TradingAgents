@@ -1,3 +1,5 @@
+import { getSecurityHeaders } from "./security-headers.mjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@tradingagents/api-types", "@tradingagents/utils"],
@@ -6,6 +8,15 @@ const nextConfig = {
       ".js": [".ts", ".tsx", ".js"],
     };
     return config;
+  },
+  async headers() {
+    const securityHeaders = getSecurityHeaders();
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+    ];
   },
 };
 

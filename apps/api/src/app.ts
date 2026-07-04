@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
+import { securityHeadersMiddleware } from "./middleware/security-headers.js";
 import { withSupabaseContext } from "./middleware/with-supabase.js";
 import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
@@ -30,6 +31,7 @@ export function createApp() {
   const app = new Hono<AppEnv>();
 
   app.use("*", logger());
+  app.use("*", securityHeadersMiddleware());
   app.use(
     "*",
     cors({
