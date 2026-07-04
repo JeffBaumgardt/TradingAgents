@@ -25,8 +25,8 @@ export default function CredentialsPageContent({
     <>
       <div style={{ marginBottom: "1.5rem" }}>
         {credentialsReady ? (
-          <Link href="/" className="muted" style={{ textDecoration: "none" }}>
-            ← Back to home
+          <Link href="/dashboard" className="muted" style={{ textDecoration: "none" }}>
+            ← Back to dashboard
           </Link>
         ) : (
           <p className="muted" style={{ margin: 0 }}>
@@ -43,10 +43,10 @@ export default function CredentialsPageContent({
       <CredentialsSetup
         initialSchema={initialSchema}
         onSuccess={() => {
-          router.push("/");
+          router.push("/dashboard");
         }}
         continueLabel={
-          credentialsReady ? "Save keys and return home" : "Save keys and start setup"
+          credentialsReady ? "Save keys and return to dashboard" : "Save keys and start setup"
         }
       />
     </>

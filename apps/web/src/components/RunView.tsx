@@ -697,8 +697,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   return (
     <div className={styles.runLayout}>
       <div className={styles.runHeader}>
-        <Link href="/" className={styles.backLink} aria-label="Return to home page">
-          ← Back to home
+        <Link href="/dashboard" className={styles.backLink} aria-label="Return to dashboard">
+          ← Back to dashboard
         </Link>
       </div>
       <div className={styles.runTitleBlock}>

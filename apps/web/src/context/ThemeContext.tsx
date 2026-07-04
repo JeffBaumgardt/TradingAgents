@@ -9,18 +9,17 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
-  DEFAULT_THEME_ID,
-  getThemeDefinition,
-  isThemeId,
-  THEME_STORAGE_KEY,
-  type ThemeId,
-} from "@/lib/themes";
+  getServerThemeSnapshot,
+  readStoredThemeId,
+  subscribeToThemeChanges,
+  writeStoredThemeId,
+} from "@/lib/theme-store";
+import type { ThemeId } from "@/lib/themes";
 
 interface ThemeContextValue {
   themeId: ThemeId;
@@ -29,49 +28,15 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readStoredTheme(): ThemeId {
-  if (typeof window === "undefined") {
-    return DEFAULT_THEME_ID;
-  }
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (isThemeId(stored)) {
-    return stored;
-  }
-  return DEFAULT_THEME_ID;
-}
-
-function applyThemeToDocument(themeId: ThemeId) {
-  const theme = getThemeDefinition(themeId);
-  document.documentElement.dataset.theme = themeId;
-  document.documentElement.style.colorScheme = theme.colorScheme;
-}
-
-function readThemeFromDocument(): ThemeId | null {
-  if (typeof document === "undefined") {
-    return null;
-  }
-  const fromDom = document.documentElement.dataset.theme;
-  if (isThemeId(fromDom)) {
-    return fromDom;
-  }
-  return null;
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeId, setThemeIdState] = useState<ThemeId>(() => {
-    return readThemeFromDocument() ?? DEFAULT_THEME_ID;
-  });
-
-  useEffect(() => {
-    const stored = readStoredTheme();
-    setThemeIdState(stored);
-    applyThemeToDocument(stored);
-  }, []);
+  const themeId = useSyncExternalStore(
+    subscribeToThemeChanges,
+    readStoredThemeId,
+    getServerThemeSnapshot,
+  );
 
   const setThemeId = useCallback((id: ThemeId) => {
-    setThemeIdState(id);
-    window.localStorage.setItem(THEME_STORAGE_KEY, id);
-    applyThemeToDocument(id);
+    writeStoredThemeId(id);
   }, []);
 
   const value = useMemo(
