@@ -71,6 +71,12 @@ export function buildThemeBootstrapScript(): string {
   return `
 (function () {
   try {
+    var landingPaths = ["/", "/privacy"];
+    if (landingPaths.indexOf(window.location.pathname) !== -1) {
+      document.documentElement.dataset.theme = ${JSON.stringify(DEFAULT_THEME_ID)};
+      document.documentElement.style.colorScheme = "light";
+      return;
+    }
     var key = ${JSON.stringify(THEME_STORAGE_KEY)};
     var fallback = ${JSON.stringify(DEFAULT_THEME_ID)};
     var allowed = ${JSON.stringify(THEME_IDS)};

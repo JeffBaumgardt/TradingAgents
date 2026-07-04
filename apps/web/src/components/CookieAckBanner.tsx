@@ -5,6 +5,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { buildCookieAcknowledgmentCookie } from "@/lib/cookie-ack";
 import styles from "./CookieAckBanner.module.css";
@@ -29,6 +30,7 @@ export default function CookieAckBanner({ initialAcknowledged }: CookieAckBanner
     <div
       className={styles.banner}
       role="region"
+      aria-label="Cookie notice"
       aria-live="polite"
       aria-labelledby="cookie-ack-title"
       aria-describedby="cookie-ack-description"
@@ -39,7 +41,11 @@ export default function CookieAckBanner({ initialAcknowledged }: CookieAckBanner
         </p>
         <p id="cookie-ack-description" className={styles.description}>
           TradingAgents uses essential cookies to keep you signed in and remember your preferences.
-          By continuing, you acknowledge our use of cookies on this site.
+          See our{" "}
+          <Link href="/privacy" className={styles.policyLink}>
+            cookie and privacy policy
+          </Link>{" "}
+          for details.
         </p>
       </div>
       <button

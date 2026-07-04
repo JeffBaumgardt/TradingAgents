@@ -11,7 +11,8 @@ describe("isPublicPath", () => {
     assert.equal(isPublicPath("/"), true);
   });
 
-  it("treats auth and webhook routes as public", () => {
+  it("treats marketing and auth routes as public", () => {
+    assert.equal(isPublicPath("/privacy"), true);
     assert.equal(isPublicPath("/sign-in"), true);
     assert.equal(isPublicPath("/sign-in/factor-one"), true);
     assert.equal(isPublicPath("/sign-up"), true);
@@ -32,7 +33,7 @@ describe("isPublicPath", () => {
   });
 
   it("exports the expected public route prefixes", () => {
-    assert.deepEqual(PUBLIC_ROUTE_PREFIXES, ["/", "/sign-in", "/sign-up", "/api/webhooks"]);
+    assert.deepEqual(PUBLIC_ROUTE_PREFIXES, ["/", "/privacy", "/sign-in", "/sign-up", "/api/webhooks"]);
   });
 
   it("keeps the landing matcher exact for middleware", () => {

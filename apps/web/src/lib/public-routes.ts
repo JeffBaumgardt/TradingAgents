@@ -6,6 +6,7 @@
 /** Path prefixes that do not require Clerk authentication. */
 export const PUBLIC_ROUTE_PREFIXES = [
   "/",
+  "/privacy",
   "/sign-in",
   "/sign-up",
   "/api/webhooks",
@@ -14,6 +15,7 @@ export const PUBLIC_ROUTE_PREFIXES = [
 /** Route matchers for Clerk middleware — `/` must stay exact. */
 export const PUBLIC_ROUTE_MATCHERS = [
   "/",
+  "/privacy",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",

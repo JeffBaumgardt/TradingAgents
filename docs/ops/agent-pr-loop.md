@@ -51,8 +51,8 @@ Required execution contract:
 10) Verify GitHub mergeability: `gh pr view <n> --json mergeable,mergeStateStatus` must be `MERGEABLE` / `CLEAN` (not `CONFLICTING`).
 11) Provide concise change summary and test evidence.
 12) Watch PR CI **and merge status** to finish; if base moves or conflicts appear, repeat step 9 before continuing.
-13) Spin up a review agent for a full code review; address valid feedback and push fixes.
-14) Do not mark the PR done until CI is green, mergeability is clean, and review feedback is addressed.
+13) Run the **review loop** (below) before declaring the PR done.
+14) Do not mark the PR done until CI is green, mergeability is clean, and all blocking review items are resolved.
 
 Branch freshness (required):
 - Branch from latest `origin/main` (`git fetch origin main` first).
@@ -64,6 +64,48 @@ Rules:
 - Use readable, descriptive naming and early returns.
 - Keep changes scoped to the request.
 - If blocked, explain blocker and best fallback.
+
+---
+
+## Review loop (required before handoff)
+
+Run this loop until there are **zero open Critical, High, or Low** findings. **Nitpicks do not block merge** — capture them as follow-up issues or optional polish.
+
+### A) Peer review (each cycle)
+
+Spin up a review agent (or perform an equivalent self-review if subagents are unavailable) with this contract:
+
+1) Read the PR body, all commits, and any existing review comments on the PR.
+2) Review each changed file and closely related context files.
+3) For each finding, record: severity, file/evidence, downside, and a possible fix (do not implement in the review pass).
+4) Post a summary comment on the PR grouped by severity: **Critical**, **High**, **Low**, **Nitpick**.
+5) Maintain a checklist of findings with IDs (e.g. R1, R2…) and status: open | fixed | wontfix (nitpick only).
+
+Severity policy:
+- **Critical / High / Low** → must be fixed or explicitly rebutted with evidence before merge.
+- **Nitpick** → optional; note for later, do not block the loop.
+
+### B) Fix pass (each cycle)
+
+1) Read the latest review comment(s) and build a fix checklist from all open Critical/High/Low items.
+2) Plan fixes in pseudocode, then implement only what is needed.
+3) Add/update tests when behavior changes.
+4) Run relevant tests/lint/build; fix failures.
+5) Commit with clear message(s), push to the same PR branch.
+6) Sync with `origin/main` again if needed (step 9 above), re-run checks, push.
+7) Reply on the PR with: finding IDs addressed, what changed, and test evidence.
+8) Mark checklist items fixed (or wontfix for nitpicks only).
+
+### C) Repeat
+
+Return to **A) Peer review** on the updated diff. Continue until:
+- The latest review reports **no Critical, High, or Low** findings, AND
+- CI is green, AND
+- GitHub mergeability is `MERGEABLE` / `CLEAN`.
+
+Stop the loop when only Nitpicks remain (or no findings at all). Nitpicks may be deferred.
+
+---
 
 Work request:
 
@@ -110,10 +152,11 @@ Task:
 
 A PR is loop-complete when all are true:
 
-- No unresolved actionable review comments remain.
+- No unresolved **Critical, High, or Low** review findings remain (Nitpicks may remain open).
+- At least one full review-fix-review cycle completed after the last substantive change.
 - CI checks are green.
 - GitHub reports `mergeable: MERGEABLE` and no merge conflicts with base.
 - Branch includes latest `origin/main` (or documents why not).
 - Requested scope is fully implemented and documented.
 - Tests relevant to touched behavior exist and pass.
-- Out-of-scope suggestions are captured as follow-up issues/loops.
+- Out-of-scope suggestions and Nitpicks are captured as follow-up issues/loops.

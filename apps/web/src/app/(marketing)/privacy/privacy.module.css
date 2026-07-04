@@ -1,0 +1,43 @@
+.page {
+  max-width: 42rem;
+  padding: 2rem 0 4rem;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 1.25rem;
+  color: var(--color-text-subtle);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--color-link);
+}
+
+.title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.intro,
+.disclaimer {
+  color: var(--color-text-muted);
+  line-height: 1.65;
+}
+
+.sectionTitle {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+}
+
+.list li + li {
+  margin-top: 0.65rem;
+}
