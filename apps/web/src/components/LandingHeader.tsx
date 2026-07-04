@@ -14,8 +14,8 @@ export default function LandingHeader() {
           TradingAgents
         </Link>
         <nav className={styles.nav} aria-label="Landing">
-          <a href="#features" className={styles.navLink}>
-            Features
+          <a href="#framework" className={styles.navLink}>
+            Framework
           </a>
           <Link href="/sign-in" className={styles.navLink}>
             Sign in
