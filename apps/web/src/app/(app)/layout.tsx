@@ -4,6 +4,7 @@
  */
 
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import ProfileOnboardingGate from "@/components/ProfileOnboardingGate";
 import { UserSessionProvider } from "@/context/UserSessionContext";
 
@@ -17,6 +18,7 @@ export default function AppLayout({
       <ProfileOnboardingGate>
         <SiteHeader />
         <main id="main-content">{children}</main>
+        <SiteFooter />
       </ProfileOnboardingGate>
     </UserSessionProvider>
   );

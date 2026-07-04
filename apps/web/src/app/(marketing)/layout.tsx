@@ -5,6 +5,7 @@
 
 import LandingHeader from "@/components/LandingHeader";
 import PaperThemeLock from "@/components/PaperThemeLock";
+import SiteFooter from "@/components/SiteFooter";
 
 export default function MarketingLayout({
   children,
@@ -15,6 +16,7 @@ export default function MarketingLayout({
     <PaperThemeLock>
       <LandingHeader />
       {children}
+      <SiteFooter />
     </PaperThemeLock>
   );
 }

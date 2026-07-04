@@ -222,14 +222,8 @@
   line-height: 1.6;
 }
 
-.footer {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1.5rem 5.5rem;
-}
-
 .disclaimer {
-  margin: 0;
+  margin: 0 0 1rem;
   color: var(--color-text-faint);
   font-size: 0.85rem;
   line-height: 1.55;

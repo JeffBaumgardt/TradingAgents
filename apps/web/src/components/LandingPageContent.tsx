@@ -118,11 +118,9 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
             </Link>
           </div>
         </section>
-      </main>
 
-      <footer className={styles.footer}>
         <p className={styles.disclaimer}>{LANDING_DISCLAIMER}</p>
-      </footer>
+      </main>
 
       <CookieAckBanner initialAcknowledged={cookieAcknowledged} />
     </>

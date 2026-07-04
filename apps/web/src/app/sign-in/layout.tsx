@@ -3,10 +3,17 @@
  * Auth route shell for sign-in pages.
  */
 
+import SiteFooter from "@/components/SiteFooter";
+
 export default function SignInLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <main id="main-content">{children}</main>;
+  return (
+    <>
+      <main id="main-content">{children}</main>
+      <SiteFooter />
+    </>
+  );
 }
