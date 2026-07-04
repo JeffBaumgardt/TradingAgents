@@ -727,7 +727,7 @@ components:
           nullable: true
     ProviderCredentialDefinition:
       type: object
-      required: [id, label, requiresApiKey, credentialFields, modelSource]
+      required: [id, label, requiresApiKey, credentialFields, modelSource, apiKeyUrl]
       properties:
         id:
           type: string

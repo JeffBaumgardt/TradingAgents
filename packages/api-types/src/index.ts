@@ -78,7 +78,7 @@ export interface ProviderCredentialDefinition {
   credentialFields: CredentialField[];
   modelSource: "static" | "live" | "static_or_live";
   /** Official URL where users can sign up and create an API key. */
-  apiKeyUrl?: string | null;
+  apiKeyUrl: string | null;
 }
 
 export interface StoredCredentialsResponse {

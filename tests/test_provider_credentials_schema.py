@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-AGENTS_SERVICE_DIR = Path(__file__).resolve().parents[1] / "apps" / "agents-service"
-sys.path.insert(0, str(AGENTS_SERVICE_DIR))
-
-from provider_credentials import (  # noqa: E402
+from provider_credentials import (
     PROVIDER_API_KEY_URLS,
     PROVIDER_DEFINITIONS,
     get_credentials_schema,
@@ -24,9 +18,24 @@ def test_each_provider_exposes_api_key_url(provider_id: str) -> None:
     assert definition["apiKeyUrl"].startswith("https://")
 
 
-def test_credentials_schema_includes_api_key_urls() -> None:
-    schema = get_credentials_schema()
-    providers = {item["id"]: item for item in schema["providers"]}
+def test_every_keyed_provider_has_https_api_key_url() -> None:
+    definition_ids = {item["id"] for item in PROVIDER_DEFINITIONS}
+    url_ids = set(PROVIDER_API_KEY_URLS)
 
-    assert providers["xai"]["apiKeyUrl"] == "https://console.x.ai/team/default/api-keys"
-    assert providers["openai"]["apiKeyUrl"] == "https://platform.openai.com/api-keys"
+    assert definition_ids == url_ids
+
+    for definition in PROVIDER_DEFINITIONS:
+        assert definition["requiresApiKey"] is True
+        assert definition["apiKeyUrl"]
+        assert definition["apiKeyUrl"].startswith("https://")
+
+
+def test_credentials_schema_returns_provider_api_key_urls() -> None:
+    schema = get_credentials_schema()
+    schema_urls = {
+        item["id"]: item["apiKeyUrl"]
+        for item in schema["providers"]
+    }
+
+    for provider_id, url in PROVIDER_API_KEY_URLS.items():
+        assert schema_urls[provider_id] == url
