@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import {
   getProviderApiKeyLinkHint,
   getProviderApiKeyLinkLabel,
+  resolveProviderApiKeyLink,
   resolveProviderApiKeyUrl,
 } from "./provider-api-key-link";
 
@@ -23,6 +24,22 @@ describe("resolveProviderApiKeyUrl", () => {
     assert.equal(resolveProviderApiKeyUrl(null), null);
     assert.equal(resolveProviderApiKeyUrl("http://example.com"), null);
     assert.equal(resolveProviderApiKeyUrl("javascript:alert(1)"), null);
+  });
+});
+
+describe("resolveProviderApiKeyLink", () => {
+  it("falls back to known provider URLs when schema omits apiKeyUrl", () => {
+    assert.equal(
+      resolveProviderApiKeyLink("xai", undefined),
+      "https://console.x.ai/team/default/api-keys",
+    );
+  });
+
+  it("prefers schema URLs over fallback map", () => {
+    assert.equal(
+      resolveProviderApiKeyLink("xai", "https://console.x.ai/custom"),
+      "https://console.x.ai/custom",
+    );
   });
 });
 

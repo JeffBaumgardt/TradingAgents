@@ -14,7 +14,6 @@ import type {
 import { API_BASE } from "@/lib/api-client";
 
 const SESSIONS_REVALIDATE_SECONDS = 15;
-const CREDENTIALS_SCHEMA_REVALIDATE_SECONDS = 3600;
 const SERVER_FETCH_TIMEOUT_MS = 5000;
 
 async function buildServerAuthHeaders(): Promise<HeadersInit> {
@@ -82,10 +81,10 @@ export async function fetchSessionServer(sessionId: string): Promise<Session> {
   return parseJson<Session>(response);
 }
 
-/** Credential field definitions — changes rarely, safe to cache longer. */
+/** Credential field definitions — always fetch fresh so deploy-time schema changes show up. */
 export async function fetchCredentialsSchemaServer(): Promise<CredentialsSchemaResponse> {
   const response = await fetchWithTimeout(`${API_BASE}/config/credentials/schema`, {
-    next: { revalidate: CREDENTIALS_SCHEMA_REVALIDATE_SECONDS },
+    cache: "no-store",
   });
   return parseJson<CredentialsSchemaResponse>(response);
 }
