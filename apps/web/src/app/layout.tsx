@@ -5,6 +5,7 @@
 
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Analytics } from "@vercel/analytics/next";
 import AuthUserSync from "@/components/AuthUserSync";
 import ThemeScript from "@/components/ThemeScript";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -36,6 +37,7 @@ export default function RootLayout({
             {children}
           </ThemeProvider>
         </ClerkProvider>
+        <Analytics />
       </body>
     </html>
   );
