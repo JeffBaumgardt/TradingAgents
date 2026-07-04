@@ -10,10 +10,27 @@ import { useEffect, useRef } from "react";
 import { syncCurrentUser } from "@/lib/api-client";
 import { setClerkTokenGetter } from "@/lib/auth-headers";
 
+interface ClerkProfileSnapshot {
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string | null;
+}
+
+function buildProfileSyncKey(userId: string, profile: ClerkProfileSnapshot): string {
+  return [
+    userId,
+    profile.email ?? "",
+    profile.firstName ?? "",
+    profile.lastName ?? "",
+    profile.imageUrl ?? "",
+  ].join("|");
+}
+
 export default function AuthUserSync() {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const { user } = useUser();
-  const syncedForUserId = useRef<string | null>(null);
+  const syncedProfileKey = useRef<string | null>(null);
 
   setClerkTokenGetter(() => getToken());
 
@@ -22,28 +39,33 @@ export default function AuthUserSync() {
       return;
     }
 
-    if (!isSignedIn || !userId) {
-      syncedForUserId.current = null;
+    if (!isSignedIn || !userId || !user) {
+      syncedProfileKey.current = null;
       return;
     }
 
-    if (syncedForUserId.current === userId) {
+    const profile: ClerkProfileSnapshot = {
+      email: user.primaryEmailAddress?.emailAddress ?? null,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      imageUrl: user.imageUrl ?? null,
+    };
+    const profileSyncKey = buildProfileSyncKey(userId, profile);
+
+    if (syncedProfileKey.current === profileSyncKey) {
       return;
     }
 
     const activeUserId = userId;
+    const activeProfile = profile;
+    const activeProfileSyncKey = profileSyncKey;
     let cancelled = false;
 
     async function syncUser() {
       try {
-        await syncCurrentUser(activeUserId, {
-          email: user?.primaryEmailAddress?.emailAddress ?? null,
-          firstName: user?.firstName ?? null,
-          lastName: user?.lastName ?? null,
-          imageUrl: user?.imageUrl ?? null,
-        });
+        await syncCurrentUser(activeUserId, activeProfile);
         if (!cancelled) {
-          syncedForUserId.current = activeUserId;
+          syncedProfileKey.current = activeProfileSyncKey;
         }
       } catch (error) {
         console.error("Failed to sync Clerk user to API:", error);

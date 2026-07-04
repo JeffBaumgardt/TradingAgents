@@ -18,6 +18,15 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/onboarding",
+        destination: "/",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
