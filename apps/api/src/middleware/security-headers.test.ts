@@ -15,5 +15,9 @@ describe("security headers middleware", () => {
     assert.equal(res.headers.get("X-Content-Type-Options"), "nosniff");
     assert.equal(res.headers.get("Referrer-Policy"), "no-referrer");
     assert.equal(res.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
+    assert.ok(
+      res.headers.get("Permissions-Policy")?.includes("camera=()"),
+      "Permissions-Policy should deny camera",
+    );
   });
 });

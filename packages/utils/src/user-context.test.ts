@@ -26,6 +26,11 @@ describe("validateUserContext", () => {
     assert.match(validateUserContext("hello\x1Fworld") ?? "", /invalid characters/);
   });
 
+  it("does not bypass validation on back-to-back calls", () => {
+    assert.match(validateUserContext("hello\x1Fworld") ?? "", /invalid characters/);
+    assert.match(validateUserContext("ab\x1F") ?? "", /invalid characters/);
+  });
+
   it("rejects oversized context", () => {
     const tooLong = "a".repeat(MAX_USER_CONTEXT_LENGTH + 1);
     assert.match(validateUserContext(tooLong) ?? "", /at most/);

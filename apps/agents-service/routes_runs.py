@@ -44,7 +44,10 @@ class StartRunRequest(BaseModel):
         cleaned = value.strip()
         if not cleaned:
             return None
-        if "\0" in cleaned or any(ord(ch) < 32 and ch not in "\t\n\r" for ch in cleaned):
+        if "\0" in cleaned or any(
+            (ord(ch) < 32 and ch not in "\t\n\r") or ord(ch) == 0x7F
+            for ch in cleaned
+        ):
             raise ValueError("userContext contains invalid characters")
         if len(cleaned) > MAX_USER_CONTEXT_LENGTH:
             raise ValueError(

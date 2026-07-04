@@ -31,6 +31,11 @@ def test_start_run_request_rejects_null_bytes():
         StartRunRequest(**_base_payload(userContext="bad\x00value"))
 
 
+def test_start_run_request_rejects_del_character():
+    with pytest.raises(ValidationError, match="invalid characters"):
+        StartRunRequest(**_base_payload(userContext="bad\x7Fvalue"))
+
+
 def test_start_run_request_rejects_oversized_context():
     with pytest.raises(ValidationError, match="at most"):
         StartRunRequest(**_base_payload(userContext="x" * (MAX_USER_CONTEXT_LENGTH + 1)))

@@ -32,6 +32,7 @@ function buildContentSecurityPolicy() {
 
   const scriptSrc = [
     "'self'",
+    // ThemeScript bootstrap uses inline script; nonce-based CSP is a follow-up.
     "'unsafe-inline'",
     "https://*.clerk.accounts.dev",
     "https://*.clerk.com",
