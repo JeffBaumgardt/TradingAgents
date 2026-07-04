@@ -1,15 +1,21 @@
 /**
  * @file apps/web/src/app/(marketing)/privacy/page.tsx
- * Placeholder cookie and privacy policy for the marketing site.
+ * Privacy and cookie policy for the public marketing site.
  */
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import {
+  PRIVACY_CONTACT,
+  PRIVACY_POLICY_LAST_UPDATED,
+  PRIVACY_POLICY_SECTIONS,
+} from "@/lib/privacy-policy-content";
 import styles from "./privacy.module.css";
 
 export const metadata: Metadata = {
   title: "Privacy & cookies — TradingAgents",
-  description: "How TradingAgents uses cookies and handles your data on the marketing site.",
+  description:
+    "Privacy and cookie policy for TradingAgents — what we collect, why, and your rights.",
 };
 
 export default function PrivacyPage() {
@@ -18,35 +24,65 @@ export default function PrivacyPage() {
       <Link href="/" className={styles.backLink}>
         ← Back to home
       </Link>
-      <h1 className={styles.title}>Cookie and privacy policy</h1>
-      <p className={styles.intro}>
-        TradingAgents uses essential cookies to keep you signed in and remember basic preferences
-        such as cookie acknowledgment and theme selection inside the app.
-      </p>
-      <section aria-labelledby="cookies-heading">
-        <h2 id="cookies-heading" className={styles.sectionTitle}>
-          Cookies we use
-        </h2>
-        <ul className={styles.list}>
-          <li>
-            <strong>Authentication cookies</strong> — set by Clerk to maintain your signed-in
-            session.
-          </li>
-          <li>
-            <strong>tradingagents-cookie-ack</strong> — remembers that you acknowledged cookie use
-            on the landing page (1 year, SameSite=Lax).
-          </li>
-          <li>
-            <strong>tradingagents-theme</strong> — stores your in-app theme preference after you sign
-            in (local storage, not used on the public landing page).
-          </li>
-        </ul>
-      </section>
-      <p className={styles.disclaimer}>
-        This page describes the marketing site only. TradingAgents provides AI-generated market
-        research for informational purposes. It is not financial, investment, tax, or trading
-        advice.
-      </p>
+
+      <header className={styles.header}>
+        <h1 className={styles.title}>Privacy and cookie policy</h1>
+        <p className={styles.updated}>Last updated: {PRIVACY_POLICY_LAST_UPDATED}</p>
+        <p className={styles.intro}>
+          This policy describes how TradingAgents handles personal data, cookies, and browser
+          storage when you use our website and signed-in application.
+        </p>
+      </header>
+
+      <div className={styles.sections}>
+        {PRIVACY_POLICY_SECTIONS.map((section) => (
+          <section
+            key={section.id}
+            id={section.id}
+            className={styles.section}
+            aria-labelledby={`${section.id}-heading`}
+          >
+            <h2 id={`${section.id}-heading`} className={styles.sectionTitle}>
+              {section.title}
+            </h2>
+
+            {section.paragraphs?.map((paragraph) => (
+              <p key={paragraph} className={styles.paragraph}>
+                {paragraph}
+              </p>
+            ))}
+
+            {section.items ? (
+              <dl className={styles.definitionList}>
+                {section.items.map((item) => (
+                  <div key={item.title} className={styles.definitionItem}>
+                    <dt className={styles.definitionTerm}>{item.title}</dt>
+                    <dd className={styles.definitionDescription}>{item.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+
+            {section.bullets ? (
+              <ul className={styles.list}>
+                {section.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ))}
+      </div>
+
+      <footer className={styles.contact}>
+        <h2 className={styles.contactTitle}>Contact</h2>
+        <p className={styles.paragraph}>
+          Privacy questions or requests:{" "}
+          <a href={PRIVACY_CONTACT.href} className={styles.link}>
+            {PRIVACY_CONTACT.label}
+          </a>
+        </p>
+      </footer>
     </main>
   );
 }
