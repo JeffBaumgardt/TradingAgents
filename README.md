@@ -340,3 +340,9 @@ Please reference our work if you find *TradingAgents* provides you with some hel
       url={https://arxiv.org/abs/2412.20138}, 
 }
 ```
+
+## License
+
+This project is licensed under the [Apache License, Version 2.0](LICENSE).
+
+It derives from [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents), which uses the same license. See [NOTICE](NOTICE) for upstream attribution. The web app footer links to a `/license` page with end-user disclosure.

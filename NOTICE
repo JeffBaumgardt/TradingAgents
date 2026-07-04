@@ -1,0 +1,12 @@
+TradingAgents
+Copyright 2026 Tauric Research
+
+This product includes software developed from the TradingAgents project
+(https://github.com/TauricResearch/TradingAgents), which is licensed under
+the Apache License, Version 2.0.
+
+This fork adds a monorepo web stack (agents-service, API, and Next.js UI)
+and related modifications. Those additions are also licensed under the
+Apache License, Version 2.0 unless otherwise noted.
+
+See the LICENSE file in the repository root for the full license text.
