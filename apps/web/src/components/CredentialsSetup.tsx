@@ -21,7 +21,7 @@ import {
 import {
   getProviderApiKeyLinkHint,
   getProviderApiKeyLinkLabel,
-  resolveProviderApiKeyUrl,
+  resolveProviderApiKeyLink,
 } from "@/lib/provider-api-key-link";
 import { useUserSession } from "@/context/UserSessionContext";
 import styles from "./CredentialsSetup.module.css";
@@ -78,7 +78,7 @@ export default function CredentialsSetup({
     async function loadInitialData() {
       try {
         const [schema, storedCredentials] = await Promise.all([
-          initialSchema ? Promise.resolve(initialSchema) : fetchCredentialsSchema(),
+          fetchCredentialsSchema(),
           fetchUserCredentials(),
         ]);
 
@@ -86,10 +86,8 @@ export default function CredentialsSetup({
           return;
         }
 
-        if (!initialSchema) {
-          setCredentialDefinitions(schema.providers);
-          setModelCatalogNote(schema.modelCatalogNote);
-        }
+        setCredentialDefinitions(schema.providers);
+        setModelCatalogNote(schema.modelCatalogNote);
         setLocalCredentials(storedCredentials);
       } catch (err) {
         if (!cancelled) {
@@ -173,7 +171,7 @@ export default function CredentialsSetup({
       <div className={styles.grid}>
         {credentialDefinitions.map((provider) => {
           const values = localCredentials[provider.id] ?? {};
-          const apiKeyUrl = resolveProviderApiKeyUrl(provider.apiKeyUrl);
+          const apiKeyUrl = resolveProviderApiKeyLink(provider.id, provider.apiKeyUrl);
           const apiKeyLinkLabel = getProviderApiKeyLinkLabel(provider.id);
           const apiKeyLinkHint = getProviderApiKeyLinkHint(provider.id);
 
