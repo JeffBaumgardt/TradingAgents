@@ -14,7 +14,7 @@ export default function SignInPage() {
       title="Sign in to TradingAgents"
       subtitle="Access your analysis sessions, saved settings, and agent reports."
     >
-      <SignIn appearance={clerkAppearance} forceRedirectUrl={LOGGED_IN_HOME_PATH} />
+      <SignIn appearance={clerkAppearance} fallbackRedirectUrl={LOGGED_IN_HOME_PATH} />
     </AuthPageShell>
   );
 }

@@ -1,3 +1,7 @@
+.page {
+  padding-bottom: 0;
+}
+
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
@@ -180,7 +184,9 @@
 }
 
 .footer {
-  padding: 0 0 5.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem 5.5rem;
 }
 
 .disclaimer {

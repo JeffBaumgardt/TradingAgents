@@ -14,7 +14,7 @@ export default function SignUpPage() {
       title="Create your TradingAgents account"
       subtitle="Start configuring multi-agent stock and ETF analysis runs in minutes."
     >
-      <SignUp appearance={clerkAppearance} forceRedirectUrl={LOGGED_IN_HOME_PATH} />
+      <SignUp appearance={clerkAppearance} fallbackRedirectUrl={LOGGED_IN_HOME_PATH} />
     </AuthPageShell>
   );
 }

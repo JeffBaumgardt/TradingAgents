@@ -5,6 +5,7 @@
 
 import LandingHeader from "@/components/LandingHeader";
 import PaperThemeLock from "@/components/PaperThemeLock";
+import PaperThemeScript from "@/components/PaperThemeScript";
 import styles from "./marketing.module.css";
 
 export default function MarketingLayout({
@@ -14,10 +15,9 @@ export default function MarketingLayout({
 }>) {
   return (
     <PaperThemeLock>
+      <PaperThemeScript />
       <LandingHeader />
-      <main id="main-content" className={styles.main}>
-        {children}
-      </main>
+      <div className={styles.wrapper}>{children}</div>
     </PaperThemeLock>
   );
 }

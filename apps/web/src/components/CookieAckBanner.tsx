@@ -28,7 +28,8 @@ export default function CookieAckBanner({ initialAcknowledged }: CookieAckBanner
   return (
     <div
       className={styles.banner}
-      role="dialog"
+      role="region"
+      aria-live="polite"
       aria-labelledby="cookie-ack-title"
       aria-describedby="cookie-ack-description"
     >

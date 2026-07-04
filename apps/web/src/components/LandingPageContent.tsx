@@ -20,7 +20,8 @@ interface LandingPageContentProps {
 export default function LandingPageContent({ cookieAcknowledged }: LandingPageContentProps) {
   return (
     <>
-      <section className={styles.hero} aria-labelledby="landing-hero-heading">
+      <main id="main-content" className={styles.page}>
+        <section className={styles.hero} aria-labelledby="landing-hero-heading">
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>AI market research · Free to start</p>
           <h1 id="landing-hero-heading" className={styles.heroTitle}>
@@ -106,6 +107,7 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
           </Link>
         </div>
       </section>
+      </main>
 
       <footer className={styles.footer}>
         <p className={styles.disclaimer}>{LANDING_DISCLAIMER}</p>

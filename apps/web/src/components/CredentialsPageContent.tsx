@@ -46,7 +46,7 @@ export default function CredentialsPageContent({
           router.push("/dashboard");
         }}
         continueLabel={
-          credentialsReady ? "Save keys and return home" : "Save keys and start setup"
+          credentialsReady ? "Save keys and return to dashboard" : "Save keys and start setup"
         }
       />
     </>
