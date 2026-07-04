@@ -12,8 +12,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from run_manager import run_manager
-
-MAX_USER_CONTEXT_LENGTH = 8192
+from user_context_validation import validate_user_context
 
 router = APIRouter(prefix="/internal/runs", tags=["runs"])
 
@@ -38,22 +37,8 @@ class StartRunRequest(BaseModel):
 
     @field_validator("userContext")
     @classmethod
-    def validate_user_context(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = value.strip()
-        if not cleaned:
-            return None
-        if "\0" in cleaned or any(
-            (ord(ch) < 32 and ch not in "\t\n\r") or ord(ch) == 0x7F
-            for ch in cleaned
-        ):
-            raise ValueError("userContext contains invalid characters")
-        if len(cleaned) > MAX_USER_CONTEXT_LENGTH:
-            raise ValueError(
-                f"userContext must be at most {MAX_USER_CONTEXT_LENGTH} characters"
-            )
-        return cleaned
+    def validate_user_context_field(cls, value: str | None) -> str | None:
+        return validate_user_context(value)
 
 
 @router.post("")
