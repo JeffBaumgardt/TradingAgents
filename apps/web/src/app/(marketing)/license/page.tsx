@@ -8,6 +8,7 @@ import Link from "next/link";
 import {
   LICENSE_PAGE_LAST_UPDATED,
   LICENSE_SECTIONS,
+  NOTICE_TEXT,
   UPSTREAM_PROJECT,
 } from "@/lib/license-content";
 import styles from "../privacy/privacy.module.css";
@@ -38,7 +39,8 @@ export default function LicensePage() {
           >
             {UPSTREAM_PROJECT.licenseName}
           </a>
-          . This page summarizes your rights and our upstream attribution obligations.
+          . This page summarizes your rights, upstream attribution, and links to the full license
+          text.
         </p>
       </header>
 
@@ -60,6 +62,23 @@ export default function LicensePage() {
               </p>
             ))}
 
+            {section.links ? (
+              <ul className={styles.list}>
+                {section.links.map((link) => (
+                  <li key={link.href}>
+                    <a
+                      href={link.href}
+                      className={styles.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
             {section.bullets ? (
               <ul className={styles.list}>
                 {section.bullets.map((bullet) => (
@@ -67,24 +86,15 @@ export default function LicensePage() {
                 ))}
               </ul>
             ) : null}
+
+            {section.id === "notice" ? (
+              <pre className={styles.noticeBlock} aria-label="NOTICE file contents">
+                {NOTICE_TEXT}
+              </pre>
+            ) : null}
           </section>
         ))}
       </div>
-
-      <footer className={styles.contact}>
-        <h2 className={styles.contactTitle}>Upstream project</h2>
-        <p className={styles.paragraph}>
-          Framework by{" "}
-          <a
-            href={UPSTREAM_PROJECT.repositoryUrl}
-            className={styles.link}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {UPSTREAM_PROJECT.organization} / {UPSTREAM_PROJECT.name}
-          </a>
-        </p>
-      </footer>
     </div>
   );
 }
