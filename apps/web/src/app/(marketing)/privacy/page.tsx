@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main id="main-content" className={styles.page}>
+    <div className={styles.page}>
       <Link href="/" className={styles.backLink}>
         ← Back to home
       </Link>
@@ -83,6 +83,6 @@ export default function PrivacyPage() {
           </a>
         </p>
       </footer>
-    </main>
+    </div>
   );
 }

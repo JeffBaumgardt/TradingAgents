@@ -21,7 +21,7 @@ interface LandingPageContentProps {
 export default function LandingPageContent({ cookieAcknowledged }: LandingPageContentProps) {
   return (
     <>
-      <main id="main-content" className={styles.page}>
+      <div className={styles.page}>
         <section className={styles.hero} aria-labelledby="landing-hero-heading">
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>TradingAgents Framework · Free to start</p>
@@ -120,7 +120,7 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
         </section>
 
         <p className={styles.disclaimer}>{LANDING_DISCLAIMER}</p>
-      </main>
+      </div>
 
       <CookieAckBanner initialAcknowledged={cookieAcknowledged} />
     </>

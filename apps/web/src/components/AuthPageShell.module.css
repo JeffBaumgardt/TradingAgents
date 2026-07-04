@@ -5,6 +5,7 @@
 
 .shell {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -12,7 +13,7 @@
   width: calc(100% + 3rem);
   max-width: none;
   margin: -1.5rem;
-  min-height: 100dvh;
+  min-height: 100%;
   padding: 2.5rem 1.5rem 3rem;
   background-color: var(--clerk-auth-shell-bg);
   background-image: var(--clerk-auth-shell-accent);
@@ -53,7 +54,7 @@
   .shell {
     width: calc(100% + 3rem);
     margin: -1.5rem;
-    min-height: 100dvh;
+    min-height: 100%;
     padding: 2rem 1rem 2.5rem;
   }
 

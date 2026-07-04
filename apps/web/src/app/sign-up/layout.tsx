@@ -4,6 +4,8 @@
  */
 
 import SiteFooter from "@/components/SiteFooter";
+import SiteShell, { SiteShellMain } from "@/components/SiteShell";
+import styles from "../sign-in/auth-layout.module.css";
 
 export default function SignUpLayout({
   children,
@@ -11,9 +13,9 @@ export default function SignUpLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <>
-      <main id="main-content">{children}</main>
+    <SiteShell>
+      <SiteShellMain className={styles.authMain}>{children}</SiteShellMain>
       <SiteFooter />
-    </>
+    </SiteShell>
   );
 }

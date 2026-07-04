@@ -5,6 +5,7 @@
 
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import SiteShell, { SiteShellMain } from "@/components/SiteShell";
 import ProfileOnboardingGate from "@/components/ProfileOnboardingGate";
 import { UserSessionProvider } from "@/context/UserSessionContext";
 
@@ -16,9 +17,11 @@ export default function AppLayout({
   return (
     <UserSessionProvider>
       <ProfileOnboardingGate>
-        <SiteHeader />
-        <main id="main-content">{children}</main>
-        <SiteFooter />
+        <SiteShell>
+          <SiteHeader />
+          <SiteShellMain>{children}</SiteShellMain>
+          <SiteFooter />
+        </SiteShell>
       </ProfileOnboardingGate>
     </UserSessionProvider>
   );

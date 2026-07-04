@@ -6,6 +6,7 @@
 import LandingHeader from "@/components/LandingHeader";
 import PaperThemeLock from "@/components/PaperThemeLock";
 import SiteFooter from "@/components/SiteFooter";
+import SiteShell, { SiteShellMain } from "@/components/SiteShell";
 
 export default function MarketingLayout({
   children,
@@ -14,9 +15,11 @@ export default function MarketingLayout({
 }>) {
   return (
     <PaperThemeLock>
-      <LandingHeader />
-      {children}
-      <SiteFooter />
+      <SiteShell>
+        <LandingHeader />
+        <SiteShellMain>{children}</SiteShellMain>
+        <SiteFooter />
+      </SiteShell>
     </PaperThemeLock>
   );
 }
