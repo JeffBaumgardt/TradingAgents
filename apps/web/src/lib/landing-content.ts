@@ -19,8 +19,9 @@ export interface LandingAgentTeam {
 
 export const LANDING_HERO = {
   slug: "tradingagents-framework",
-  imageSrc: "/images/landing/set-b-hero-advisor-compass.png",
-  imageAlt: "Illustration of a glowing compass over stylized market chart mountains",
+  imageSrc: "/images/landing/set-b-market-signals.png",
+  imageAlt:
+    "AI assistant surrounded by floating market data, news, and chart panels",
   headline: "A multi-agent framework built like a real trading firm",
   copy: "TradingAgents mirrors the dynamics of real-world trading firms. Specialized LLM-powered agents—from fundamental and technical analysts to researchers, traders, and risk managers—collaboratively evaluate market conditions and inform research decisions through dynamic discussion.",
 } as const;
@@ -34,8 +35,9 @@ export const LANDING_AGENT_TEAMS: LandingAgentTeam[] = [
     title: "Analyst Team",
     summary:
       "Four specialized analysts gather and interpret market data from fundamentals, sentiment, news, and technicals.",
-    imageSrc: "/images/landing/set-b-market-signals.png",
-    imageAlt: "AI assistant surrounded by floating market data, news, and chart panels",
+    imageSrc: "/images/landing/set-b-thesis-builder.png",
+    imageAlt:
+      "Modular research blocks assembling into a structured investment thesis",
     agents: [
       {
         name: "Fundamentals Analyst",
@@ -64,8 +66,9 @@ export const LANDING_AGENT_TEAMS: LandingAgentTeam[] = [
     title: "Researcher Team",
     summary:
       "Bullish and bearish researchers critically assess analyst insights. Through structured debates, they balance potential gains against inherent risks.",
-    imageSrc: "/images/landing/set-b-thesis-builder.png",
-    imageAlt: "Modular research blocks assembling into a structured investment thesis",
+    imageSrc: "/images/landing/set-b-bears-bulls-research.png",
+    imageAlt:
+      "Bear and bull researchers debating market conditions",
   },
   {
     slug: "trader-agent",
