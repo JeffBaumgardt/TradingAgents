@@ -627,6 +627,8 @@ components:
           example: SPY
         userContext:
           type: string
+          maxLength: 8192
+          description: Free-text investing context stored in session config (JSONB parameter binding; never used in SQL filters).
         analysisDate:
           type: string
           format: date

@@ -11,6 +11,7 @@ import {
   deleteSession,
   getSession,
   listSessions,
+  validateCreateRequest,
 } from "./session-service.js";
 
 const USER_A = "user_owner_a";
@@ -69,5 +70,37 @@ describe("session-service ownership", () => {
 
     assert.equal(await deleteSession(client, "session-a-2", USER_A), true);
     assert.equal(await getSession(client, "session-a-2", USER_A), null);
+  });
+});
+
+describe("validateCreateRequest userContext", () => {
+  const baseBody = {
+    ticker: "SPY",
+    analysisDate: "2026-06-26",
+    outputLanguage: "English",
+    analysts: ["market"] as ["market"],
+    researchDepth: 1 as const,
+    llmProvider: "openai",
+    quickThinkLlm: "gpt-4o-mini",
+    deepThinkLlm: "gpt-4o",
+  };
+  const credentials = {
+    openai: { apiKey: "sk-test" },
+  };
+
+  it("rejects userContext with control characters", () => {
+    const error = validateCreateRequest(
+      { ...baseBody, userContext: "hello\x00world" },
+      credentials,
+    );
+    assert.match(error ?? "", /invalid characters/);
+  });
+
+  it("rejects oversized userContext", () => {
+    const error = validateCreateRequest(
+      { ...baseBody, userContext: "a".repeat(8193) },
+      credentials,
+    );
+    assert.match(error ?? "", /at most/);
   });
 });

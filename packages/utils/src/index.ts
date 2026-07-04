@@ -126,6 +126,12 @@ export {
   type ProfileOnboardingInput,
 } from "./profile-onboarding.js";
 
+export {
+  MAX_USER_CONTEXT_LENGTH,
+  sanitizeUserContext,
+  validateUserContext,
+} from "./user-context.js";
+
 /** Providers that show step 9 provider-specific config. */
 export const PROVIDERS_WITH_STEP9 = new Set(["google", "openai", "anthropic"]);
 
