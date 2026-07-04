@@ -1,12 +1,11 @@
 /**
  * @file apps/web/src/app/(app)/layout.tsx
- * Authenticated app shell with header, onboarding gate, and session state.
+ * Authenticated app shell with header and session state.
  */
 
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SiteShell, { SiteShellMain } from "@/components/SiteShell";
-import ProfileOnboardingGate from "@/components/ProfileOnboardingGate";
 import { UserSessionProvider } from "@/context/UserSessionContext";
 
 export default function AppLayout({
@@ -16,13 +15,11 @@ export default function AppLayout({
 }>) {
   return (
     <UserSessionProvider>
-      <ProfileOnboardingGate>
-        <SiteShell>
-          <SiteHeader />
-          <SiteShellMain>{children}</SiteShellMain>
-          <SiteFooter />
-        </SiteShell>
-      </ProfileOnboardingGate>
+      <SiteShell>
+        <SiteHeader />
+        <SiteShellMain>{children}</SiteShellMain>
+        <SiteFooter />
+      </SiteShell>
     </UserSessionProvider>
   );
 }
