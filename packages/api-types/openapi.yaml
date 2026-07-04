@@ -745,6 +745,10 @@ components:
         modelSource:
           type: string
           enum: [static, live, static_or_live]
+        apiKeyUrl:
+          type: string
+          nullable: true
+          description: Official URL where users can sign up and create an API key.
     CredentialsSchemaResponse:
       type: object
       required: [providers, modelCatalogNote]

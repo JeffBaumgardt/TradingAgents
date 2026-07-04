@@ -176,6 +176,20 @@ export default function CredentialsSetup({
                 <span className={styles.badge}>{provider.modelSource}</span>
               </header>
 
+              {provider.apiKeyUrl ? (
+                <p className={styles.keyLinkRow}>
+                  <a
+                    href={provider.apiKeyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.keyLink}
+                    aria-label={`Get a ${provider.label} API key (opens in a new tab)`}
+                  >
+                    Get an API key
+                  </a>
+                </p>
+              ) : null}
+
               {provider.credentialFields.map((field) => {
                 const storedValue = values[field.name] ?? "";
                 const inputType = field.secret ? "password" : "text";
