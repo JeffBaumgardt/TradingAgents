@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from provider_credentials import (
     PROVIDER_API_KEY_URLS,
     PROVIDER_DEFINITIONS,
