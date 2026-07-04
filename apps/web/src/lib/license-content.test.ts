@@ -3,6 +3,9 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import {
   FORK_REPOSITORY,
@@ -10,6 +13,11 @@ import {
   NOTICE_TEXT,
   UPSTREAM_PROJECT,
 } from "./license-content";
+
+const REPO_NOTICE_PATH = path.resolve(
+  fileURLToPath(new URL(".", import.meta.url)),
+  "../../../../NOTICE",
+);
 
 describe("license-content", () => {
   it("documents upstream Apache 2.0 attribution", () => {
@@ -44,5 +52,10 @@ describe("license-content", () => {
     assert.match(NOTICE_TEXT, /2024-2026 Tauric Research/);
     assert.match(NOTICE_TEXT, /Jeff Baumgardt/);
     assert.match(NOTICE_TEXT, /TauricResearch\/TradingAgents/);
+  });
+
+  it("keeps NOTICE_TEXT in sync with the repository NOTICE file", () => {
+    const noticeFromDisk = readFileSync(REPO_NOTICE_PATH, "utf8").replace(/\r\n/g, "\n").trimEnd();
+    assert.equal(NOTICE_TEXT.trimEnd(), noticeFromDisk);
   });
 });
