@@ -13,7 +13,7 @@ export default function SiteHeader() {
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
-        <Link href="/" className={styles.titleLink}>
+        <Link href="/dashboard" className={styles.titleLink}>
           TradingAgents
         </Link>
         <span className={styles.subtitle}>

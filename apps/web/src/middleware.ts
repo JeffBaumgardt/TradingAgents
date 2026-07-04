@@ -1,17 +1,14 @@
 /**
  * @file apps/web/src/middleware.ts
- * Protect app routes with Clerk; keep sign-in and webhook paths public.
+ * Protect app routes with Clerk; keep landing, sign-in, and webhook paths public.
  * CSP is injected here via Clerk so FAPI hosts and clerk.browser.js load correctly.
  */
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { getClerkContentSecurityPolicyOptions } from "@/lib/content-security-policy";
+import { PUBLIC_ROUTE_MATCHERS } from "@/lib/public-routes";
 
-const isPublicRoute = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/webhooks(.*)",
-]);
+const isPublicRoute = createRouteMatcher([...PUBLIC_ROUTE_MATCHERS]);
 
 export default clerkMiddleware(
   async (auth, request) => {

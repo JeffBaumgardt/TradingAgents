@@ -10,7 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { clerkUserNeedsProfileOnboarding } from "@/lib/profile-onboarding";
 
-const BYPASS_PATH_PREFIXES = ["/sign-in", "/sign-up", "/onboarding", "/api/"];
+const BYPASS_PATH_PREFIXES = ["/", "/sign-in", "/sign-up", "/onboarding", "/api/"];
 
 interface ProfileOnboardingGateProps {
   children: ReactNode;

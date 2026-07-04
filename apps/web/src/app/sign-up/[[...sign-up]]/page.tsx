@@ -6,6 +6,7 @@
 import { SignUp } from "@clerk/nextjs";
 import AuthPageShell from "@/components/AuthPageShell";
 import { clerkAppearance } from "@/lib/clerk-appearance";
+import { LOGGED_IN_HOME_PATH } from "@/lib/landing-redirect";
 
 export default function SignUpPage() {
   return (
@@ -13,7 +14,7 @@ export default function SignUpPage() {
       title="Create your TradingAgents account"
       subtitle="Start configuring multi-agent stock and ETF analysis runs in minutes."
     >
-      <SignUp appearance={clerkAppearance} />
+      <SignUp appearance={clerkAppearance} forceRedirectUrl={LOGGED_IN_HOME_PATH} />
     </AuthPageShell>
   );
 }

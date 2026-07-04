@@ -22,7 +22,7 @@ export default function ProfileOnboardingPageContent() {
     }
 
     if (!clerkUserNeedsProfileOnboarding(user)) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [isLoaded, isSignedIn, router, user]);
 

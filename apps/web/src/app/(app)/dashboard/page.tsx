@@ -1,6 +1,6 @@
 /**
- * @file apps/web/src/app/page.tsx
- * Home page — recent sessions (SSR) and the analysis wizard (client).
+ * @file apps/web/src/app/(app)/dashboard/page.tsx
+ * Authenticated home — recent sessions and the analysis wizard.
  */
 
 import { Suspense } from "react";
@@ -9,7 +9,7 @@ import RecentSessionsPanel from "@/components/RecentSessionsPanel";
 import RecentSessionsSkeleton from "@/components/RecentSessionsSkeleton";
 import Wizard from "@/components/Wizard";
 
-export default function HomePage() {
+export default function DashboardPage() {
   return (
     <CredentialsGate>
       <Suspense fallback={<RecentSessionsSkeleton />}>

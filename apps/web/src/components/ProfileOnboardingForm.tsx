@@ -56,7 +56,7 @@ export default function ProfileOnboardingForm() {
         lastName: trimmedLastName,
       });
 
-      router.replace("/");
+      router.replace("/dashboard");
     } catch (err) {
       setError(
         err instanceof ApiClientError
