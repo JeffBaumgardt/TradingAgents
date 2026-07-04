@@ -5,15 +5,13 @@
 
 export const PRIVACY_POLICY_LAST_UPDATED = "July 3, 2026";
 
-const configuredContactEmail = process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL?.trim();
+export const PRIVACY_CONTACT_EMAIL = "admin@bugfoot.net";
 
-/** Public contact for privacy requests — set NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL in production. */
-export const PRIVACY_CONTACT = configuredContactEmail
-  ? { href: `mailto:${configuredContactEmail}`, label: configuredContactEmail }
-  : {
-      href: "https://github.com/JeffBaumgardt/TradingAgents/issues/new?labels=privacy",
-      label: "GitHub privacy request",
-    };
+/** Public contact for privacy requests. */
+export const PRIVACY_CONTACT = {
+  href: `mailto:${PRIVACY_CONTACT_EMAIL}`,
+  label: PRIVACY_CONTACT_EMAIL,
+} as const;
 
 export interface PrivacyListItem {
   title: string;
@@ -34,7 +32,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     title: "Who we are",
     paragraphs: [
       "TradingAgents is a multi-agent market research application. This policy explains how we collect, use, store, and share personal data when you visit our website, create an account, or run analyses.",
-      `The data controller for the service is the operator of this TradingAgents deployment. For privacy requests, contact us using the details at the bottom of this page.`,
+      "The data controller for the service is the operator of this TradingAgents deployment. For privacy requests, contact us at admin@bugfoot.net.",
     ],
   },
   {

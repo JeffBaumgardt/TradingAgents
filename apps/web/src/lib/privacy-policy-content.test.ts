@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   PRIVACY_CONTACT,
+  PRIVACY_CONTACT_EMAIL,
   PRIVACY_POLICY_SECTIONS,
 } from "./privacy-policy-content";
 
@@ -31,8 +32,9 @@ describe("privacy-policy-content", () => {
     assert.ok(titles.some((title) => title.includes("tradingagents-theme")));
   });
 
-  it("provides a privacy contact link", () => {
-    assert.ok(PRIVACY_CONTACT.href.length > 0);
-    assert.ok(PRIVACY_CONTACT.label.length > 0);
+  it("provides the privacy contact email", () => {
+    assert.equal(PRIVACY_CONTACT_EMAIL, "admin@bugfoot.net");
+    assert.equal(PRIVACY_CONTACT.href, "mailto:admin@bugfoot.net");
+    assert.equal(PRIVACY_CONTACT.label, "admin@bugfoot.net");
   });
 });
