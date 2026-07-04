@@ -10,7 +10,7 @@ describe("buildThemeBootstrapScript", () => {
   it("locks the paper theme on marketing routes before reading localStorage", () => {
     const script = buildThemeBootstrapScript();
 
-    assert.match(script, /landingPaths = \[\"\/\", \"\/privacy\"\]/);
+    assert.match(script, /landingPaths = \[\"\/\", \"\/privacy\", \"\/license\"\]/);
     assert.match(script, new RegExp(`document.documentElement.dataset.theme = "${DEFAULT_THEME_ID}"`));
     assert.match(script, /return;/);
   });

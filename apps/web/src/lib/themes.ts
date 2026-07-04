@@ -71,7 +71,7 @@ export function buildThemeBootstrapScript(): string {
   return `
 (function () {
   try {
-    var landingPaths = ["/", "/privacy"];
+    var landingPaths = ["/", "/privacy", "/license"];
     if (landingPaths.indexOf(window.location.pathname) !== -1) {
       document.documentElement.dataset.theme = ${JSON.stringify(DEFAULT_THEME_ID)};
       document.documentElement.style.colorScheme = "light";

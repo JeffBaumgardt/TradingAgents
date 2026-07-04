@@ -16,16 +16,40 @@
   padding: 1.25rem 1.5rem;
 }
 
-.disclaimer {
+.meta {
   flex: 1 1 16rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.disclaimer,
+.attribution {
   margin: 0;
   color: var(--color-text-faint);
   font-size: 0.85rem;
   line-height: 1.55;
 }
 
+.attributionLink {
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.attributionLink:hover {
+  color: var(--color-link);
+}
+
+.attributionLink:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .nav {
+  display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
 }
 
 .link {

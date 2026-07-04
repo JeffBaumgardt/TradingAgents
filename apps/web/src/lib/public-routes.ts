@@ -7,6 +7,7 @@
 export const PUBLIC_ROUTE_PREFIXES = [
   "/",
   "/privacy",
+  "/license",
   "/sign-in",
   "/sign-up",
   "/api/webhooks",
@@ -16,6 +17,7 @@ export const PUBLIC_ROUTE_PREFIXES = [
 export const PUBLIC_ROUTE_MATCHERS = [
   "/",
   "/privacy",
+  "/license",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
