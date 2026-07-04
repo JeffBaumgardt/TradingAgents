@@ -18,6 +18,11 @@ import {
   resolveConfig,
   saveUserCredentials,
 } from "@/lib/api-client";
+import {
+  getProviderApiKeyLinkHint,
+  getProviderApiKeyLinkLabel,
+  resolveProviderApiKeyUrl,
+} from "@/lib/provider-api-key-link";
 import { useUserSession } from "@/context/UserSessionContext";
 import styles from "./CredentialsSetup.module.css";
 
@@ -168,6 +173,9 @@ export default function CredentialsSetup({
       <div className={styles.grid}>
         {credentialDefinitions.map((provider) => {
           const values = localCredentials[provider.id] ?? {};
+          const apiKeyUrl = resolveProviderApiKeyUrl(provider.apiKeyUrl);
+          const apiKeyLinkLabel = getProviderApiKeyLinkLabel(provider.id);
+          const apiKeyLinkHint = getProviderApiKeyLinkHint(provider.id);
 
           return (
             <section key={provider.id} className={styles.card}>
@@ -175,6 +183,26 @@ export default function CredentialsSetup({
                 <h3>{provider.label}</h3>
                 <span className={styles.badge}>{provider.modelSource}</span>
               </header>
+
+              {apiKeyUrl ? (
+                <div className={styles.keyLinkBlock}>
+                  <p className={styles.keyLinkRow}>
+                    <a
+                      href={apiKeyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.keyLink}
+                      aria-label={`${apiKeyLinkLabel} for ${provider.label} (opens in a new tab)`}
+                    >
+                      {apiKeyLinkLabel}
+                      <span aria-hidden="true"> ↗</span>
+                    </a>
+                  </p>
+                  {apiKeyLinkHint ? (
+                    <p className={styles.keyLinkHint}>{apiKeyLinkHint}</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               {provider.credentialFields.map((field) => {
                 const storedValue = values[field.name] ?? "";

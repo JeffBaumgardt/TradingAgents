@@ -28,6 +28,7 @@ class ProviderDefinition(TypedDict):
     requiresApiKey: bool
     credentialFields: list[CredentialField]
     modelSource: str  # "static" | "live" | "static_or_live"
+    apiKeyUrl: str | None
 
 
 # Maps provider id -> env var names for each credential field name
@@ -48,6 +49,19 @@ PROVIDER_ENV_VARS: dict[str, dict[str, str]] = {
 }
 
 
+PROVIDER_API_KEY_URLS: dict[str, str] = {
+    "openai": "https://platform.openai.com/api-keys",
+    "google": "https://aistudio.google.com/apikey",
+    "anthropic": "https://console.anthropic.com/settings/keys",
+    "xai": "https://console.x.ai/team/default/api-keys",
+    "deepseek": "https://platform.deepseek.com/api_keys",
+    "qwen": "https://dashscope.console.aliyun.com/apiKey",
+    "glm": "https://open.bigmodel.cn/usercenter/apikeys",
+    "openrouter": "https://openrouter.ai/keys",
+    "azure": "https://portal.azure.com/#create/Microsoft.CognitiveServicesOpenAI",
+}
+
+
 PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
     {
         "id": "openai",
@@ -55,6 +69,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://api.openai.com/v1",
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["openai"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -71,6 +86,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": None,
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["google"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -87,6 +103,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://api.anthropic.com/",
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["anthropic"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -103,6 +120,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://api.x.ai/v1",
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["xai"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -119,6 +137,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://api.deepseek.com",
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["deepseek"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -135,6 +154,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["qwen"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -151,6 +171,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://open.bigmodel.cn/api/paas/v4/",
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["glm"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -167,6 +188,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": "https://openrouter.ai/api/v1",
         "requiresApiKey": True,
         "modelSource": "live",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["openrouter"],
         "credentialFields": [
             {
                 "name": "apiKey",
@@ -183,6 +205,7 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
         "backendUrl": None,
         "requiresApiKey": True,
         "modelSource": "static",
+        "apiKeyUrl": PROVIDER_API_KEY_URLS["azure"],
         "credentialFields": [
             {
                 "name": "apiKey",
