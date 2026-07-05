@@ -29,6 +29,10 @@ class TestUserContextHelpers:
     def test_format_user_context_block_empty(self):
         assert format_user_context_block("") == ""
         assert format_user_context_block("   ") == ""
+        assert format_user_context_block(None) == ""
+
+    def test_build_initial_user_message_none_context(self):
+        assert build_initial_user_message("MU", None) == "MU"
 
     def test_format_user_context_block_includes_guidance(self):
         block = format_user_context_block("SPY 1-week expiration put")
@@ -51,6 +55,12 @@ class TestUserContextState:
     def test_user_context_defaults_to_empty(self):
         propagator = Propagator()
         state = propagator.create_initial_state("MU", "2026-06-24")
+        assert state["user_context"] == ""
+        assert state["messages"] == [("human", "MU")]
+
+    def test_user_context_none_is_normalized_to_empty(self):
+        propagator = Propagator()
+        state = propagator.create_initial_state("MU", "2026-06-24", user_context=None)
         assert state["user_context"] == ""
         assert state["messages"] == [("human", "MU")]
 
