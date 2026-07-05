@@ -11,12 +11,78 @@ import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { requireUserId, getRequestUserId } from "../middleware/user-context.js";
-import { getRunStreamUrl } from "../services/agents-client.js";
+import { getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
 import * as sessionService from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
 
 sessionRoutes.use("*", requireUserId());
+
+async function relayRunError(
+  stream: Parameters<Parameters<typeof streamSSE>[1]>[0],
+  client: ReturnType<typeof getSupabaseAdmin>,
+  sessionId: string,
+  message: string,
+  hint?: string,
+): Promise<void> {
+  const payload = {
+    message,
+    ...(hint ? { hint } : {}),
+  };
+  await stream.writeSSE({
+    event: "run.error",
+    data: JSON.stringify(payload),
+  });
+  await sessionService.persistEvent(client, sessionId, "run.error", payload);
+  await sessionService.markSessionError(client, sessionId, message);
+}
+
+async function relayAgentsFrame(
+  stream: Parameters<Parameters<typeof streamSSE>[1]>[0],
+  client: ReturnType<typeof getSupabaseAdmin>,
+  sessionId: string,
+  userId: string,
+  eventType: string,
+  dataLine: string,
+): Promise<boolean> {
+  await stream.writeSSE({ event: eventType, data: dataLine });
+
+  try {
+    const payload = JSON.parse(dataLine) as Record<string, unknown>;
+    await sessionService.persistEvent(client, sessionId, eventType, payload);
+
+    if (eventType === "report.section") {
+      const section = typeof payload.section === "string" ? payload.section : null;
+      const content = typeof payload.content === "string" ? payload.content : null;
+      if (section && content) {
+        await sessionService.persistReportSection(client, sessionId, section, content);
+      }
+    }
+
+    if (eventType === "run.completed") {
+      const report = await sessionService.getSessionReport(client, sessionId, userId);
+      if (report !== "not_found" && report !== "not_ready") {
+        await sessionService.markSessionCompleted(client, sessionId, {
+          markdown: report.markdown,
+          sections: report.sections,
+          decision: report.decision,
+        });
+      }
+      return true;
+    }
+
+    if (eventType === "run.error") {
+      const message =
+        typeof payload.message === "string" ? payload.message : "Run failed";
+      await sessionService.markSessionError(client, sessionId, message);
+      return true;
+    }
+  } catch {
+    await sessionService.persistEvent(client, sessionId, eventType, { raw: dataLine });
+  }
+
+  return false;
+}
 
 sessionRoutes.get("/sessions", async (c) => {
   const userId = getRequestUserId(c);
@@ -114,6 +180,7 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
 
   return streamSSE(c, async (stream) => {
     const liveOnly = c.req.query("live") === "1" || c.req.query("live") === "true";
+    let sawTerminalEvent = false;
 
     if (!liveOnly) {
       const stored = await sessionService.getStoredEvents(client, id);
@@ -122,19 +189,47 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
           event: event.type,
           data: JSON.stringify(event.payload),
         });
+        if (event.type === "run.completed" || event.type === "run.error") {
+          sawTerminalEvent = true;
+        }
       }
     }
 
-    if (session.status === "completed" || session.status === "error" || session.status === "cancelled") {
+    if (
+      session.status === "completed" ||
+      session.status === "error" ||
+      session.status === "cancelled" ||
+      sawTerminalEvent
+    ) {
       return;
     }
 
-    const response = await fetch(getRunStreamUrl(session.runId!));
+    let response: Response;
+    try {
+      response = await fetch(getRunStreamUrl(session.runId!));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to connect to agents stream";
+      await relayRunError(
+        stream,
+        client,
+        id,
+        message,
+        "Could not reach the agents service. Check AGENTS_SERVICE_URL and redeploy if needed.",
+      );
+      return;
+    }
+
     if (!response.ok || !response.body) {
-      await stream.writeSSE({
-        event: "run.error",
-        data: JSON.stringify({ message: "Failed to connect to agents stream" }),
-      });
+      await relayRunError(
+        stream,
+        client,
+        id,
+        "Failed to connect to agents stream",
+        response.status === 404
+          ? "The run is no longer available on the agents service (often after a redeploy). Start a new analysis."
+          : "Verify the API can reach the Python agents-service on port 8000.",
+      );
       return;
     }
 
@@ -172,48 +267,63 @@ sessionRoutes.get("/sessions/:id/stream", async (c) => {
           continue;
         }
 
-        await stream.writeSSE({ event: eventType, data: dataLine });
-
-        try {
-          const payload = JSON.parse(dataLine) as Record<string, unknown>;
-          await sessionService.persistEvent(client, id, eventType, payload);
-
-          if (eventType === "report.section") {
-            const section =
-              typeof payload.section === "string" ? payload.section : null;
-            const content =
-              typeof payload.content === "string" ? payload.content : null;
-            if (section && content) {
-              await sessionService.persistReportSection(client, id, section, content);
-            }
-          }
-
-          if (eventType === "run.completed") {
-            const report = await sessionService.getSessionReport(client, id, userId);
-            if (report !== "not_found" && report !== "not_ready") {
-              await sessionService.markSessionCompleted(client, id, {
-                markdown: report.markdown,
-                sections: report.sections,
-                decision: report.decision,
-              });
-            }
-          }
-
-          if (eventType === "run.error") {
-            const message =
-              typeof payload.message === "string"
-                ? payload.message
-                : "Run failed";
-            await sessionService.markSessionError(client, id, message);
-          }
-        } catch {
-          await sessionService.persistEvent(client, id, eventType, { raw: dataLine });
+        const terminal = await relayAgentsFrame(
+          stream,
+          client,
+          id,
+          userId,
+          eventType,
+          dataLine,
+        );
+        if (terminal) {
+          sawTerminalEvent = true;
         }
       }
     }
 
     if (buffer.trim()) {
       await stream.write(formatSseEvent("message", { raw: buffer }));
+    }
+
+    if (sawTerminalEvent) {
+      return;
+    }
+
+    const runStatus = await fetchRunStatus(session.runId!);
+    if (!runStatus) {
+      await relayRunError(
+        stream,
+        client,
+        id,
+        "Run not found on agents service",
+        "The analysis worker may have restarted. Start a new run.",
+      );
+      return;
+    }
+
+    if (runStatus.status === "completed") {
+      await relayAgentsFrame(
+        stream,
+        client,
+        id,
+        userId,
+        "run.completed",
+        JSON.stringify({
+          sessionId: id,
+          decision: null,
+        }),
+      );
+      return;
+    }
+
+    if (runStatus.status === "error" || runStatus.status === "cancelled") {
+      await relayRunError(
+        stream,
+        client,
+        id,
+        runStatus.error ?? "Run failed",
+        runStatus.status === "cancelled" ? "This analysis was cancelled." : undefined,
+      );
     }
   });
 });

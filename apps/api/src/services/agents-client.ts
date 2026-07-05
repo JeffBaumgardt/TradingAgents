@@ -149,6 +149,33 @@ export function getRunStreamUrl(runId: string): string {
   return `${AGENTS_SERVICE_URL}/internal/runs/${runId}/stream`;
 }
 
+export type RunStatusResponse = {
+  runId: string;
+  sessionId: string;
+  status: string;
+  error: string | null;
+};
+
+export async function fetchRunStatus(runId: string): Promise<RunStatusResponse | null> {
+  const response = await fetch(
+    `${AGENTS_SERVICE_URL}/internal/runs/${encodeURIComponent(runId)}`,
+    {
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(formatAgentsTargetHint(body, response.status));
+  }
+
+  return response.json() as Promise<RunStatusResponse>;
+}
+
 export async function fetchRunReport(runId: string): Promise<{
   markdown: string;
   sections: Record<string, string | null>;

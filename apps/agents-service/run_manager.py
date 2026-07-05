@@ -7,11 +7,13 @@ In-memory run registry and background execution for LangGraph analysis runs.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import queue
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
@@ -35,6 +37,43 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
 
 HEARTBEAT_INTERVAL_SECONDS = 4
+MISSED_EVENTS_MAX_COUNT = 256
+MISSED_EVENTS_MAX_BYTES = 1_048_576
+
+
+@dataclass
+class MissedEventBuffer:
+    """Bounded replay buffer for SSE clients that connect after events start."""
+
+    max_count: int = MISSED_EVENTS_MAX_COUNT
+    max_bytes: int = MISSED_EVENTS_MAX_BYTES
+    _events: deque[tuple[str, dict[str, Any]]] = field(default_factory=deque)
+    _byte_size: int = 0
+
+    @staticmethod
+    def _event_byte_size(event_type: str, data: dict[str, Any]) -> int:
+        return len(event_type) + len(json.dumps(data, separators=(",", ":")))
+
+    def append(self, event_type: str, data: dict[str, Any]) -> None:
+        event_size = self._event_byte_size(event_type, data)
+        if event_size > self.max_bytes:
+            return
+
+        while self._events and (
+            len(self._events) >= self.max_count
+            or self._byte_size + event_size > self.max_bytes
+        ):
+            dropped_type, dropped_data = self._events.popleft()
+            self._byte_size -= self._event_byte_size(dropped_type, dropped_data)
+
+        self._events.append((event_type, data))
+        self._byte_size += event_size
+
+    def drain(self) -> list[tuple[str, dict[str, Any]]]:
+        drained = list(self._events)
+        self._events.clear()
+        self._byte_size = 0
+        return drained
 
 
 def error_hint(message: str) -> str:
@@ -76,6 +115,7 @@ class RunRecord:
     session_id: str
     status: str = "pending"
     subscribers: list[queue.Queue] = field(default_factory=list)
+    missed_events: MissedEventBuffer = field(default_factory=MissedEventBuffer)
     final_state: dict[str, Any] | None = None
     decision: str | None = None
     error: str | None = None
@@ -176,6 +216,8 @@ class RunManager:
 
     def _broadcast(self, record: RunRecord, event_type: str, data: dict[str, Any]) -> None:
         frame = format_sse(event_type, data)
+        if not record.subscribers:
+            record.missed_events.append(event_type, data)
         for subscriber in record.subscribers:
             with suppress(queue.Full):
                 subscriber.put_nowait(frame)
@@ -308,6 +350,9 @@ class RunManager:
         terminal = {"completed", "error", "cancelled"}
 
         try:
+            for event_type, data in record.missed_events.drain():
+                yield format_sse(event_type, data)
+
             while True:
                 try:
                     frame = await asyncio.to_thread(subscriber.get, True, 0.5)
