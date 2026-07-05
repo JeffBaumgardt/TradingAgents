@@ -43,7 +43,7 @@ class StartRunRequest(BaseModel):
 
 @router.post("")
 def start_run(body: StartRunRequest) -> dict[str, str]:
-    run_id = run_manager.create_run(body.sessionId, body.model_dump())
+    run_id = run_manager.create_run(body.sessionId, body.model_dump(exclude_none=True))
     return {"runId": run_id}
 
 

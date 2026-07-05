@@ -59,7 +59,7 @@ def get_language_instruction() -> str:
     report rather than a mix of languages.
     """
     from tradingagents.dataflows.config import get_config
-    lang = get_config().get("output_language", "English")
+    lang = get_config().get("output_language") or "English"
     if lang.strip().lower() == "english":
         return ""
     return f" Write your entire response in {lang}."
@@ -188,9 +188,9 @@ def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
 
 
 
-def build_initial_user_message(ticker: str, user_context: str = "") -> str:
+def build_initial_user_message(ticker: str, user_context: str | None = "") -> str:
     """Build the human message that seeds analyst tool-calling agents."""
-    context = user_context.strip()
+    context = (user_context or "").strip()
     if not context:
         return ticker
     return (
@@ -202,9 +202,9 @@ def build_initial_user_message(ticker: str, user_context: str = "") -> str:
     )
 
 
-def format_user_context_block(user_context: str) -> str:
+def format_user_context_block(user_context: str | None) -> str:
     """Format optional user context for downstream agent prompts."""
-    context = user_context.strip()
+    context = (user_context or "").strip()
     if not context:
         return ""
     return (

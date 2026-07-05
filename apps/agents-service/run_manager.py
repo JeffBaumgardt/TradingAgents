@@ -300,7 +300,7 @@ class RunManager:
                 init_state = graph.propagator.create_initial_state(
                     payload["ticker"],
                     payload["analysisDate"],
-                    user_context=payload.get("userContext", ""),
+                    user_context=payload.get("userContext") or "",
                 )
                 args = graph.propagator.get_graph_args(callbacks=[stats_handler])
 
