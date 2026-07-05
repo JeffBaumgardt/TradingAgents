@@ -8,6 +8,11 @@
 import type { ProviderCredentials } from "@tradingagents/api-types";
 import { SECRET_CREDENTIAL_PLACEHOLDER } from "@tradingagents/api-types";
 import type { AppSupabaseClient, UserCredentialRow } from "@tradingagents/supabase";
+import {
+  decryptSecret,
+  encryptSecret,
+  isEncryptedStoredValue,
+} from "../lib/credentials-encryption.js";
 
 const SECRET_FIELD_NAMES = new Set(["apiKey"]);
 
@@ -56,6 +61,20 @@ export function isSecretPlaceholder(value: string): boolean {
   return trimmed === SECRET_CREDENTIAL_PLACEHOLDER || /^\*+$/.test(trimmed);
 }
 
+function storedSecretValue(fieldName: string, value: string): string {
+  if (!isSecretField(fieldName)) {
+    return value;
+  }
+  return encryptSecret(value);
+}
+
+function readableSecretValue(fieldName: string, stored: string): string {
+  if (!isSecretField(fieldName)) {
+    return stored;
+  }
+  return decryptSecret(stored);
+}
+
 function rowsToProviderCredentials(
   rows: Array<{ provider_id: string; field_name: string; field_value: string }>,
 ): ProviderCredentials {
@@ -64,11 +83,40 @@ function rowsToProviderCredentials(
   for (const row of rows) {
     credentials[row.provider_id] = {
       ...(credentials[row.provider_id] ?? {}),
-      [row.field_name]: row.field_value,
+      [row.field_name]: readableSecretValue(row.field_name, row.field_value),
     };
   }
 
   return credentials;
+}
+
+async function migratePlaintextSecrets(
+  client: AppSupabaseClient,
+  userId: string,
+  rows: UserCredentialRow[],
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  for (const row of rows) {
+    if (!isSecretField(row.field_name) || isEncryptedStoredValue(row.field_value)) {
+      continue;
+    }
+
+    const { error } = await client.from("user_credentials").upsert(
+      {
+        user_id: userId,
+        provider_id: row.provider_id,
+        field_name: row.field_name,
+        field_value: storedSecretValue(row.field_name, row.field_value),
+        updated_at: now,
+      },
+      { onConflict: "user_id,provider_id,field_name" },
+    );
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
 }
 
 function maskSecretFields(credentials: ProviderCredentials): ProviderCredentials {
@@ -105,7 +153,9 @@ export async function getUserCredentialsRaw(
     throw new Error(error.message);
   }
 
-  return rowsToProviderCredentials((data ?? []) as UserCredentialRow[]);
+  const rows = (data ?? []) as UserCredentialRow[];
+  await migratePlaintextSecrets(client, userId, rows);
+  return rowsToProviderCredentials(rows);
 }
 
 export async function getUserCredentialsMasked(
@@ -139,7 +189,7 @@ export async function saveUserCredentials(
           user_id: userId,
           provider_id: providerId,
           field_name: fieldName,
-          field_value: value,
+          field_value: storedSecretValue(fieldName, value),
           updated_at: now,
         },
         { onConflict: "user_id,provider_id,field_name" },
@@ -152,4 +202,27 @@ export async function saveUserCredentials(
   }
 
   return getUserCredentialsMasked(client, userId);
+}
+
+/** Returns the raw database value for a credential field (ciphertext for secrets). */
+export async function getStoredCredentialFieldValue(
+  client: AppSupabaseClient,
+  userId: string,
+  providerId: string,
+  fieldName: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from("user_credentials")
+    .select("field_value")
+    .eq("user_id", userId)
+    .eq("provider_id", providerId)
+    .eq("field_name", fieldName)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row = data as { field_value: string } | null;
+  return row?.field_value ?? null;
 }
