@@ -47,6 +47,20 @@ def start_run(body: StartRunRequest) -> dict[str, str]:
     return {"runId": run_id}
 
 
+@router.get("/{run_id}")
+def get_run_status(run_id: str) -> dict[str, Any]:
+    record = run_manager.get_run(run_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    return {
+        "runId": record.run_id,
+        "sessionId": record.session_id,
+        "status": record.status,
+        "error": record.error,
+    }
+
+
 @router.get("/{run_id}/stream")
 async def stream_run(run_id: str):
     record = run_manager.get_run(run_id)

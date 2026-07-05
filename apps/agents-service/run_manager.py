@@ -76,6 +76,7 @@ class RunRecord:
     session_id: str
     status: str = "pending"
     subscribers: list[queue.Queue] = field(default_factory=list)
+    missed_events: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     final_state: dict[str, Any] | None = None
     decision: str | None = None
     error: str | None = None
@@ -176,6 +177,8 @@ class RunManager:
 
     def _broadcast(self, record: RunRecord, event_type: str, data: dict[str, Any]) -> None:
         frame = format_sse(event_type, data)
+        if not record.subscribers:
+            record.missed_events.append((event_type, data))
         for subscriber in record.subscribers:
             with suppress(queue.Full):
                 subscriber.put_nowait(frame)
@@ -308,6 +311,10 @@ class RunManager:
         terminal = {"completed", "error", "cancelled"}
 
         try:
+            for event_type, data in record.missed_events:
+                yield format_sse(event_type, data)
+            record.missed_events.clear()
+
             while True:
                 try:
                     frame = await asyncio.to_thread(subscriber.get, True, 0.5)
