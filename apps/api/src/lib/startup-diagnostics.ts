@@ -81,6 +81,7 @@ export async function logStartupDiagnostics(): Promise<void> {
     "CLERK_SECRET_KEY",
     "AGENTS_SERVICE_URL",
     "CORS_ORIGIN",
+    "CREDENTIALS_ENCRYPTION_KEY",
   ]) {
     console.log(`[startup] ${name}: ${envStatus(name)}`);
   }
@@ -143,6 +144,24 @@ export async function logStartupDiagnostics(): Promise<void> {
     console.warn(
       "[startup] No JWKS configured (SUPABASE_JWKS_URL or SUPABASE_JWKS)",
     );
+  }
+
+  const credentialsKey = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim();
+  if (!credentialsKey) {
+    console.error(
+      "[startup] CREDENTIALS_ENCRYPTION_KEY is required (generate with: openssl rand -base64 32)",
+    );
+  } else {
+    try {
+      const decoded = Buffer.from(credentialsKey, "base64");
+      if (decoded.length !== 32) {
+        console.error(
+          `[startup] CREDENTIALS_ENCRYPTION_KEY must decode to 32 bytes (got ${decoded.length})`,
+        );
+      }
+    } catch {
+      console.error("[startup] CREDENTIALS_ENCRYPTION_KEY is not valid base64");
+    }
   }
 
   const resolved = resolveEnv();

@@ -196,6 +196,7 @@ Vercel cannot run the API or Python agents service (long SSE, LangGraph, heavy d
 | `SUPABASE_JWKS_URL` | `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json` |
 | `CLERK_SECRET_KEY` | Same as Vercel |
 | `CLERK_PUBLISHABLE_KEY` | Same as Vercel |
+| `CREDENTIALS_ENCRYPTION_KEY` | `openssl rand -base64 32` — keep stable across deploys |
 
 ### Agents service environment
 

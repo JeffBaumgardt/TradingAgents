@@ -133,6 +133,7 @@ RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile
 | `SUPABASE_SECRET_KEY` | From Supabase |
 | `SUPABASE_JWKS_URL` | `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json` |
 | `CLERK_SECRET_KEY` | Same Clerk app as Vercel |
+| `CREDENTIALS_ENCRYPTION_KEY` | `openssl rand -base64 32` — keep stable across deploys |
 | `AGENTS_SERVICE_URL` | `http://agents-service.railway.internal:8000` |
 | `CORS_ORIGIN` | `https://your-app.vercel.app` |
 

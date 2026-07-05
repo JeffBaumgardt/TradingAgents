@@ -25,6 +25,7 @@ Internet → ALB → ECS Service (api) → ECS Service (agents-service)
 - **Environment**:
   - `AGENTS_SERVICE_URL=http://agents-service.internal:8000`
   - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_JWKS_URL`
+  - `CREDENTIALS_ENCRYPTION_KEY` — 32-byte base64 key for AES-256-GCM encryption of user provider API keys at rest (`openssl rand -base64 32`). Keep stable across deploys; rotating it invalidates stored keys unless you re-encrypt.
   - `CORS_ORIGIN=https://app.example.com`
 
 ### Alternative: Lambda + API Gateway
@@ -41,6 +42,7 @@ Only suitable if SSE is moved to a dedicated WebSocket or polling endpoint. Not 
 Store in AWS Secrets Manager:
 
 - Database credentials
+- `CREDENTIALS_ENCRYPTION_KEY` (user API key encryption)
 - Internal service auth token (future)
 
 ## Monitoring
