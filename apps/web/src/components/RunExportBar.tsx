@@ -6,11 +6,13 @@
 "use client";
 
 import { useState } from "react";
+import { shareTradeCheckPng } from "@/lib/trade-check-share";
 import styles from "./RunExportBar.module.css";
 
 interface RunExportBarProps {
   sessionId: string;
   ticker: string;
+  canShareDigest?: boolean;
   onPrintDigest: () => void;
   onPrintFull: () => void;
 }
@@ -18,37 +20,53 @@ interface RunExportBarProps {
 export default function RunExportBar({
   sessionId,
   ticker,
+  canShareDigest = false,
   onPrintDigest,
   onPrintFull,
 }: RunExportBarProps) {
-  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+
+  function showFeedback(message: string) {
+    setFeedback(message);
+    window.setTimeout(() => setFeedback(null), 3500);
+  }
 
   async function handleCopyLink() {
     const url = `${window.location.origin}/run/${sessionId}`;
     try {
       await navigator.clipboard.writeText(url);
-      setCopyMessage("Link copied");
+      showFeedback("Link copied");
     } catch {
-      setCopyMessage("Could not copy link");
+      showFeedback("Could not copy link");
     }
-    window.setTimeout(() => setCopyMessage(null), 2500);
   }
 
   async function handleShare() {
-    const url = `${window.location.origin}/run/${sessionId}`;
-    const title = `${ticker} Trade Check`;
-    const text = `Analysis report for ${ticker}`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch {
-        // User cancelled or share failed — fall back to copy.
-      }
+    if (!canShareDigest || isSharing) {
+      return;
     }
 
-    await handleCopyLink();
+    setIsSharing(true);
+    try {
+      const result = await shareTradeCheckPng(ticker);
+      if (result === "clipboard") {
+        showFeedback("PNG copied — paste into Discord");
+      } else if (result === "share") {
+        showFeedback("PNG ready to share");
+      } else {
+        showFeedback("PNG downloaded — drop into Discord");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+      showFeedback(
+        error instanceof Error ? error.message : "Could not create Trade Check PNG",
+      );
+    } finally {
+      setIsSharing(false);
+    }
   }
 
   return (
@@ -63,17 +81,24 @@ export default function RunExportBar({
         <button type="button" className={styles.secondaryButton} onClick={handleCopyLink}>
           Copy link
         </button>
-        <button type="button" className={styles.secondaryButton} onClick={handleShare}>
-          Share
+        <button
+          type="button"
+          className={styles.secondaryButton}
+          onClick={handleShare}
+          disabled={!canShareDigest || isSharing}
+          aria-busy={isSharing}
+        >
+          {isSharing ? "Creating PNG…" : "Share PNG"}
         </button>
       </div>
-      {copyMessage ? (
+      {feedback ? (
         <p className={styles.feedback} role="status" aria-live="polite">
-          {copyMessage}
+          {feedback}
         </p>
       ) : (
         <p className={styles.hint}>
-          Digest prints the Trade Check summary. Full export adds every agent report on following pages.
+          Share PNG copies or downloads the Trade Check digest for Discord. Full export adds every agent
+          report on following pages.
         </p>
       )}
     </div>

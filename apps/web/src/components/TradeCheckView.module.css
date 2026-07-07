@@ -8,6 +8,12 @@
   background: var(--color-bg-surface);
 }
 
+.shareRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

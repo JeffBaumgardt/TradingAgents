@@ -6,7 +6,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { TradeCheckChart as TradeCheckChartData } from "@tradingagents/api-types";
+import type {
+  TradeCheckChart as TradeCheckChartData,
+  TradeCheckChartLevel,
+  TradeCheckOhlcvBar,
+  TradeCheckProjectionPoint,
+} from "@tradingagents/api-types";
 import styles from "./TradeCheckChart.module.css";
 
 interface TradeCheckChartProps {
@@ -14,13 +19,79 @@ interface TradeCheckChartProps {
   height?: number;
 }
 
+const DISPLAY_TRADING_DAYS = 30;
+const RECENT_BARS_FOR_SCALE = 15;
+
 function formatPrice(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function compareBarTime(left: string, right: string): number {
+  return left.localeCompare(right);
+}
+
+function selectDisplayBars(chart: TradeCheckChartData): TradeCheckOhlcvBar[] {
+  const sortedBars = [...chart.bars].sort((left, right) =>
+    compareBarTime(left.time, right.time),
+  );
+  if (sortedBars.length <= DISPLAY_TRADING_DAYS) {
+    return sortedBars;
+  }
+  return sortedBars.slice(-DISPLAY_TRADING_DAYS);
+}
+
+function selectDisplayProjection(
+  chart: TradeCheckChartData,
+  lastBarTime: string,
+): TradeCheckProjectionPoint[] {
+  const seenTimes = new Set<string>();
+
+  return [...chart.projection]
+    .filter((point) => compareBarTime(point.time, lastBarTime) > 0)
+    .sort((left, right) => compareBarTime(left.time, right.time))
+    .filter((point) => {
+      if (seenTimes.has(point.time)) {
+        return false;
+      }
+      seenTimes.add(point.time);
+      return true;
+    })
+    .slice(0, 5);
+}
+
+function computeVisiblePriceRange(
+  displayBars: TradeCheckOhlcvBar[],
+  levels: TradeCheckChartLevel[],
+): { min: number; max: number } {
+  const recentBars = displayBars.slice(-RECENT_BARS_FOR_SCALE);
+  const values: number[] = [];
+
+  for (const bar of recentBars) {
+    values.push(bar.open, bar.high, bar.low, bar.close);
+  }
+  for (const level of levels) {
+    values.push(level.price);
+  }
+
+  if (values.length === 0) {
+    return { min: 0, max: 1 };
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(max - min, max * 0.02);
+  const padding = span * 0.14;
+
+  return {
+    min: min - padding,
+    max: max + padding,
+  };
+}
+
 function renderPrintFallback(chart: TradeCheckChartData) {
-  const lastBar = chart.bars[chart.bars.length - 1];
-  const recentBars = chart.bars.slice(-5);
+  const displayBars = selectDisplayBars(chart);
+  const lastBar = displayBars[displayBars.length - 1];
+  const recentBars = displayBars.slice(-5);
 
   return (
     <div className={styles.printFallback} aria-hidden="true">
@@ -79,7 +150,10 @@ function renderPrintFallback(chart: TradeCheckChartData) {
   );
 }
 
-export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChartProps) {
+export default function TradeCheckChart({
+  chart,
+  height = 360,
+}: TradeCheckChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,10 +167,21 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
     let resizeHandler: (() => void) | null = null;
 
     async function renderChart() {
-      const { createChart, ColorType, CrosshairMode } = await import("lightweight-charts");
+      const { createChart, ColorType, CrosshairMode } =
+        await import("lightweight-charts");
       if (disposed || !container) {
         return;
       }
+
+      const displayBars = selectDisplayBars(chart);
+      if (displayBars.length === 0) {
+        return;
+      }
+
+      const lastBarTime = displayBars[displayBars.length - 1].time;
+      const displayProjection = selectDisplayProjection(chart, lastBarTime);
+      const priceRange = computeVisiblePriceRange(displayBars, chart.levels);
+      const slotCount = displayBars.length + displayProjection.length + 2;
 
       container.replaceChildren();
       chartInstance = createChart(container, {
@@ -111,8 +196,32 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
           horzLines: { color: "#1e293b" },
         },
         crosshair: { mode: CrosshairMode.Normal },
-        rightPriceScale: { borderColor: "#334155" },
-        timeScale: { borderColor: "#334155" },
+        rightPriceScale: {
+          borderColor: "#334155",
+          autoScale: true,
+          scaleMargins: { top: 0.08, bottom: 0.08 },
+        },
+        timeScale: {
+          borderColor: "#334155",
+          fixLeftEdge: true,
+          fixRightEdge: true,
+          rightOffset: 2,
+          barSpacing: Math.min(
+            18,
+            Math.max(8, (container.clientWidth - 72) / slotCount),
+          ),
+          minBarSpacing: 6,
+        },
+        watermark: {
+          visible: false,
+        },
+      });
+
+      const autoscaleInfoProvider = () => ({
+        priceRange: {
+          minValue: priceRange.min,
+          maxValue: priceRange.max,
+        },
       });
 
       const candleSeries = chartInstance.addCandlestickSeries({
@@ -121,10 +230,11 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
         borderVisible: false,
         wickUpColor: "#22c55e",
         wickDownColor: "#ef4444",
+        autoscaleInfoProvider,
       });
 
       candleSeries.setData(
-        chart.bars.map((bar) => ({
+        displayBars.map((bar) => ({
           time: bar.time,
           open: bar.open,
           high: bar.high,
@@ -144,15 +254,18 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
         });
       }
 
-      if (chart.projection.length > 0) {
+      if (displayProjection.length > 0) {
         const projectionSeries = chartInstance.addLineSeries({
           color: "#38bdf8",
           lineWidth: 2,
           lineStyle: 2,
           title: "p50 projection",
+          priceLineVisible: false,
+          lastValueVisible: false,
+          autoscaleInfoProvider: () => null,
         });
         projectionSeries.setData(
-          chart.projection.map((point) => ({
+          displayProjection.map((point) => ({
             time: point.time,
             value: point.p50,
           })),
@@ -163,9 +276,12 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
           lineWidth: 1,
           lineStyle: 2,
           title: "p90 high",
+          priceLineVisible: false,
+          lastValueVisible: false,
+          autoscaleInfoProvider: () => null,
         });
         upper.setData(
-          chart.projection
+          displayProjection
             .filter((point) => point.p90High != null)
             .map((point) => ({
               time: point.time,
@@ -178,9 +294,12 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
           lineWidth: 1,
           lineStyle: 2,
           title: "p90 low",
+          priceLineVisible: false,
+          lastValueVisible: false,
+          autoscaleInfoProvider: () => null,
         });
         lower.setData(
-          chart.projection
+          displayProjection
             .filter((point) => point.p90Low != null)
             .map((point) => ({
               time: point.time,
@@ -195,7 +314,17 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
         if (!container || !chartInstance) {
           return;
         }
-        chartInstance.applyOptions({ width: container.clientWidth });
+        const nextSlotCount = displayBars.length + displayProjection.length + 2;
+        chartInstance.applyOptions({
+          width: container.clientWidth,
+          timeScale: {
+            barSpacing: Math.min(
+              18,
+              Math.max(8, (container.clientWidth - 72) / nextSlotCount),
+            ),
+          },
+        });
+        chartInstance.timeScale().fitContent();
       };
       window.addEventListener("resize", resizeHandler);
     }
@@ -214,14 +343,19 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
   if (chart.bars.length === 0) {
     return (
       <div className={styles.empty} role="img" aria-label="Chart unavailable">
-        Price chart unavailable — market data could not be loaded for this ticker/date.
+        Price chart unavailable — market data could not be loaded for this
+        ticker/date.
       </div>
     );
   }
 
   return (
     <div className={styles.wrapper}>
-      <div ref={containerRef} className={styles.chart} aria-label="Price chart with trade levels" />
+      <div
+        ref={containerRef}
+        className={styles.chart}
+        aria-label="Price chart with trade levels"
+      />
       {renderPrintFallback(chart)}
       {chart.legend.length > 0 && (
         <ul className={styles.legend}>

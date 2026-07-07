@@ -78,8 +78,8 @@ function renderAgentSection(section: TradeCheckAgentSection) {
       <p className={styles.agentHeadline}>{section.headline}</p>
       {section.keyPoints.length > 0 && (
         <ul className={styles.keyPoints}>
-          {section.keyPoints.map((point) => (
-            <li key={point}>{point}</li>
+          {section.keyPoints.map((point, index) => (
+            <li key={`${section.agentKey}-point-${index}`}>{point}</li>
           ))}
         </ul>
       )}
@@ -126,6 +126,7 @@ export default function TradeCheckView({ report, onPrint, showToolbar = true }: 
       </div>
       ) : null}
 
+      <div id="trade-check-share-root" className={styles.shareRoot}>
       <header className={styles.header}>
         <div>
           <h2 className={styles.title}>{title}</h2>
@@ -268,6 +269,32 @@ export default function TradeCheckView({ report, onPrint, showToolbar = true }: 
         </section>
       )}
 
+      <section className={styles.verdictSection}>
+        <h3 className={styles.sectionTitle}>Trade Check verdict</h3>
+        <div className={styles.verdictGrid}>
+          {report.verdict.map((badge) => (
+            <article key={badge.id} className={styles.verdictCard}>
+              <span className={`${styles.verdictBadge} ${toneClass(badge.tone)}`}>
+                {badge.label}
+              </span>
+              <h4>{badge.headline}</h4>
+              {badge.detail ? <p>{badge.detail}</p> : null}
+            </article>
+          ))}
+        </div>
+        {report.bottomLine ? (
+          <p className={styles.bottomLine}>
+            <strong>Bottom line:</strong> {report.bottomLine}
+          </p>
+        ) : null}
+        {report.decision ? (
+          <p className={styles.decisionLine}>
+            Portfolio rating: <strong>{report.decision}</strong>
+          </p>
+        ) : null}
+      </section>
+      </div>
+
       {report.catalysts.length > 0 && (
         <section>
           <h3 className={styles.sectionTitle}>Today&apos;s catalyst + key context</h3>
@@ -300,31 +327,6 @@ export default function TradeCheckView({ report, onPrint, showToolbar = true }: 
           </div>
         </section>
       )}
-
-      <section className={styles.verdictSection}>
-        <h3 className={styles.sectionTitle}>Trade Check verdict</h3>
-        <div className={styles.verdictGrid}>
-          {report.verdict.map((badge) => (
-            <article key={badge.id} className={styles.verdictCard}>
-              <span className={`${styles.verdictBadge} ${toneClass(badge.tone)}`}>
-                {badge.label}
-              </span>
-              <h4>{badge.headline}</h4>
-              {badge.detail ? <p>{badge.detail}</p> : null}
-            </article>
-          ))}
-        </div>
-        {report.bottomLine ? (
-          <p className={styles.bottomLine}>
-            <strong>Bottom line:</strong> {report.bottomLine}
-          </p>
-        ) : null}
-        {report.decision ? (
-          <p className={styles.decisionLine}>
-            Portfolio rating: <strong>{report.decision}</strong>
-          </p>
-        ) : null}
-      </section>
     </div>
   );
 }

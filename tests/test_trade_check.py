@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import pandas as pd
+
 from tradingagents.trade_check.distiller import build_rule_based_report
+from tradingagents.trade_check.market_data import CHART_DISPLAY_TRADING_DAYS, build_chart_payload
 from tradingagents.trade_check.normalize import (
     normalize_ticker,
     parse_price,
@@ -86,3 +89,44 @@ class TestRuleBasedDistillation:
         assert payload["schemaVersion"] == "1.0"
         assert payload["header"]["ticker"] == "EXMP"
         assert payload["priceSummary"]["currentPrice"] == 155.0
+
+
+class TestChartPayload:
+    def test_limits_display_to_recent_trading_days(self):
+        dates = pd.date_range(end="2026-07-07", periods=60, freq="B")
+        history = pd.DataFrame(
+            {
+                "Open": range(400, 460),
+                "High": range(405, 465),
+                "Low": range(395, 455),
+                "Close": range(402, 462),
+                "Volume": [1_000_000] * 60,
+            },
+            index=dates,
+        )
+
+        chart = build_chart_payload(history, "2026-07-07", [])
+
+        assert len(chart.bars) == CHART_DISPLAY_TRADING_DAYS
+        assert chart.bars[0].time == str(dates[-CHART_DISPLAY_TRADING_DAYS].date())
+        assert chart.bars[-1].time == "2026-07-07"
+
+    def test_projection_dates_are_unique_trading_days(self):
+        dates = pd.date_range(end="2026-07-03", periods=30, freq="B")
+        history = pd.DataFrame(
+            {
+                "Open": range(400, 430),
+                "High": range(405, 435),
+                "Low": range(395, 425),
+                "Close": range(402, 432),
+                "Volume": [1_000_000] * 30,
+            },
+            index=dates,
+        )
+
+        chart = build_chart_payload(history, "2026-07-03", [])
+        projection_times = [point.time for point in chart.projection]
+
+        assert projection_times
+        assert len(projection_times) == len(set(projection_times))
+        assert projection_times == sorted(projection_times)

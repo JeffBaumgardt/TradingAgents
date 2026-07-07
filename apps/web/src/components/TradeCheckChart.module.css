@@ -6,7 +6,7 @@
 
 .chart {
   width: 100%;
-  min-height: 280px;
+  min-height: 360px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;

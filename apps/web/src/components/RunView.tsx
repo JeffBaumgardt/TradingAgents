@@ -896,6 +896,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         <RunExportBar
           sessionId={sessionId}
           ticker={sessionMeta?.config.ticker ?? "Analysis"}
+          canShareDigest={Boolean(tradeCheckReport)}
           onPrintDigest={handlePrintDigest}
           onPrintFull={handlePrintFull}
         />

@@ -27,6 +27,8 @@ export function getClerkContentSecurityPolicyOptions() {
   return {
     directives: {
       "connect-src": connectSrc,
+      // Trade Check PNG export inlines chart canvases as data: URLs via html-to-image.
+      "img-src": ["data:", "blob:"],
       "frame-ancestors": ["'none'"],
       "object-src": ["'none'"],
       "base-uri": ["'self'"],

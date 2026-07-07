@@ -43,8 +43,13 @@
   color: var(--color-text);
 }
 
-.secondaryButton:hover {
+.secondaryButton:hover:not(:disabled) {
   background: var(--color-bg-hover);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .hint,

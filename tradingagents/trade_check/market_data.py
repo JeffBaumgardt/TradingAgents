@@ -16,8 +16,9 @@ from .schemas import ChartLevelLine, OhlcvBar, ProjectedPathPoint, TradeCheckCha
 
 logger = logging.getLogger(__name__)
 
-CHART_LOOKBACK_DAYS = 90
-PROJECTION_DAYS = 10
+CHART_FETCH_CALENDAR_DAYS = 120
+CHART_DISPLAY_TRADING_DAYS = 30
+PROJECTION_DAYS = 5
 
 
 def _safe_float(value) -> float | None:
@@ -38,7 +39,7 @@ def fetch_market_snapshot(ticker: str, analysis_date: str) -> dict:
         return {}
 
     canonical = normalize_symbol(ticker)
-    start_dt = end_dt - relativedelta(days=CHART_LOOKBACK_DAYS + 30)
+    start_dt = end_dt - relativedelta(days=CHART_FETCH_CALENDAR_DAYS + 30)
 
     try:
         history = yf_retry(
@@ -156,10 +157,13 @@ def build_chart_payload(
         end_dt = datetime.strptime(analysis_date, "%Y-%m-%d")
     except ValueError:
         end_dt = pd.Timestamp(history.index[-1]).to_pydatetime()
-    start_dt = end_dt - relativedelta(days=CHART_LOOKBACK_DAYS)
+    start_dt = end_dt - relativedelta(days=CHART_FETCH_CALENDAR_DAYS)
     window = history[history.index >= pd.Timestamp(start_dt.date())]
     if window.empty:
-        window = history.tail(CHART_LOOKBACK_DAYS)
+        window = history.tail(CHART_FETCH_CALENDAR_DAYS)
+
+    if len(window) > CHART_DISPLAY_TRADING_DAYS:
+        window = window.tail(CHART_DISPLAY_TRADING_DAYS)
 
     bars: list[OhlcvBar] = []
     for ts, row in window.iterrows():
@@ -187,9 +191,9 @@ def build_chart_payload(
         levels=chart_levels,
         projection=projection,
         legend=[
-            "Candles = daily OHLCV",
+            f"Last {CHART_DISPLAY_TRADING_DAYS} trading days (daily OHLCV)",
             "Green/red dashed = support/resistance & trade levels",
-            "Dotted path = median (p50) projection; band = p90 range",
+            "Dotted path = short p50 projection; band = p90 range",
         ],
     )
 
@@ -213,8 +217,9 @@ def _build_projection(history: pd.DataFrame, analysis_date: str) -> list[Project
         return []
 
     points: list[ProjectedPathPoint] = []
+    day = start
     for offset in range(1, PROJECTION_DAYS + 1):
-        day = start + timedelta(days=offset)
+        day += timedelta(days=1)
         while day.weekday() >= 5:
             day += timedelta(days=1)
         move = daily_vol * (offset ** 0.5)
