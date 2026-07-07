@@ -6,7 +6,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import type {
   AgentStatusEvent,
   AgentStatusValue,
@@ -28,7 +34,14 @@ import {
   REPORT_SECTION_TITLES,
   REPORT_TEAM_GROUPS,
 } from "@tradingagents/api-types";
-import { formatElapsed, formatTokens, formatToolArgs, getReportSignalTone, extractReportSignal, truncateText } from "@tradingagents/utils";
+import {
+  formatElapsed,
+  formatTokens,
+  formatToolArgs,
+  getReportSignalTone,
+  extractReportSignal,
+  truncateText,
+} from "@tradingagents/utils";
 import {
   fetchSession,
   fetchSessionEvents,
@@ -85,7 +98,10 @@ const SECTION_AGENT: Partial<Record<ReportSectionKey, string>> = {
 };
 
 const SECTION_BY_AGENT: Record<string, ReportSectionKey> = Object.fromEntries(
-  Object.entries(SECTION_AGENT).map(([section, agent]) => [agent, section as ReportSectionKey]),
+  Object.entries(SECTION_AGENT).map(([section, agent]) => [
+    agent,
+    section as ReportSectionKey,
+  ]),
 ) as Record<string, ReportSectionKey>;
 
 function truncatePreview(content: string, maxLength = 480): string {
@@ -95,7 +111,12 @@ function truncatePreview(content: string, maxLength = 480): string {
   return `${content.slice(0, maxLength).trim()}…`;
 }
 
-const ANALYST_TYPE_ORDER: AnalystType[] = ["market", "social", "news", "fundamentals"];
+const ANALYST_TYPE_ORDER: AnalystType[] = [
+  "market",
+  "social",
+  "news",
+  "fundamentals",
+];
 const DEEP_THINKING_THRESHOLD_SECONDS = 8;
 const RESULTS_TRANSITION_MS = 700;
 
@@ -121,10 +142,16 @@ function formatEventTime(timestamp: string): string {
   if (Number.isNaN(date.getTime())) {
     return timestamp;
   }
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
-function reportSignalToneClass(signal: ReturnType<typeof extractReportSignal>): string {
+function reportSignalToneClass(
+  signal: ReturnType<typeof extractReportSignal>,
+): string {
   if (!signal) {
     return "";
   }
@@ -173,9 +200,13 @@ function ThinkingDots() {
 }
 
 export default function RunView({ sessionId, initialSession }: RunViewProps) {
-  const [agentStatus, setAgentStatus] = useState<Record<string, AgentStatusValue>>({});
+  const [agentStatus, setAgentStatus] = useState<
+    Record<string, AgentStatusValue>
+  >({});
   const [feed, setFeed] = useState<FeedEntry[]>([]);
-  const [reports, setReports] = useState<Partial<Record<ReportSectionKey, string>>>({});
+  const [reports, setReports] = useState<
+    Partial<Record<ReportSectionKey, string>>
+  >({});
   const [stats, setStats] = useState<RunStats>({
     llmCalls: 0,
     toolCalls: 0,
@@ -187,7 +218,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const [usesLiveStream, setUsesLiveStream] = useState(
     initialSession ? isLiveSessionStatus(initialSession.status) : true,
   );
-  const [completed, setCompleted] = useState(initialSession?.status === "completed");
+  const [completed, setCompleted] = useState(
+    initialSession?.status === "completed",
+  );
   const [runError, setRunError] = useState<RunErrorState | null>(
     initialSession?.status === "error"
       ? {
@@ -198,7 +231,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   );
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [settingsExpanded, setSettingsExpanded] = useState(false);
-  const [sessionMeta, setSessionMeta] = useState<Session | null>(initialSession ?? null);
+  const [sessionMeta, setSessionMeta] = useState<Session | null>(
+    initialSession ?? null,
+  );
   const [selectedAnalysts, setSelectedAnalysts] = useState<AnalystType[]>(
     initialSession?.config.analysts ?? [],
   );
@@ -206,7 +241,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const [resultsPhase, setResultsPhase] = useState<ResultsPhase>(
     initialSession?.status === "completed" ? "complete" : "running",
   );
-  const [tradeCheckReport, setTradeCheckReport] = useState<TradeCheckReport | null>(null);
+  const [tradeCheckReport, setTradeCheckReport] =
+    useState<TradeCheckReport | null>(null);
   const [tradeCheckLoading, setTradeCheckLoading] = useState(false);
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [tick, setTick] = useState(0);
@@ -267,7 +303,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   function hydrateReportFromApi() {
     return fetchSessionReport(sessionId)
       .then((report) => {
-        const sections = report.sections as Partial<Record<ReportSectionKey, string>>;
+        const sections = report.sections as Partial<
+          Record<ReportSectionKey, string>
+        >;
         setReports((prev) => {
           const merged = { ...prev };
           for (const [key, value] of Object.entries(sections)) {
@@ -310,7 +348,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         session.status === "cancelled"
       ) {
         const elapsed =
-          (new Date(session.updatedAt).getTime() - new Date(session.createdAt).getTime()) / 1000;
+          (new Date(session.updatedAt).getTime() -
+            new Date(session.createdAt).getTime()) /
+          1000;
         freezeElapsed(Math.max(0, elapsed));
       }
       if (session.status === "completed") {
@@ -387,10 +427,12 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
     function pushFeed(timestamp: string, type: string, content: string) {
       feedCounter += 1;
-      setFeed((prev) => [
-        { id: `${feedCounter}`, timestamp, type, content },
-        ...prev,
-      ].slice(0, 100));
+      setFeed((prev) =>
+        [{ id: `${feedCounter}`, timestamp, type, content }, ...prev].slice(
+          0,
+          100,
+        ),
+      );
     }
 
     function handleStreamEvent(event: string, data: unknown) {
@@ -409,7 +451,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       }
       if (event === "agent.status") {
         const payload = data as AgentStatusEvent;
-        setAgentStatus((prev) => ({ ...prev, [payload.agent]: payload.status }));
+        setAgentStatus((prev) => ({
+          ...prev,
+          [payload.agent]: payload.status,
+        }));
         if (payload.status === "in_progress") {
           setActiveAgent(payload.agent);
         }
@@ -505,33 +550,30 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
     function startLiveStream() {
       setUsesLiveStream(true);
-      unsubscribe = subscribeToSessionStream(
-        sessionId,
-        {
-          onOpen: () => {
-            setConnected(true);
-            touchActivity();
-          },
-          onEvent: (event, data) => {
-            handleStreamEvent(event, data);
-          },
-          onStreamEnd: () => {
-            if (!terminalRef.current) {
-              markRunComplete();
-            }
-          },
-          onError: (err) => {
-            if (terminalRef.current) {
-              return;
-            }
-            setRunError({
-              message: err.message,
-              hint: "The live stream disconnected before the run finished. Try refreshing this page.",
-            });
-            setActiveAgent(null);
-          },
+      unsubscribe = subscribeToSessionStream(sessionId, {
+        onOpen: () => {
+          setConnected(true);
+          touchActivity();
         },
-      );
+        onEvent: (event, data) => {
+          handleStreamEvent(event, data);
+        },
+        onStreamEnd: () => {
+          if (!terminalRef.current) {
+            markRunComplete();
+          }
+        },
+        onError: (err) => {
+          if (terminalRef.current) {
+            return;
+          }
+          setRunError({
+            message: err.message,
+            hint: "The live stream disconnected before the run finished. Try refreshing this page.",
+          });
+          setActiveAgent(null);
+        },
+      });
     }
 
     async function initRunData() {
@@ -579,7 +621,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const isRunning = connected && !completed && !runError;
 
   const secondsSinceActivity = (Date.now() - lastActivityAt) / 1000;
-  const isDeepThinking = isRunning && secondsSinceActivity >= DEEP_THINKING_THRESHOLD_SECONDS;
+  const isDeepThinking =
+    isRunning && secondsSinceActivity >= DEEP_THINKING_THRESHOLD_SECONDS;
 
   const progressSummary = useMemo(() => {
     const statuses = Object.values(agentStatus);
@@ -613,12 +656,17 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
   const analystSections = useMemo(() => {
     if (selectedAnalysts.length > 0) {
-      return selectedAnalysts.map((analyst) => ANALYST_REPORT_SECTIONS[analyst]);
+      return selectedAnalysts.map(
+        (analyst) => ANALYST_REPORT_SECTIONS[analyst],
+      );
     }
-    return ANALYST_TYPE_ORDER.map((analyst) => ANALYST_REPORT_SECTIONS[analyst]).filter(
+    return ANALYST_TYPE_ORDER.map(
+      (analyst) => ANALYST_REPORT_SECTIONS[analyst],
+    ).filter(
       (section) =>
         section in reports ||
-        (SECTION_AGENT[section] !== undefined && SECTION_AGENT[section]! in agentStatus),
+        (SECTION_AGENT[section] !== undefined &&
+          SECTION_AGENT[section]! in agentStatus),
     );
   }, [selectedAnalysts, reports, agentStatus]);
 
@@ -641,10 +689,13 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       return;
     }
 
-    const agentsSettled = agentStatuses.every((status) =>
-      status === "completed" || status === "error" || status === "cancelled",
+    const agentsSettled = agentStatuses.every(
+      (status) =>
+        status === "completed" || status === "error" || status === "cancelled",
     );
-    const reportsReady = expectedReportSections.every((section) => Boolean(reports[section]));
+    const reportsReady = expectedReportSections.every((section) =>
+      Boolean(reports[section]),
+    );
 
     if (agentsSettled && reportsReady) {
       freezeElapsed((Date.now() - startTimeRef.current) / 1000);
@@ -670,7 +721,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             <span className={styles.reportAccordionTitle}>{title}</span>
           </span>
           <span className={styles.reportAccordionMeta}>
-            <span className={`${styles.reportBadge} ${statusClass(status ?? "pending")}`}>
+            <span
+              className={`${styles.reportBadge} ${statusClass(status ?? "pending")}`}
+            >
               {isWorking ? (
                 <>
                   {label}
@@ -737,7 +790,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             </h2>
             {!compact ? (
               <p className={styles.pipelineSubtitle}>
-                Each card represents one agent team member working through your thesis.
+                Each card represents one agent team member working through your
+                thesis.
               </p>
             ) : null}
           </div>
@@ -756,7 +810,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </div>
 
         {!compact ? (
-          <div className={styles.progressTrack} aria-hidden={progressSummary.total === 0}>
+          <div
+            className={styles.progressTrack}
+            aria-hidden={progressSummary.total === 0}
+          >
             <div
               className={styles.progressFill}
               style={{ width: `${progressSummary.percent}%` }}
@@ -769,8 +826,12 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         ) : (
           agentGroups.map((group) => (
             <div key={group.team} className={styles.agentTeamGroup}>
-              {!compact ? <h3 className={styles.agentTeamTitle}>{group.team}</h3> : null}
-              <div className={`${styles.agentGrid} ${compact ? styles.agentGridCompact : ""}`}>
+              {!compact ? (
+                <h3 className={styles.agentTeamTitle}>{group.team}</h3>
+              ) : null}
+              <div
+                className={`${styles.agentGrid} ${compact ? styles.agentGridCompact : ""}`}
+              >
                 {group.agents.map(({ agent, status, preview }) => (
                   <AgentProgressCard
                     key={agent}
@@ -801,7 +862,6 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   ]
     .filter(Boolean)
     .join(" ");
-
 
   const runTitle = sessionMeta
     ? `${sessionMeta.config.ticker} analysis`
@@ -846,25 +906,33 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   return (
     <div className={layoutClassName}>
       <div className={styles.runHeader}>
-        <Link href="/dashboard" className={styles.backLink} aria-label="Return to dashboard">
+        <Link
+          href="/dashboard"
+          className={styles.backLink}
+          aria-label="Return to dashboard"
+        >
           ← Back to dashboard
         </Link>
       </div>
       <div className={styles.runTitleBlock}>
         <h1>{runTitle}</h1>
-        {runSubtitle ? <p className={styles.runSubtitle}>{runSubtitle}</p> : null}
+        {runSubtitle ? (
+          <p className={styles.runSubtitle}>{runSubtitle}</p>
+        ) : null}
       </div>
 
       {showTimingNotice && (
         <div className={styles.bannerInfo} role="status" aria-live="polite">
           <strong>Analysis in progress</strong>
           <p>
-            Multiple specialist agents are working through market data, news, and debate rounds.
-            A full run typically takes about <strong>10 minutes</strong>, depending on research
+            Multiple specialist agents are working through market data, news,
+            and debate rounds. A full run typically takes about{" "}
+            <strong>10 minutes - 20 minutes</strong>, depending on research
             depth and provider speed.
           </p>
           <p className={styles.bannerInfoFootnote}>
-            Cards update live — the digestible report appears when all agents finish.
+            Cards update live — the digestible report appears when all agents
+            finish.
           </p>
         </div>
       )}
@@ -881,14 +949,18 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           <p className={styles.errorMessage}>{runError.message}</p>
           {runError.hint && <p className={styles.errorHint}>{runError.hint}</p>}
           {runError.failedAgent && (
-            <p className={styles.errorMeta}>Failed at: {runError.failedAgent}</p>
-          )}
-          {typeof runError.stoppedAgents === "number" && runError.stoppedAgents > 0 && (
             <p className={styles.errorMeta}>
-              {runError.stoppedAgents} remaining agent
-              {runError.stoppedAgents === 1 ? "" : "s"} skipped to save tokens.
+              Failed at: {runError.failedAgent}
             </p>
           )}
+          {typeof runError.stoppedAgents === "number" &&
+            runError.stoppedAgents > 0 && (
+              <p className={styles.errorMeta}>
+                {runError.stoppedAgents} remaining agent
+                {runError.stoppedAgents === 1 ? "" : "s"} skipped to save
+                tokens.
+              </p>
+            )}
         </div>
       )}
 
@@ -942,15 +1014,20 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         >
           {tradeCheckLoading && !tradeCheckReport ? (
             <div className={styles.resultsLoading}>
-              <p className={styles.resultsLoadingTitle}>Building your Trade Check</p>
-              <p className="muted">Distilling levels, scenarios, and cited sources…</p>
+              <p className={styles.resultsLoadingTitle}>
+                Building your Trade Check
+              </p>
+              <p className="muted">
+                Distilling levels, scenarios, and cited sources…
+              </p>
               <ThinkingDots />
             </div>
           ) : tradeCheckReport ? (
             <TradeCheckView report={tradeCheckReport} showToolbar={false} />
           ) : (
             <p className="muted">
-              Trade Check summary is not available for this run. Full agent reports are below.
+              Trade Check summary is not available for this run. Full agent
+              reports are below.
             </p>
           )}
         </section>
@@ -959,17 +1036,22 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       {renderAgentPipeline(showResults)}
 
       {showResults ? (
-        <section className={styles.fullReportsAppendix} aria-label="Full agent reports">
+        <section
+          className={styles.fullReportsAppendix}
+          aria-label="Full agent reports"
+        >
           <header className={styles.appendixHeader}>
             <h2 className={styles.appendixTitle}>Full agent reports</h2>
             <p className={styles.appendixHint}>
-              Raw write-ups from every team — included on following pages when you export the full
-              report.
+              Raw write-ups from every team — included on following pages when
+              you export the full report.
             </p>
           </header>
 
           {REPORT_TEAM_GROUPS.map((group) => {
-            const sections = group.analystOnly ? analystSections : group.sections;
+            const sections = group.analystOnly
+              ? analystSections
+              : group.sections;
             if (sections.length === 0) {
               return null;
             }
