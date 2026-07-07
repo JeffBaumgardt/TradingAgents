@@ -1,0 +1,392 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-surface);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.toolbarHint {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.9rem;
+}
+
+.printButton {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.printButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.9rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.tag {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-bg-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.priceBlock {
+  text-align: right;
+}
+
+.currentPrice {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.priceMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.35rem;
+  color: var(--color-text-subtle);
+  font-size: 0.8rem;
+}
+
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.metricBox {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--color-bg-surface-raised);
+}
+
+.metricLabel {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--color-text-subtle);
+}
+
+.metricValue {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+
+.metricNote {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  margin-top: 0.1rem;
+}
+
+.sectionTitle {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.chartSection,
+.levelsSection,
+.verdictSection {
+  break-inside: avoid;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.dataTable th,
+.dataTable td {
+  border: 1px solid var(--color-border);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.dataTable th {
+  background: var(--color-bg-surface-raised);
+  font-weight: 600;
+}
+
+.keyBadge {
+  margin-left: 0.35rem;
+  font-size: 0.65rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+.scenarioGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.scenarioCard {
+  border-radius: 8px;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+}
+
+.scenarioLong {
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.scenarioShort {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.scenarioTag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+}
+
+.scenarioCard h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.scenarioList {
+  margin: 0;
+}
+
+.scenarioList div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.scenarioList dt {
+  font-weight: 600;
+  color: var(--color-text-subtle);
+}
+
+.scenarioList dd {
+  margin: 0;
+}
+
+.scenarioNote {
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.agentCard {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--color-bg-surface-raised);
+}
+
+.agentHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.agentHeader h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.agentConfidence {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  text-transform: capitalize;
+}
+
+.agentHeadline {
+  margin: 0.45rem 0;
+  font-size: 0.88rem;
+}
+
+.keyPoints {
+  margin: 0 0 0.65rem;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.agentSources strong {
+  display: block;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+  color: var(--color-text-subtle);
+}
+
+.sourceList {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.82rem;
+}
+
+.sourceProvider {
+  color: var(--color-text-subtle);
+}
+
+.verdictGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.verdictCard {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.65rem;
+}
+
+.verdictBadge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  margin-bottom: 0.35rem;
+}
+
+.verdictCard h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+}
+
+.verdictCard p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.bottomLine,
+.decisionLine {
+  margin: 0.85rem 0 0;
+  font-size: 0.92rem;
+}
+
+.toneBullish {
+  color: #22c55e;
+}
+
+.toneBearish {
+  color: #ef4444;
+}
+
+.toneWarning {
+  color: #f97316;
+}
+
+.toneNeutral {
+  color: var(--color-text);
+}
+
+.muted {
+  color: var(--color-text-subtle);
+  font-size: 0.82rem;
+}
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 0.5in;
+  }
+
+  .root [data-print-hide="true"] {
+    display: none !important;
+  }
+
+  .root {
+    border: none;
+    padding: 0;
+    background: #fff;
+    color: #111;
+  }
+
+  .root * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .toneBullish {
+    color: #15803d !important;
+  }
+
+  .toneBearish {
+    color: #b91c1c !important;
+  }
+
+  .toneWarning {
+    color: #c2410c !important;
+  }
+
+  .dataTable th,
+  .dataTable td,
+  .metricBox,
+  .scenarioCard,
+  .agentCard,
+  .verdictCard {
+    border-color: #ccc !important;
+  }
+
+  .sectionTitle {
+    color: #333 !important;
+  }
+}

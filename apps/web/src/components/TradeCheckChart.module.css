@@ -1,0 +1,40 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chart {
+  width: 100%;
+  min-height: 280px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.legend {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--color-text-subtle);
+  font-size: 0.8rem;
+}
+
+.empty {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-subtle);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+@media print {
+  .chart {
+    min-height: 240px;
+    break-inside: avoid;
+  }
+
+  .legend {
+    font-size: 9pt;
+  }
+}

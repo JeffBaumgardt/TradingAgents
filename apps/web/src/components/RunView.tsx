@@ -19,6 +19,7 @@ import type {
   StreamReportSectionEvent,
   StreamStatsEvent,
   StreamToolCallEvent,
+  TradeCheckReport,
 } from "@tradingagents/api-types";
 import {
   AGENT_TEAMS,
@@ -32,10 +33,14 @@ import {
   fetchSession,
   fetchSessionEvents,
   fetchSessionReport,
+  fetchSessionTradeCheck,
   subscribeToSessionStream,
 } from "@/lib/api-client";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
+import TradeCheckView from "@/components/TradeCheckView";
 import styles from "./RunView.module.css";
+
+type ReportViewMode = "trade-check" | "full-reports";
 
 interface FeedEntry {
   id: string;
@@ -200,6 +205,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     initialSession?.config.analysts ?? [],
   );
   const [activeAgent, setActiveAgent] = useState<string | null>(null);
+  const [reportViewMode, setReportViewMode] = useState<ReportViewMode>("trade-check");
+  const [tradeCheckReport, setTradeCheckReport] = useState<TradeCheckReport | null>(null);
+  const [tradeCheckLoading, setTradeCheckLoading] = useState(false);
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [tick, setTick] = useState(0);
   const startTimeRef = useRef<number>(Date.now());
@@ -209,6 +217,20 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   function freezeElapsed(seconds: number) {
     timerFrozenRef.current = true;
     setStats((prev) => ({ ...prev, elapsedSeconds: seconds }));
+  }
+
+  function hydrateTradeCheckFromApi() {
+    setTradeCheckLoading(true);
+    return fetchSessionTradeCheck(sessionId)
+      .then((response) => {
+        setTradeCheckReport(response.tradeCheck);
+      })
+      .catch(() => {
+        setTradeCheckReport(null);
+      })
+      .finally(() => {
+        setTradeCheckLoading(false);
+      });
   }
 
   function hydrateReportFromApi() {
@@ -224,6 +246,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           }
           return merged;
         });
+        if (report.tradeCheck) {
+          setTradeCheckReport(report.tradeCheck);
+        }
       })
       .catch(() => {
         // Reports already streamed live are sufficient.
@@ -238,6 +263,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       freezeElapsed((Date.now() - startTimeRef.current) / 1000);
     }
     void hydrateReportFromApi();
+    void hydrateTradeCheckFromApi();
   }
 
   function touchActivity() {
@@ -379,6 +405,13 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       if (event === "report.section") {
         const payload = data as StreamReportSectionEvent;
         setReports((prev) => ({ ...prev, [payload.section]: payload.content }));
+        return;
+      }
+      if (event === "trade.check") {
+        const payload = data as { tradeCheck?: TradeCheckReport };
+        if (payload.tradeCheck) {
+          setTradeCheckReport(payload.tradeCheck);
+        }
         return;
       }
       if (event === "stats") {
@@ -831,12 +864,53 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
       <section className={styles.reportsPanel}>
         <div className={styles.reportsPanelHeader}>
-          <h2 className={styles.reportsPanelTitle}>Reports</h2>
+          <div className={styles.reportTabs} role="tablist" aria-label="Report view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={reportViewMode === "trade-check"}
+              className={`${styles.reportTab} ${
+                reportViewMode === "trade-check" ? styles.reportTabActive : ""
+              }`}
+              onClick={() => setReportViewMode("trade-check")}
+            >
+              Trade Check
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={reportViewMode === "full-reports"}
+              className={`${styles.reportTab} ${
+                reportViewMode === "full-reports" ? styles.reportTabActive : ""
+              }`}
+              onClick={() => setReportViewMode("full-reports")}
+            >
+              Full reports
+            </button>
+          </div>
           <p className={styles.reportsPanelHint}>
-            Each section is written by a different agent team. Expand a row to read the full report.
+            {reportViewMode === "trade-check"
+              ? "Distilled levels, scenarios, and cited sources for quick decisions."
+              : "Each section is written by a different agent team. Expand a row to read the full report."}
           </p>
         </div>
 
+        {reportViewMode === "trade-check" ? (
+          <div role="tabpanel">
+            {tradeCheckLoading && !tradeCheckReport ? (
+              <p className="muted">Building Trade Check summary…</p>
+            ) : tradeCheckReport ? (
+              <TradeCheckView report={tradeCheckReport} />
+            ) : completed ? (
+              <p className="muted">
+                Trade Check is not available for this run. View full reports or start a new analysis.
+              </p>
+            ) : (
+              <p className="muted">Trade Check will appear here when the analysis completes.</p>
+            )}
+          </div>
+        ) : (
+          <>
         {REPORT_TEAM_GROUPS.map((group) => {
           const sections = group.analystOnly
             ? analystSections
@@ -855,6 +929,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             </div>
           );
         })}
+          </>
+        )}
       </section>
 
       <section className={styles.activityPanel}>

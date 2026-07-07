@@ -425,6 +425,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /sessions/{id}/trade-check:
+    get:
+      tags: [sessions]
+      summary: Get distilled Trade Check report
+      operationId: getSessionTradeCheck
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Distilled Trade Check artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionTradeCheckResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trade Check not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   parameters:
     SessionId:
@@ -860,6 +886,21 @@ components:
         decision:
           type: string
           nullable: true
+        tradeCheck:
+          $ref: "#/components/schemas/TradeCheckReport"
+          nullable: true
+    SessionTradeCheckResponse:
+      type: object
+      required: [sessionId, tradeCheck]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        tradeCheck:
+          $ref: "#/components/schemas/TradeCheckReport"
+    TradeCheckReport:
+      type: object
+      additionalProperties: true
     SseEvent:
       type: object
       required: [type, data]

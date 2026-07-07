@@ -180,6 +180,7 @@ export async function fetchRunReport(runId: string): Promise<{
   markdown: string;
   sections: Record<string, string | null>;
   decision: string | null;
+  tradeCheck?: Record<string, unknown> | null;
 }> {
   return request(`/internal/runs/${runId}/report`);
 }

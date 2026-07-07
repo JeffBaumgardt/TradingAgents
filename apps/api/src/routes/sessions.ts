@@ -59,6 +59,17 @@ async function relayAgentsFrame(
       }
     }
 
+    if (eventType === "trade.check") {
+      const tradeCheck = payload.tradeCheck;
+      if (tradeCheck && typeof tradeCheck === "object") {
+        await sessionService.persistTradeCheck(
+          client,
+          sessionId,
+          tradeCheck as Record<string, unknown>,
+        );
+      }
+    }
+
     if (eventType === "run.completed") {
       const report = await sessionService.getSessionReport(client, sessionId, userId);
       if (report !== "not_found" && report !== "not_ready") {
@@ -66,6 +77,7 @@ async function relayAgentsFrame(
           markdown: report.markdown,
           sections: report.sections,
           decision: report.decision,
+          tradeCheck: report.tradeCheck as Record<string, unknown> | null | undefined,
         });
       }
       return true;
@@ -141,6 +153,22 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
   }
 
   return c.json(report);
+});
+
+sessionRoutes.get("/sessions/:id/trade-check", async (c) => {
+  const userId = getRequestUserId(c);
+  const id = c.req.param("id");
+  const client = getSupabaseAdmin(c);
+  const tradeCheck = await sessionService.getSessionTradeCheck(client, id, userId);
+
+  if (tradeCheck === "not_found") {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (tradeCheck === "not_ready") {
+    return c.json({ error: "Trade Check not ready" }, 409);
+  }
+
+  return c.json(tradeCheck);
 });
 
 sessionRoutes.get("/sessions/:id/events", async (c) => {

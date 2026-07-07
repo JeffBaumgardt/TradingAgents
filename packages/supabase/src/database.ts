@@ -19,6 +19,7 @@ export interface SessionRow {
   report_sections: Record<string, string | null> | null;
   decision: string | null;
   error: string | null;
+  trade_check_json?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
