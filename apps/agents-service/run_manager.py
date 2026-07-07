@@ -33,6 +33,7 @@ from stream_processor import StreamProcessor, format_sse
 from cli.stats_handler import StatsCallbackHandler
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.trade_check import build_trade_check
 
 ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
 
@@ -118,6 +119,9 @@ class RunRecord:
     missed_events: MissedEventBuffer = field(default_factory=MissedEventBuffer)
     final_state: dict[str, Any] | None = None
     decision: str | None = None
+    trade_check: dict[str, Any] | None = None
+    post_completion_pending: bool = False
+    tool_events: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
     cancel_event: threading.Event = field(default_factory=threading.Event)
 
@@ -284,9 +288,14 @@ class RunManager:
                     callbacks=[stats_handler],
                 )
 
+                def emit_event(event_type: str, data: dict[str, Any]) -> None:
+                    if event_type == "tool.call":
+                        record.tool_events.append(data)
+                    self._emit(record, event_type, data)
+
                 processor = StreamProcessor(
                     selected_analyst_keys,
-                    emit=lambda event_type, data: self._emit(record, event_type, data),
+                    emit=emit_event,
                 )
 
                 started_at = time.time()
@@ -328,15 +337,43 @@ class RunManager:
             record.final_state = final_state
             record.decision = decision
             record.status = "completed"
+            record.post_completion_pending = True
 
-            self._emit(
-                record,
-                "run.completed",
-                {
-                    "sessionId": record.session_id,
-                    "decision": decision,
-                },
-            )
+            try:
+                self._emit(
+                    record,
+                    "run.completed",
+                    {
+                        "sessionId": record.session_id,
+                        "decision": decision,
+                    },
+                )
+
+                try:
+                    record.trade_check = build_trade_check(
+                        config=config,
+                        final_state=final_state,
+                        tool_events=record.tool_events,
+                        payload=payload,
+                    )
+                    self._emit(
+                        record,
+                        "trade.check",
+                        {"tradeCheck": record.trade_check},
+                    )
+                except Exception:  # noqa: BLE001 - report still completes
+                    record.trade_check = None
+                    self._emit(
+                        record,
+                        "message",
+                        {
+                            "messageType": "System",
+                            "content": "Trade Check summary could not be generated for this run.",
+                            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                        },
+                    )
+            finally:
+                record.post_completion_pending = False
         except Exception as exc:  # noqa: BLE001 - surface run errors to clients
             self._fail_run(record, processor, str(exc))
 
@@ -349,6 +386,9 @@ class RunManager:
         record.subscribers.append(subscriber)
         terminal = {"completed", "error", "cancelled"}
 
+        def stream_finished() -> bool:
+            return record.status in terminal and not record.post_completion_pending
+
         try:
             for event_type, data in record.missed_events.drain():
                 yield format_sse(event_type, data)
@@ -357,12 +397,12 @@ class RunManager:
                 try:
                     frame = await asyncio.to_thread(subscriber.get, True, 0.5)
                 except queue.Empty:
-                    if record.status in terminal and subscriber.empty():
+                    if stream_finished() and subscriber.empty():
                         break
                     continue
 
                 yield frame
-                if record.status in terminal and subscriber.empty():
+                if stream_finished() and subscriber.empty():
                     break
         finally:
             if subscriber in record.subscribers:
@@ -413,6 +453,7 @@ class RunManager:
             "markdown": "\n\n".join(markdown_parts),
             "sections": sections,
             "decision": record.decision,
+            "tradeCheck": record.trade_check,
         }
 
 

@@ -11,6 +11,7 @@ describe("getClerkContentSecurityPolicyOptions", () => {
     const options = getClerkContentSecurityPolicyOptions();
     assert.ok(options.directives);
     assert.ok(options.directives["connect-src"]?.includes("http://localhost:4000"));
+    assert.deepEqual(options.directives["img-src"], ["data:", "blob:"]);
     assert.deepEqual(options.directives["frame-ancestors"], ["'none'"]);
     assert.deepEqual(options.directives["object-src"], ["'none'"]);
   });

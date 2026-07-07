@@ -19,6 +19,7 @@ import type {
   StreamReportSectionEvent,
   StreamStatsEvent,
   StreamToolCallEvent,
+  TradeCheckReport,
 } from "@tradingagents/api-types";
 import {
   AGENT_TEAMS,
@@ -32,10 +33,17 @@ import {
   fetchSession,
   fetchSessionEvents,
   fetchSessionReport,
+  fetchSessionTradeCheck,
   subscribeToSessionStream,
 } from "@/lib/api-client";
+import { runWithPrintMode } from "@/lib/print-mode";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
+import AgentProgressCard from "@/components/AgentProgressCard";
+import RunExportBar from "@/components/RunExportBar";
+import TradeCheckView from "@/components/TradeCheckView";
 import styles from "./RunView.module.css";
+
+type ResultsPhase = "running" | "transitioning" | "complete";
 
 interface FeedEntry {
   id: string;
@@ -76,8 +84,20 @@ const SECTION_AGENT: Partial<Record<ReportSectionKey, string>> = {
   final_trade_decision: "Portfolio Manager",
 };
 
+const SECTION_BY_AGENT: Record<string, ReportSectionKey> = Object.fromEntries(
+  Object.entries(SECTION_AGENT).map(([section, agent]) => [agent, section as ReportSectionKey]),
+) as Record<string, ReportSectionKey>;
+
+function truncatePreview(content: string, maxLength = 480): string {
+  if (content.length <= maxLength) {
+    return content;
+  }
+  return `${content.slice(0, maxLength).trim()}…`;
+}
+
 const ANALYST_TYPE_ORDER: AnalystType[] = ["market", "social", "news", "fundamentals"];
 const DEEP_THINKING_THRESHOLD_SECONDS = 8;
+const RESULTS_TRANSITION_MS = 700;
 
 function statusClass(status: AgentStatusValue): string {
   switch (status) {
@@ -93,23 +113,6 @@ function statusClass(status: AgentStatusValue): string {
       return styles.statusCancelled;
     default:
       return "";
-  }
-}
-
-function humanAgentStatus(status: AgentStatusValue): string {
-  switch (status) {
-    case "pending":
-      return "Waiting";
-    case "in_progress":
-      return "Working";
-    case "completed":
-      return "Done";
-    case "error":
-      return "Failed";
-    case "cancelled":
-      return "Skipped";
-    default:
-      return status;
   }
 }
 
@@ -200,15 +203,65 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     initialSession?.config.analysts ?? [],
   );
   const [activeAgent, setActiveAgent] = useState<string | null>(null);
+  const [resultsPhase, setResultsPhase] = useState<ResultsPhase>(
+    initialSession?.status === "completed" ? "complete" : "running",
+  );
+  const [tradeCheckReport, setTradeCheckReport] = useState<TradeCheckReport | null>(null);
+  const [tradeCheckLoading, setTradeCheckLoading] = useState(false);
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [tick, setTick] = useState(0);
   const startTimeRef = useRef<number>(Date.now());
   const terminalRef = useRef(false);
   const timerFrozenRef = useRef(false);
+  const resultsTransitionRef = useRef<number | null>(null);
 
   function freezeElapsed(seconds: number) {
     timerFrozenRef.current = true;
     setStats((prev) => ({ ...prev, elapsedSeconds: seconds }));
+  }
+
+  function hydrateTradeCheckFromApi() {
+    if (tradeCheckReport) {
+      return Promise.resolve();
+    }
+    setTradeCheckLoading(true);
+    return fetchSessionTradeCheck(sessionId)
+      .then((response) => {
+        setTradeCheckReport(response.tradeCheck);
+      })
+      .catch(() => {
+        // Keep any SSE-delivered report; only clear when we never had one.
+        setTradeCheckReport((current) => current ?? null);
+      })
+      .finally(() => {
+        setTradeCheckLoading(false);
+      });
+  }
+
+  function scheduleResultsReveal() {
+    if (resultsTransitionRef.current != null) {
+      window.clearTimeout(resultsTransitionRef.current);
+    }
+    setResultsPhase("transitioning");
+    resultsTransitionRef.current = window.setTimeout(() => {
+      setResultsPhase("complete");
+      resultsTransitionRef.current = null;
+    }, RESULTS_TRANSITION_MS);
+  }
+
+  function markRunComplete() {
+    if (terminalRef.current) {
+      return;
+    }
+    terminalRef.current = true;
+    setCompleted(true);
+    setActiveAgent(null);
+    if (!timerFrozenRef.current) {
+      freezeElapsed((Date.now() - startTimeRef.current) / 1000);
+    }
+    scheduleResultsReveal();
+    void hydrateReportFromApi();
+    void hydrateTradeCheckFromApi();
   }
 
   function hydrateReportFromApi() {
@@ -224,21 +277,22 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           }
           return merged;
         });
+        if (report.tradeCheck) {
+          setTradeCheckReport(report.tradeCheck);
+        }
       })
       .catch(() => {
         // Reports already streamed live are sufficient.
       });
   }
 
-  function markRunComplete() {
-    terminalRef.current = true;
-    setCompleted(true);
-    setActiveAgent(null);
-    if (!timerFrozenRef.current) {
-      freezeElapsed((Date.now() - startTimeRef.current) / 1000);
-    }
-    void hydrateReportFromApi();
-  }
+  useEffect(() => {
+    return () => {
+      if (resultsTransitionRef.current != null) {
+        window.clearTimeout(resultsTransitionRef.current);
+      }
+    };
+  }, []);
 
   function touchActivity() {
     setLastActivityAt(Date.now());
@@ -262,7 +316,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       if (session.status === "completed") {
         terminalRef.current = true;
         setCompleted(true);
+        setResultsPhase("complete");
         await hydrateReportFromApi();
+        await hydrateTradeCheckFromApi();
       } else if (session.status === "error") {
         terminalRef.current = true;
         setRunError({
@@ -287,6 +343,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       if (initialSession.status === "completed") {
         terminalRef.current = true;
         void hydrateReportFromApi();
+        void hydrateTradeCheckFromApi();
       } else if (initialSession.status === "error") {
         terminalRef.current = true;
       }
@@ -381,6 +438,13 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         setReports((prev) => ({ ...prev, [payload.section]: payload.content }));
         return;
       }
+      if (event === "trade.check") {
+        const payload = data as { tradeCheck?: TradeCheckReport };
+        if (payload.tradeCheck) {
+          setTradeCheckReport(payload.tradeCheck);
+        }
+        return;
+      }
       if (event === "stats") {
         const payload = data as StreamStatsEvent;
         setStats((prev) => ({
@@ -425,6 +489,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         }
 
         await hydrateReportFromApi();
+        await hydrateTradeCheckFromApi();
         if (!cancelled) {
           setConnected(true);
         }
@@ -516,20 +581,35 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const secondsSinceActivity = (Date.now() - lastActivityAt) / 1000;
   const isDeepThinking = isRunning && secondsSinceActivity >= DEEP_THINKING_THRESHOLD_SECONDS;
 
-  const progressRows = useMemo(() => {
-    const rows: { team: string; agent: string; status: AgentStatusValue }[] = [];
-    for (const [team, agents] of Object.entries(AGENT_TEAMS)) {
-      const activeAgents = agents.filter((agent) => agent in agentStatus);
-      activeAgents.forEach((agent, index) => {
-        rows.push({
-          team: index === 0 ? team : "",
-          agent,
-          status: agentStatus[agent] ?? "pending",
-        });
-      });
-    }
-    return rows;
+  const progressSummary = useMemo(() => {
+    const statuses = Object.values(agentStatus);
+    const total = statuses.length;
+    const completedCount = statuses.filter((s) => s === "completed").length;
+    return {
+      total,
+      completed: completedCount,
+      inProgress: statuses.filter((s) => s === "in_progress").length,
+      errors: statuses.filter((s) => s === "error").length,
+      percent: total > 0 ? Math.round((completedCount / total) * 100) : 0,
+    };
   }, [agentStatus]);
+
+  const agentGroups = useMemo(() => {
+    return Object.entries(AGENT_TEAMS)
+      .map(([team, agents]) => ({
+        team,
+        agents: agents
+          .filter((agent) => agent in agentStatus)
+          .map((agent) => ({
+            agent,
+            status: agentStatus[agent] ?? "pending",
+            preview: reports[SECTION_BY_AGENT[agent]]
+              ? truncatePreview(reports[SECTION_BY_AGENT[agent]] as string)
+              : null,
+          })),
+      }))
+      .filter((group) => group.agents.length > 0);
+  }, [agentStatus, reports]);
 
   const analystSections = useMemo(() => {
     if (selectedAnalysts.length > 0) {
@@ -541,16 +621,6 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         (SECTION_AGENT[section] !== undefined && SECTION_AGENT[section]! in agentStatus),
     );
   }, [selectedAnalysts, reports, agentStatus]);
-
-  const progressSummary = useMemo(() => {
-    const statuses = Object.values(agentStatus);
-    return {
-      total: statuses.length,
-      completed: statuses.filter((s) => s === "completed").length,
-      inProgress: statuses.filter((s) => s === "in_progress").length,
-      errors: statuses.filter((s) => s === "error").length,
-    };
-  }, [agentStatus]);
 
   const expectedReportSections = useMemo(() => {
     return [
@@ -638,18 +708,100 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     );
   }
 
-  function renderStatusCell(status: AgentStatusValue) {
-    const label = humanAgentStatus(status);
-    if (status === "in_progress") {
-      return (
-        <span className={styles.statusCell}>
-          <span className={styles.pulseDot} aria-hidden />
-          <span className={statusClass(status)}>{label}</span>
-        </span>
-      );
-    }
-    return <span className={statusClass(status)}>{label}</span>;
+  function handlePrintDigest() {
+    runWithPrintMode(() => window.print(), {
+      attributes: { "data-print-trade-check": "true" },
+      removeAttributes: ["data-print-full-report"],
+    });
   }
+
+  function handlePrintFull() {
+    runWithPrintMode(() => window.print(), {
+      attributes: {
+        "data-print-trade-check": "true",
+        "data-print-full-report": "true",
+      },
+    });
+  }
+
+  function renderAgentPipeline(compact: boolean) {
+    return (
+      <section
+        className={`${styles.agentPipeline} ${compact ? styles.agentPipelineCompact : ""}`}
+        aria-label="Agent pipeline"
+      >
+        <div className={styles.pipelineHeader}>
+          <div>
+            <h2 className={styles.pipelineTitle}>
+              {compact ? "Agent pipeline" : "Specialist agents"}
+            </h2>
+            {!compact ? (
+              <p className={styles.pipelineSubtitle}>
+                Each card represents one agent team member working through your thesis.
+              </p>
+            ) : null}
+          </div>
+          {progressSummary.total > 0 ? (
+            <div className={styles.progressMeta}>
+              <span className={styles.progressChip}>
+                {progressSummary.completed}/{progressSummary.total} complete
+              </span>
+              {!compact && progressSummary.inProgress > 0 ? (
+                <span className={styles.progressChipActive}>
+                  {progressSummary.inProgress} active
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {!compact ? (
+          <div className={styles.progressTrack} aria-hidden={progressSummary.total === 0}>
+            <div
+              className={styles.progressFill}
+              style={{ width: `${progressSummary.percent}%` }}
+            />
+          </div>
+        ) : null}
+
+        {agentGroups.length === 0 ? (
+          <p className="muted">Waiting for agent status…</p>
+        ) : (
+          agentGroups.map((group) => (
+            <div key={group.team} className={styles.agentTeamGroup}>
+              {!compact ? <h3 className={styles.agentTeamTitle}>{group.team}</h3> : null}
+              <div className={`${styles.agentGrid} ${compact ? styles.agentGridCompact : ""}`}>
+                {group.agents.map(({ agent, status, preview }) => (
+                  <AgentProgressCard
+                    key={agent}
+                    agent={agent}
+                    team={group.team}
+                    status={status}
+                    isActive={activeAgent === agent}
+                    compact={compact}
+                    previewContent={preview}
+                  />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </section>
+    );
+  }
+
+  // tick drives deep-thinking banner re-render every second
+  void tick;
+
+  const showResults = resultsPhase !== "running";
+  const layoutClassName = [
+    styles.runLayout,
+    showResults ? styles.runLayoutComplete : "",
+    resultsPhase === "transitioning" ? styles.runLayoutTransitioning : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
 
   const runTitle = sessionMeta
     ? `${sessionMeta.config.ticker} analysis`
@@ -691,11 +843,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     }
   }
 
-  // tick drives deep-thinking banner re-render every second
-  void tick;
-
   return (
-    <div className={styles.runLayout}>
+    <div className={layoutClassName}>
       <div className={styles.runHeader}>
         <Link href="/dashboard" className={styles.backLink} aria-label="Return to dashboard">
           ← Back to dashboard
@@ -715,7 +864,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             depth and provider speed.
           </p>
           <p className={styles.bannerInfoFootnote}>
-            This page updates automatically — you do not need to refresh.
+            Cards update live — the digestible report appears when all agents finish.
           </p>
         </div>
       )}
@@ -743,12 +892,15 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </div>
       )}
 
-      {completed && !runError && (
-        <div className={styles.bannerComplete} role="status">
-          <strong>Analysis complete</strong>
-          <p>Expand any report section below to read the full write-up and final recommendation.</p>
-        </div>
-      )}
+      {completed && !runError && showResults ? (
+        <RunExportBar
+          sessionId={sessionId}
+          ticker={sessionMeta?.config.ticker ?? "Analysis"}
+          canShareDigest={Boolean(tradeCheckReport)}
+          onPrintDigest={handlePrintDigest}
+          onPrintFull={handlePrintFull}
+        />
+      ) : null}
 
       {!connected && !runError && !showTimingNotice && (
         <div className={styles.banner}>
@@ -776,88 +928,65 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             {isDeepThinking ? "Deep thinking in progress" : "Analysis running"}
             <ThinkingDots />
           </span>
-          {activeAgent && (
+          {activeAgent ? (
             <span className={styles.workingAgent}>Active: {activeAgent}</span>
-          )}
+          ) : null}
         </div>
       )}
 
-      <div className={styles.upperRow}>
-        <section className={styles.panel}>
-          <div className={styles.progressHeader}>
-            <h2 className={styles.panelTitleInline}>Progress</h2>
-            {progressSummary.total > 0 && (
-              <span className={styles.progressChip}>
-                {progressSummary.completed}/{progressSummary.total} agents complete
-                {progressSummary.inProgress > 0 && (
-                  <> · {progressSummary.inProgress} active</>
-                )}
-              </span>
-            )}
-          </div>
-          <div className={styles.panelBody}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Team</th>
-                  <th>Agent</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {progressRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="muted">
-                      Waiting for agent status…
-                    </td>
-                  </tr>
-                ) : (
-                  progressRows.map((row) => (
-                    <tr
-                      key={row.agent}
-                      className={row.status === "in_progress" ? styles.activeRow : undefined}
-                    >
-                      <td>{row.team}</td>
-                      <td>{row.agent}</td>
-                      <td>{renderStatusCell(row.status)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <section className={styles.reportsPanel}>
-        <div className={styles.reportsPanelHeader}>
-          <h2 className={styles.reportsPanelTitle}>Reports</h2>
-          <p className={styles.reportsPanelHint}>
-            Each section is written by a different agent team. Expand a row to read the full report.
-          </p>
-        </div>
-
-        {REPORT_TEAM_GROUPS.map((group) => {
-          const sections = group.analystOnly
-            ? analystSections
-            : group.sections;
-
-          if (sections.length === 0) {
-            return null;
-          }
-
-          return (
-            <div key={group.title} className={styles.reportGroup}>
-              <h3 className={styles.reportGroupTitle}>{group.title}</h3>
-              <div className={styles.reportList}>
-                {sections.map((section) => renderReportAccordion(section))}
-              </div>
+      {showResults ? (
+        <section
+          className={`${styles.resultsHero} ${styles.resultsHeroVisible}`}
+          aria-label="Trade Check digest"
+          aria-live={resultsPhase === "complete" ? "polite" : undefined}
+        >
+          {tradeCheckLoading && !tradeCheckReport ? (
+            <div className={styles.resultsLoading}>
+              <p className={styles.resultsLoadingTitle}>Building your Trade Check</p>
+              <p className="muted">Distilling levels, scenarios, and cited sources…</p>
+              <ThinkingDots />
             </div>
-          );
-        })}
-      </section>
+          ) : tradeCheckReport ? (
+            <TradeCheckView report={tradeCheckReport} showToolbar={false} />
+          ) : (
+            <p className="muted">
+              Trade Check summary is not available for this run. Full agent reports are below.
+            </p>
+          )}
+        </section>
+      ) : null}
 
-      <section className={styles.activityPanel}>
+      {renderAgentPipeline(showResults)}
+
+      {showResults ? (
+        <section className={styles.fullReportsAppendix} aria-label="Full agent reports">
+          <header className={styles.appendixHeader}>
+            <h2 className={styles.appendixTitle}>Full agent reports</h2>
+            <p className={styles.appendixHint}>
+              Raw write-ups from every team — included on following pages when you export the full
+              report.
+            </p>
+          </header>
+
+          {REPORT_TEAM_GROUPS.map((group) => {
+            const sections = group.analystOnly ? analystSections : group.sections;
+            if (sections.length === 0) {
+              return null;
+            }
+
+            return (
+              <div key={group.title} className={styles.reportGroup}>
+                <h3 className={styles.reportGroupTitle}>{group.title}</h3>
+                <div className={styles.reportList}>
+                  {sections.map((section) => renderReportAccordion(section))}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      ) : null}
+
+      <section className={styles.activityPanel} data-print-hide="true">
         <button
           type="button"
           className={styles.activityToggle}
@@ -915,7 +1044,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         )}
       </section>
 
-      <footer className={styles.footer}>
+      <footer className={styles.footer} data-print-hide="true">
         <span>LLM calls: {stats.llmCalls}</span>
         <span>Tool calls: {stats.toolCalls}</span>
         <span>Tokens in: {formatTokens(stats.tokensIn)}</span>

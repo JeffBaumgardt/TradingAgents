@@ -15,6 +15,7 @@ import type {
   SessionEventsResponse,
   SessionListResponse,
   SessionReport,
+  SessionTradeCheckResponse,
   SseEventMap,
   SseEventType,
   StoredCredentialsResponse,
@@ -231,6 +232,19 @@ export async function fetchSessionReport(sessionId: string): Promise<SessionRepo
   return parseJson<SessionReport>(response);
 }
 
+export async function fetchSessionTradeCheck(
+  sessionId: string,
+): Promise<SessionTradeCheckResponse> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/trade-check`,
+    {
+      headers: await buildAuthHeaders(),
+      cache: "no-store",
+    },
+  );
+  return parseJson<SessionTradeCheckResponse>(response);
+}
+
 /** Fetch all persisted events for a session (historical replay). */
 export async function fetchSessionEvents(sessionId: string): Promise<SessionEventsResponse> {
   const response = await fetch(
@@ -266,6 +280,7 @@ const SSE_EVENT_TYPES: SseEventType[] = [
   "tool.call",
   "report.section",
   "stats",
+  "trade.check",
   "run.completed",
   "run.error",
 ];

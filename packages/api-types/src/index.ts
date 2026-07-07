@@ -43,6 +43,7 @@ export type SseEventType =
   | "tool.call"
   | "report.section"
   | "stats"
+  | "trade.check"
   | "run.completed"
   | "run.error";
 
@@ -170,6 +171,142 @@ export interface SessionReport {
   markdown: string;
   sections: Record<string, string | null>;
   decision: string | null;
+  tradeCheck?: TradeCheckReport | null;
+}
+
+export type VerdictBadgeTone = "neutral" | "bullish" | "bearish" | "warning";
+
+export interface TradeCheckSource {
+  id: string;
+  title: string;
+  url?: string | null;
+  provider?: string | null;
+  kind?: string;
+  publishedAt?: string | null;
+  excerpt?: string | null;
+}
+
+export interface TradeCheckPriceLevel {
+  label: string;
+  kind: string;
+  price?: number | null;
+  low?: number | null;
+  high?: number | null;
+  note?: string | null;
+  isKey?: boolean;
+}
+
+export interface TradeCheckQuickMetric {
+  label: string;
+  value: string;
+  tone?: VerdictBadgeTone;
+  note?: string | null;
+}
+
+export interface TradeCheckScenario {
+  id: string;
+  direction: "long" | "short";
+  title: string;
+  trigger: string;
+  stop?: number | null;
+  stopLabel?: string | null;
+  riskPerShare?: string | null;
+  targets: string[];
+  note?: string | null;
+  sourceIds?: string[];
+}
+
+export interface TradeCheckCatalystRow {
+  metric: string;
+  value: string;
+  note?: string | null;
+  sourceIds?: string[];
+}
+
+export interface TradeCheckVerdictBadge {
+  id: string;
+  label: string;
+  tone: VerdictBadgeTone;
+  headline: string;
+  detail?: string | null;
+}
+
+export interface TradeCheckAgentSection {
+  agentKey: string;
+  agentName: string;
+  headline: string;
+  confidence?: "low" | "medium" | "high" | null;
+  score?: number | null;
+  topSources: TradeCheckSource[];
+  keyPoints: string[];
+  dataBucket: Record<string, string | number | null>;
+}
+
+export interface TradeCheckOhlcvBar {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number | null;
+}
+
+export interface TradeCheckChartLevel {
+  label: string;
+  price: number;
+  color: string;
+  style?: "solid" | "dashed" | "dotted";
+}
+
+export interface TradeCheckProjectionPoint {
+  time: string;
+  p50: number;
+  p90High?: number | null;
+  p90Low?: number | null;
+}
+
+export interface TradeCheckChart {
+  bars: TradeCheckOhlcvBar[];
+  levels: TradeCheckChartLevel[];
+  projection: TradeCheckProjectionPoint[];
+  legend: string[];
+}
+
+export interface TradeCheckReport {
+  schemaVersion: string;
+  header: {
+    ticker: string;
+    companyName?: string | null;
+    tags: string[];
+    exchange?: string | null;
+    analysisDate: string;
+    strategy?: string | null;
+  };
+  priceSummary: {
+    currentPrice?: number | null;
+    changePct?: number | null;
+    changeAmount?: number | null;
+    afterHoursNote?: string | null;
+    fiftyTwoWeekRange?: string | null;
+    beta?: number | null;
+    earningsDate?: string | null;
+  };
+  quickMetrics: TradeCheckQuickMetric[];
+  actionableLevels: TradeCheckPriceLevel[];
+  scenarios: TradeCheckScenario[];
+  catalysts: TradeCheckCatalystRow[];
+  verdict: TradeCheckVerdictBadge[];
+  bottomLine?: string | null;
+  agentSections: TradeCheckAgentSection[];
+  sources: TradeCheckSource[];
+  chart: TradeCheckChart;
+  decision?: string | null;
+  distillationNotes?: string | null;
+}
+
+export interface SessionTradeCheckResponse {
+  sessionId: string;
+  tradeCheck: TradeCheckReport;
 }
 
 /** Persisted session event returned for historical replay. */
@@ -252,6 +389,10 @@ export interface RunCompletedEvent {
   decision: string | null;
 }
 
+export interface TradeCheckEvent {
+  tradeCheck: TradeCheckReport;
+}
+
 export interface RunErrorEvent {
   message: string;
   failedAgent?: string | null;
@@ -268,6 +409,7 @@ export interface SseEventMap {
   "tool.call": StreamToolCallEvent;
   "report.section": StreamReportSectionEvent;
   stats: StreamStatsEvent;
+  "trade.check": TradeCheckEvent;
   "run.completed": RunCompletedEvent;
   "run.error": RunErrorEvent;
 }

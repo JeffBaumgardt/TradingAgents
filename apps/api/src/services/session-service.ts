@@ -12,6 +12,8 @@ import type {
   SessionListResponse,
   SessionReport,
   SessionStatus,
+  SessionTradeCheckResponse,
+  TradeCheckReport,
 } from "@tradingagents/api-types";
 import {
   normalizeTicker,
@@ -379,17 +381,23 @@ export async function markSessionCompleted(
     markdown: string;
     sections: Record<string, string | null>;
     decision: string | null;
+    tradeCheck?: Record<string, unknown> | null;
   },
 ): Promise<void> {
+  const updatePayload: Record<string, unknown> = {
+    status: "completed",
+    report_markdown: report.markdown,
+    report_sections: report.sections,
+    decision: report.decision,
+    updated_at: new Date().toISOString(),
+  };
+  if (report.tradeCheck) {
+    updatePayload.trade_check_json = report.tradeCheck;
+  }
+
   const { error } = await client
     .from("sessions")
-    .update({
-      status: "completed",
-      report_markdown: report.markdown,
-      report_sections: report.sections,
-      decision: report.decision,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", sessionId);
 
   if (error) {
@@ -440,11 +448,16 @@ export async function getSessionReport(
   }
 
   if (sessionRow.status === "completed" && sessionRow.report_markdown) {
+    let tradeCheck = rowTradeCheck(sessionRow);
+    if (!tradeCheck) {
+      tradeCheck = await backfillTradeCheckForSession(client, sessionRow);
+    }
     return {
       sessionId: id,
       markdown: sessionRow.report_markdown,
       sections: sessionRow.report_sections ?? {},
       decision: sessionRow.decision,
+      tradeCheck,
     };
   }
 
@@ -453,24 +466,186 @@ export async function getSessionReport(
     sessionRow.status === "completed" &&
     Object.values(storedSections).some((value) => Boolean(value))
   ) {
+    let tradeCheck = rowTradeCheck(sessionRow);
+    if (!tradeCheck) {
+      tradeCheck = await backfillTradeCheckForSession(client, sessionRow);
+    }
     return {
       sessionId: id,
       markdown: sectionsToMarkdown(storedSections),
       sections: storedSections,
       decision: sessionRow.decision,
+      tradeCheck,
     };
   }
 
   if (sessionRow.run_id && sessionRow.status === "running") {
     try {
       const report = await agentsClient.fetchRunReport(sessionRow.run_id);
-      await markSessionCompleted(client, id, report);
+      await markSessionCompleted(client, id, {
+        markdown: report.markdown,
+        sections: report.sections,
+        decision: report.decision,
+        tradeCheck: report.tradeCheck as Record<string, unknown> | null | undefined,
+      });
       return {
         sessionId: id,
         markdown: report.markdown,
         sections: report.sections,
         decision: report.decision,
+        tradeCheck: (report.tradeCheck as TradeCheckReport | null | undefined) ?? null,
       };
+    } catch {
+      return "not_ready";
+    }
+  }
+
+  return "not_ready";
+}
+
+function rowTradeCheck(row: SessionRow): TradeCheckReport | null {
+  if (!row.trade_check_json || typeof row.trade_check_json !== "object") {
+    return null;
+  }
+  return row.trade_check_json as unknown as TradeCheckReport;
+}
+
+async function backfillTradeCheckForSession(
+  client: AppSupabaseClient,
+  sessionRow: SessionRow,
+): Promise<TradeCheckReport | null> {
+  const existing = rowTradeCheck(sessionRow);
+  if (existing) {
+    return existing;
+  }
+
+  if (sessionRow.run_id) {
+    try {
+      const report = await agentsClient.fetchRunReport(sessionRow.run_id);
+      if (report.tradeCheck && typeof report.tradeCheck === "object") {
+        const tradeCheck = report.tradeCheck as unknown as TradeCheckReport;
+        await persistTradeCheckIfMissing(client, sessionRow.id, report.tradeCheck);
+        return tradeCheck;
+      }
+    } catch (error) {
+      console.error(
+        `[session-service] Trade Check backfill from run ${sessionRow.run_id} failed:`,
+        error,
+      );
+    }
+  }
+
+  const sections = sessionRow.report_sections ?? {};
+  if (!Object.values(sections).some((value) => Boolean(value))) {
+    return null;
+  }
+
+  const config = sessionRow.config;
+  try {
+    const rebuilt = await agentsClient.rebuildTradeCheck({
+      sessionId: sessionRow.id,
+      ticker: sessionRow.ticker,
+      analysisDate: sessionRow.analysis_date,
+      userContext: config.userContext,
+      sections,
+    });
+    await persistTradeCheckIfMissing(client, sessionRow.id, rebuilt.tradeCheck);
+    return rebuilt.tradeCheck as unknown as TradeCheckReport;
+  } catch (error) {
+    console.error(
+      `[session-service] Trade Check rebuild for session ${sessionRow.id} failed:`,
+      error,
+    );
+    return null;
+  }
+}
+
+async function persistTradeCheckIfMissing(
+  client: AppSupabaseClient,
+  sessionId: string,
+  tradeCheck: Record<string, unknown>,
+): Promise<void> {
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("trade_check_json")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (row?.trade_check_json && typeof row.trade_check_json === "object") {
+    return;
+  }
+
+  await persistTradeCheck(client, sessionId, tradeCheck);
+}
+
+export async function persistTradeCheck(
+  client: AppSupabaseClient,
+  sessionId: string,
+  tradeCheck: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await client
+    .from("sessions")
+    .update({
+      trade_check_json: tradeCheck,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function getSessionTradeCheck(
+  client: AppSupabaseClient,
+  id: string,
+  userId?: string,
+): Promise<SessionTradeCheckResponse | "not_found" | "not_ready" | "unavailable"> {
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!row) {
+    return "not_found";
+  }
+
+  const sessionRow = row as SessionRow;
+  if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
+    return "not_found";
+  }
+
+  const stored = rowTradeCheck(sessionRow);
+  if (sessionRow.status === "completed" && stored) {
+    return { sessionId: id, tradeCheck: stored };
+  }
+
+  if (sessionRow.status === "completed" && !stored) {
+    const backfilled = await backfillTradeCheckForSession(client, sessionRow);
+    if (backfilled) {
+      return { sessionId: id, tradeCheck: backfilled };
+    }
+    return "unavailable";
+  }
+
+  if (sessionRow.run_id && sessionRow.status === "running") {
+    try {
+      const report = await agentsClient.fetchRunReport(sessionRow.run_id);
+      if (report.tradeCheck) {
+        await persistTradeCheck(client, id, report.tradeCheck as Record<string, unknown>);
+        return {
+          sessionId: id,
+          tradeCheck: report.tradeCheck as unknown as TradeCheckReport,
+        };
+      }
     } catch {
       return "not_ready";
     }

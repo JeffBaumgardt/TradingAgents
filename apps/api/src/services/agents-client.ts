@@ -180,8 +180,27 @@ export async function fetchRunReport(runId: string): Promise<{
   markdown: string;
   sections: Record<string, string | null>;
   decision: string | null;
+  tradeCheck?: Record<string, unknown> | null;
 }> {
   return request(`/internal/runs/${runId}/report`);
+}
+
+export interface RebuildTradeCheckRequest {
+  sessionId?: string;
+  ticker: string;
+  analysisDate: string;
+  userContext?: string | null;
+  sections: Record<string, string | null>;
+  toolEvents?: Array<Record<string, unknown>>;
+}
+
+export async function rebuildTradeCheck(
+  body: RebuildTradeCheckRequest,
+): Promise<{ tradeCheck: Record<string, unknown> }> {
+  return request("/internal/trade-check/rebuild", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export function getAgentsServiceUrl(): string {
