@@ -14,6 +14,71 @@ interface TradeCheckChartProps {
   height?: number;
 }
 
+function formatPrice(value: number): string {
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function renderPrintFallback(chart: TradeCheckChartData) {
+  const lastBar = chart.bars[chart.bars.length - 1];
+  const recentBars = chart.bars.slice(-5);
+
+  return (
+    <div className={styles.printFallback} aria-hidden="true">
+      {lastBar ? (
+        <p className={styles.printSummary}>
+          Latest close {formatPrice(lastBar.close)} on {lastBar.time}
+          {" · "}
+          Range {formatPrice(lastBar.low)} – {formatPrice(lastBar.high)}
+        </p>
+      ) : null}
+      {recentBars.length > 0 ? (
+        <table className={styles.printTable}>
+          <caption>Recent price action (print fallback)</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Open</th>
+              <th scope="col">High</th>
+              <th scope="col">Low</th>
+              <th scope="col">Close</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentBars.map((bar) => (
+              <tr key={bar.time}>
+                <td>{bar.time}</td>
+                <td>{formatPrice(bar.open)}</td>
+                <td>{formatPrice(bar.high)}</td>
+                <td>{formatPrice(bar.low)}</td>
+                <td>{formatPrice(bar.close)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      {chart.levels.length > 0 ? (
+        <table className={styles.printTable}>
+          <caption>Chart levels (print fallback)</caption>
+          <thead>
+            <tr>
+              <th scope="col">Level</th>
+              <th scope="col">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chart.levels.map((level) => (
+              <tr key={`${level.label}-${level.price}`}>
+                <td>{level.label}</td>
+                <td>{formatPrice(level.price)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -157,6 +222,7 @@ export default function TradeCheckChart({ chart, height = 320 }: TradeCheckChart
   return (
     <div className={styles.wrapper}>
       <div ref={containerRef} className={styles.chart} aria-label="Price chart with trade levels" />
+      {renderPrintFallback(chart)}
       {chart.legend.length > 0 && (
         <ul className={styles.legend}>
           {chart.legend.map((item) => (

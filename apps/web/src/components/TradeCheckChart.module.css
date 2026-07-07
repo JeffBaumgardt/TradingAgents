@@ -28,10 +28,44 @@
   font-size: 0.9rem;
 }
 
+.printFallback {
+  display: none;
+}
+
+.printSummary {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.printTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+}
+
+.printTable caption {
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.printTable th,
+.printTable td {
+  border: 1px solid var(--color-border);
+  padding: 0.25rem 0.4rem;
+  text-align: left;
+}
+
 @media print {
   .chart {
-    min-height: 240px;
+    display: none !important;
+  }
+
+  .printFallback {
+    display: block !important;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .legend {

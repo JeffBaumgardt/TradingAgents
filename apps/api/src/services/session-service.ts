@@ -524,7 +524,7 @@ export async function getSessionTradeCheck(
   client: AppSupabaseClient,
   id: string,
   userId?: string,
-): Promise<SessionTradeCheckResponse | "not_found" | "not_ready"> {
+): Promise<SessionTradeCheckResponse | "not_found" | "not_ready" | "unavailable"> {
   const { data: row, error } = await client
     .from("sessions")
     .select("*")
@@ -546,6 +546,10 @@ export async function getSessionTradeCheck(
   const stored = rowTradeCheck(sessionRow);
   if (sessionRow.status === "completed" && stored) {
     return { sessionId: id, tradeCheck: stored };
+  }
+
+  if (sessionRow.status === "completed" && !stored) {
+    return "unavailable";
   }
 
   if (sessionRow.run_id && sessionRow.status === "running") {

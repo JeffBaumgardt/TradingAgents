@@ -167,6 +167,9 @@ sessionRoutes.get("/sessions/:id/trade-check", async (c) => {
   if (tradeCheck === "not_ready") {
     return c.json({ error: "Trade Check not ready" }, 409);
   }
+  if (tradeCheck === "unavailable") {
+    return c.json({ error: "Trade Check not available for this session" }, 404);
+  }
 
   return c.json(tradeCheck);
 });

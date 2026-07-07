@@ -36,6 +36,7 @@ import {
   fetchSessionTradeCheck,
   subscribeToSessionStream,
 } from "@/lib/api-client";
+import { runWithPrintMode } from "@/lib/print-mode";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
 import AgentProgressCard from "@/components/AgentProgressCard";
 import RunExportBar from "@/components/RunExportBar";
@@ -92,11 +93,6 @@ function truncatePreview(content: string, maxLength = 480): string {
     return content;
   }
   return `${content.slice(0, maxLength).trim()}…`;
-}
-
-function cleanupPrintMode() {
-  document.body.removeAttribute("data-print-trade-check");
-  document.body.removeAttribute("data-print-full-report");
 }
 
 const ANALYST_TYPE_ORDER: AnalystType[] = ["market", "social", "news", "fundamentals"];
@@ -217,6 +213,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const startTimeRef = useRef<number>(Date.now());
   const terminalRef = useRef(false);
   const timerFrozenRef = useRef(false);
+  const resultsTransitionRef = useRef<number | null>(null);
 
   function freezeElapsed(seconds: number) {
     timerFrozenRef.current = true;
@@ -224,17 +221,47 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   }
 
   function hydrateTradeCheckFromApi() {
+    if (tradeCheckReport) {
+      return Promise.resolve();
+    }
     setTradeCheckLoading(true);
     return fetchSessionTradeCheck(sessionId)
       .then((response) => {
         setTradeCheckReport(response.tradeCheck);
       })
       .catch(() => {
-        setTradeCheckReport(null);
+        // Keep any SSE-delivered report; only clear when we never had one.
+        setTradeCheckReport((current) => current ?? null);
       })
       .finally(() => {
         setTradeCheckLoading(false);
       });
+  }
+
+  function scheduleResultsReveal() {
+    if (resultsTransitionRef.current != null) {
+      window.clearTimeout(resultsTransitionRef.current);
+    }
+    setResultsPhase("transitioning");
+    resultsTransitionRef.current = window.setTimeout(() => {
+      setResultsPhase("complete");
+      resultsTransitionRef.current = null;
+    }, RESULTS_TRANSITION_MS);
+  }
+
+  function markRunComplete() {
+    if (terminalRef.current) {
+      return;
+    }
+    terminalRef.current = true;
+    setCompleted(true);
+    setActiveAgent(null);
+    if (!timerFrozenRef.current) {
+      freezeElapsed((Date.now() - startTimeRef.current) / 1000);
+    }
+    scheduleResultsReveal();
+    void hydrateReportFromApi();
+    void hydrateTradeCheckFromApi();
   }
 
   function hydrateReportFromApi() {
@@ -259,31 +286,13 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       });
   }
 
-  function markRunComplete() {
-    terminalRef.current = true;
-    setCompleted(true);
-    setActiveAgent(null);
-    if (!timerFrozenRef.current) {
-      freezeElapsed((Date.now() - startTimeRef.current) / 1000);
-    }
-    setResultsPhase("transitioning");
-    window.setTimeout(() => {
-      setResultsPhase("complete");
-    }, RESULTS_TRANSITION_MS);
-    void hydrateReportFromApi();
-    void hydrateTradeCheckFromApi();
-  }
-
   useEffect(() => {
-    if (completed && resultsPhase === "running") {
-      setResultsPhase("transitioning");
-      const timer = window.setTimeout(() => {
-        setResultsPhase("complete");
-      }, RESULTS_TRANSITION_MS);
-      return () => window.clearTimeout(timer);
-    }
-    return undefined;
-  }, [completed, resultsPhase]);
+    return () => {
+      if (resultsTransitionRef.current != null) {
+        window.clearTimeout(resultsTransitionRef.current);
+      }
+    };
+  }, []);
 
   function touchActivity() {
     setLastActivityAt(Date.now());
@@ -480,6 +489,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         }
 
         await hydrateReportFromApi();
+        await hydrateTradeCheckFromApi();
         if (!cancelled) {
           setConnected(true);
         }
@@ -699,17 +709,19 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   }
 
   function handlePrintDigest() {
-    document.body.setAttribute("data-print-trade-check", "true");
-    document.body.removeAttribute("data-print-full-report");
-    window.print();
-    window.setTimeout(cleanupPrintMode, 0);
+    runWithPrintMode(() => window.print(), {
+      attributes: { "data-print-trade-check": "true" },
+      removeAttributes: ["data-print-full-report"],
+    });
   }
 
   function handlePrintFull() {
-    document.body.setAttribute("data-print-trade-check", "true");
-    document.body.setAttribute("data-print-full-report", "true");
-    window.print();
-    window.setTimeout(cleanupPrintMode, 0);
+    runWithPrintMode(() => window.print(), {
+      attributes: {
+        "data-print-trade-check": "true",
+        "data-print-full-report": "true",
+      },
+    });
   }
 
   function renderAgentPipeline(compact: boolean) {
@@ -923,10 +935,9 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
       {showResults ? (
         <section
-          className={`${styles.resultsHero} ${
-            resultsPhase === "complete" ? styles.resultsHeroVisible : ""
-          }`}
+          className={`${styles.resultsHero} ${styles.resultsHeroVisible}`}
           aria-label="Trade Check digest"
+          aria-live={resultsPhase === "complete" ? "polite" : undefined}
         >
           {tradeCheckLoading && !tradeCheckReport ? (
             <div className={styles.resultsLoading}>

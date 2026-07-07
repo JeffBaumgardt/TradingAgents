@@ -808,7 +808,17 @@
     transform: none !important;
   }
 
-  :global(body[data-print-trade-check="true"]) .runLayout .agentPipeline {
+  :global(body[data-print-trade-check="true"]) .runLayout [data-print-hide="true"] {
+    display: none !important;
+  }
+
+  :global(body[data-print-trade-check="true"]:not([data-print-full-report="true"]))
+    .runLayout
+    .agentPipeline {
+    display: none !important;
+  }
+
+  :global(body[data-print-full-report="true"]) .runLayout .agentPipeline {
     break-inside: avoid;
     page-break-inside: avoid;
   }

@@ -12,6 +12,7 @@ import type {
   VerdictBadgeTone,
 } from "@tradingagents/api-types";
 import TradeCheckChart from "@/components/TradeCheckChart";
+import { runWithPrintMode } from "@/lib/print-mode";
 import styles from "./TradeCheckView.module.css";
 
 interface TradeCheckViewProps {
@@ -101,11 +102,10 @@ export default function TradeCheckView({ report, onPrint, showToolbar = true }: 
       onPrint();
       return;
     }
-    document.body.setAttribute("data-print-trade-check", "true");
-    window.print();
-    window.setTimeout(() => {
-      document.body.removeAttribute("data-print-trade-check");
-    }, 0);
+    runWithPrintMode(() => window.print(), {
+      attributes: { "data-print-trade-check": "true" },
+      removeAttributes: ["data-print-full-report"],
+    });
   }
 
   return (

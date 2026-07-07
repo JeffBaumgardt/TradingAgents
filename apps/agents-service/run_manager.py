@@ -337,6 +337,15 @@ class RunManager:
             record.decision = decision
             record.status = "completed"
 
+            self._emit(
+                record,
+                "run.completed",
+                {
+                    "sessionId": record.session_id,
+                    "decision": decision,
+                },
+            )
+
             try:
                 record.trade_check = build_trade_check(
                     config=config,
@@ -360,15 +369,6 @@ class RunManager:
                         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
                     },
                 )
-
-            self._emit(
-                record,
-                "run.completed",
-                {
-                    "sessionId": record.session_id,
-                    "decision": decision,
-                },
-            )
         except Exception as exc:  # noqa: BLE001 - surface run errors to clients
             self._fail_run(record, processor, str(exc))
 
