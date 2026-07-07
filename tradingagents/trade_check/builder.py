@@ -13,13 +13,16 @@ from .distiller import (
     merge_llm_distillation,
 )
 from .market_data import build_chart_payload, fetch_market_snapshot, level_color
-from .normalize import normalize_tool_event_source
+from .normalize import extract_urls_from_text, normalize_tool_event_source, source_from_url
 from .schemas import TradeCheckReport
 
 logger = logging.getLogger(__name__)
 
 
-def _collect_sources(tool_events: list[dict[str, Any]]) -> list:
+def _collect_sources(
+    tool_events: list[dict[str, Any]],
+    sections: dict[str, Any],
+) -> list:
     from .schemas import TradeCheckSource
 
     sources: list[TradeCheckSource] = []
@@ -35,6 +38,24 @@ def _collect_sources(tool_events: list[dict[str, Any]]) -> list:
             if src.url:
                 seen_urls.add(src.url)
             sources.append(src)
+
+    source_index = len(sources)
+    for section_key, content in sections.items():
+        if not content:
+            continue
+        for title, url in extract_urls_from_text(str(content)):
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            sources.append(
+                source_from_url(
+                    f"section-{section_key}-{source_index}",
+                    title,
+                    url,
+                    tool_name=section_key,
+                )
+            )
+            source_index += 1
 
     return sources
 
@@ -80,7 +101,7 @@ def build_trade_check(
         ]
     }
 
-    sources = _collect_sources(tool_events)
+    sources = _collect_sources(tool_events, sections)
     snapshot = fetch_market_snapshot(ticker, analysis_date) if analysis_date else {}
 
     report = build_rule_based_report(

@@ -100,7 +100,11 @@ export default function TradeCheckView({ report, onPrint }: TradeCheckViewProps)
       onPrint();
       return;
     }
+    document.body.setAttribute("data-print-trade-check", "true");
     window.print();
+    window.setTimeout(() => {
+      document.body.removeAttribute("data-print-trade-check");
+    }, 0);
   }
 
   return (

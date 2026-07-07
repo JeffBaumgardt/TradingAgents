@@ -384,16 +384,20 @@ export async function markSessionCompleted(
     tradeCheck?: Record<string, unknown> | null;
   },
 ): Promise<void> {
+  const updatePayload: Record<string, unknown> = {
+    status: "completed",
+    report_markdown: report.markdown,
+    report_sections: report.sections,
+    decision: report.decision,
+    updated_at: new Date().toISOString(),
+  };
+  if (report.tradeCheck) {
+    updatePayload.trade_check_json = report.tradeCheck;
+  }
+
   const { error } = await client
     .from("sessions")
-    .update({
-      status: "completed",
-      report_markdown: report.markdown,
-      report_sections: report.sections,
-      decision: report.decision,
-      trade_check_json: report.tradeCheck ?? null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", sessionId);
 
   if (error) {

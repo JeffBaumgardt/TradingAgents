@@ -611,3 +611,26 @@
   margin: 0;
   font-size: 0.92rem;
 }
+
+@media print {
+  :global(body[data-print-trade-check="true"]) .runHeader,
+  :global(body[data-print-trade-check="true"]) .runTitleBlock,
+  :global(body[data-print-trade-check="true"]) .bannerInfo,
+  :global(body[data-print-trade-check="true"]) .bannerComplete,
+  :global(body[data-print-trade-check="true"]) .bannerError,
+  :global(body[data-print-trade-check="true"]) .banner,
+  :global(body[data-print-trade-check="true"]) .workingBanner,
+  :global(body[data-print-trade-check="true"]) .upperRow,
+  :global(body[data-print-trade-check="true"]) .activityPanel,
+  :global(body[data-print-trade-check="true"]) .footer,
+  :global(body[data-print-trade-check="true"]) .reportTabs,
+  :global(body[data-print-trade-check="true"]) .reportsPanelHint {
+    display: none !important;
+  }
+
+  :global(body[data-print-trade-check="true"]) .reportsPanel {
+    border: none;
+    padding: 0;
+    background: #fff;
+  }
+}

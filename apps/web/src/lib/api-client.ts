@@ -280,6 +280,7 @@ const SSE_EVENT_TYPES: SseEventType[] = [
   "tool.call",
   "report.section",
   "stats",
+  "trade.check",
   "run.completed",
   "run.error",
 ];

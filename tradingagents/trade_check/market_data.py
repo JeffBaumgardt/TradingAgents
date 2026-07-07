@@ -31,8 +31,13 @@ def _safe_float(value) -> float | None:
 
 def fetch_market_snapshot(ticker: str, analysis_date: str) -> dict:
     """Fetch price snapshot and quick metrics from Yahoo Finance."""
+    try:
+        end_dt = datetime.strptime(analysis_date, "%Y-%m-%d")
+    except ValueError:
+        logger.warning("Trade Check invalid analysis_date: %s", analysis_date)
+        return {}
+
     canonical = normalize_symbol(ticker)
-    end_dt = datetime.strptime(analysis_date, "%Y-%m-%d")
     start_dt = end_dt - relativedelta(days=CHART_LOOKBACK_DAYS + 30)
 
     try:
@@ -147,7 +152,10 @@ def build_chart_payload(
             ]
         )
 
-    end_dt = datetime.strptime(analysis_date, "%Y-%m-%d")
+    try:
+        end_dt = datetime.strptime(analysis_date, "%Y-%m-%d")
+    except ValueError:
+        end_dt = pd.Timestamp(history.index[-1]).to_pydatetime()
     start_dt = end_dt - relativedelta(days=CHART_LOOKBACK_DAYS)
     window = history[history.index >= pd.Timestamp(start_dt.date())]
     if window.empty:
@@ -197,20 +205,22 @@ def _build_projection(history: pd.DataFrame, analysis_date: str) -> list[Project
         return []
 
     daily_vol = float(returns.tail(20).std() or returns.std() or 0.01)
+    drift = float(returns.tail(5).mean() or 0.0)
     last_close = float(closes.iloc[-1])
-    start = datetime.strptime(analysis_date, "%Y-%m-%d")
+    try:
+        start = datetime.strptime(analysis_date, "%Y-%m-%d")
+    except ValueError:
+        return []
 
     points: list[ProjectedPathPoint] = []
-    price = last_close
     for offset in range(1, PROJECTION_DAYS + 1):
         day = start + timedelta(days=offset)
-        # Skip weekends for equity-like symbols
         while day.weekday() >= 5:
             day += timedelta(days=1)
         move = daily_vol * (offset ** 0.5)
-        p50 = round(price, 2)
-        p90_high = round(price * (1 + move * 1.65), 2)
-        p90_low = round(price * (1 - move * 1.65), 2)
+        p50 = round(last_close * (1 + drift * offset), 2)
+        p90_high = round(p50 * (1 + move * 1.65), 2)
+        p90_low = round(p50 * (1 - move * 1.65), 2)
         points.append(
             ProjectedPathPoint(
                 time=day.strftime("%Y-%m-%d"),

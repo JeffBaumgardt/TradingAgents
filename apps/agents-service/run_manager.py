@@ -349,14 +349,14 @@ class RunManager:
                     "trade.check",
                     {"tradeCheck": record.trade_check},
                 )
-            except Exception as exc:  # noqa: BLE001 - report still completes
+            except Exception:  # noqa: BLE001 - report still completes
                 record.trade_check = None
                 self._emit(
                     record,
                     "message",
                     {
                         "messageType": "System",
-                        "content": f"Trade Check distillation skipped: {exc}",
+                        "content": "Trade Check summary could not be generated for this run.",
                         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
                     },
                 )
