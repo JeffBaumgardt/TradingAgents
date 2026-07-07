@@ -548,13 +548,6 @@ async function backfillTradeCheckForSession(
       analysisDate: sessionRow.analysis_date,
       userContext: config.userContext,
       sections,
-      llmProvider: config.llmProvider,
-      quickThinkLlm: config.quickThinkLlm,
-      backendUrl: config.backendUrl,
-      openaiReasoningEffort: config.openaiReasoningEffort,
-      anthropicEffort: config.anthropicEffort,
-      googleThinkingLevel: config.googleThinkingLevel,
-      llmEnhance: false,
     });
     await persistTradeCheckIfMissing(client, sessionRow.id, rebuilt.tradeCheck);
     return rebuilt.tradeCheck as unknown as TradeCheckReport;

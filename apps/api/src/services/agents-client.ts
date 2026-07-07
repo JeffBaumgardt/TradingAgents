@@ -192,13 +192,6 @@ export interface RebuildTradeCheckRequest {
   userContext?: string | null;
   sections: Record<string, string | null>;
   toolEvents?: Array<Record<string, unknown>>;
-  llmProvider?: string;
-  quickThinkLlm?: string;
-  backendUrl?: string | null;
-  openaiReasoningEffort?: string | null;
-  anthropicEffort?: string | null;
-  googleThinkingLevel?: string | null;
-  llmEnhance?: boolean;
 }
 
 export async function rebuildTradeCheck(

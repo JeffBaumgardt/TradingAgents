@@ -23,13 +23,6 @@ class RebuildTradeCheckRequest(BaseModel):
     userContext: str | None = None
     sections: dict[str, str | None]
     toolEvents: list[dict[str, Any]] = Field(default_factory=list)
-    llmProvider: str | None = None
-    quickThinkLlm: str | None = None
-    backendUrl: str | None = None
-    openaiReasoningEffort: str | None = None
-    anthropicEffort: str | None = None
-    googleThinkingLevel: str | None = None
-    llmEnhance: bool = False
 
 
 @router.post("/rebuild")
@@ -44,12 +37,12 @@ def rebuild_trade_check(body: RebuildTradeCheckRequest) -> dict[str, Any]:
     }
 
     tool_events = list(body.toolEvents)
-    payload = body.model_dump(exclude={"sections", "toolEvents", "llmEnhance"})
+    payload = body.model_dump(exclude={"sections", "toolEvents"})
     trade_check = build_trade_check(
         config={},
         final_state=final_state,
         tool_events=tool_events,
         payload=payload,
-        llm_enhance=body.llmEnhance,
+        llm_enhance=False,
     )
     return {"tradeCheck": trade_check}
