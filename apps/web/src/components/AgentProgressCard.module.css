@@ -1,0 +1,159 @@
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg-surface-raised);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  transition:
+    transform 0.35s ease,
+    box-shadow 0.35s ease,
+    border-color 0.35s ease,
+    padding 0.35s ease;
+}
+
+.cardActive {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15), 0 8px 24px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
+}
+
+.cardDone {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.cardCompact {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.cardIdentity {
+  min-width: 0;
+}
+
+.teamTag {
+  display: inline-block;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  margin-bottom: 0.2rem;
+}
+
+.agentName {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.cardCompact .agentName {
+  font-size: 0.82rem;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-bg-surface);
+}
+
+.statusPending {
+  color: var(--color-status-pending);
+}
+
+.statusInProgress {
+  color: var(--color-status-progress);
+}
+
+.statusCompleted {
+  color: var(--color-status-completed);
+}
+
+.statusError {
+  color: var(--color-status-error);
+}
+
+.statusCancelled {
+  color: var(--color-status-cancelled);
+}
+
+.pulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+
+.expandButton {
+  align-self: flex-start;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.expandButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.preview {
+  margin: 0;
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 0.5rem;
+}
+
+.previewHint,
+.waitingHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@media print {
+  .expandButton,
+  .previewHint,
+  .waitingHint {
+    display: none;
+  }
+
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+}

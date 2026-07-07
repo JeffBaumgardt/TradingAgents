@@ -17,6 +17,7 @@ import styles from "./TradeCheckView.module.css";
 interface TradeCheckViewProps {
   report: TradeCheckReport;
   onPrint?: () => void;
+  showToolbar?: boolean;
 }
 
 function formatPrice(value: number | null | undefined): string {
@@ -89,7 +90,7 @@ function renderAgentSection(section: TradeCheckAgentSection) {
   );
 }
 
-export default function TradeCheckView({ report, onPrint }: TradeCheckViewProps) {
+export default function TradeCheckView({ report, onPrint, showToolbar = true }: TradeCheckViewProps) {
   const { header, priceSummary } = report;
   const title = header.companyName
     ? `${header.ticker} — ${header.companyName}`
@@ -109,6 +110,7 @@ export default function TradeCheckView({ report, onPrint }: TradeCheckViewProps)
 
   return (
     <div className={styles.root} id="trade-check-print-root">
+      {showToolbar ? (
       <div className={styles.toolbar} data-print-hide="true">
         <p className={styles.toolbarHint}>
           Distilled quick view — full agent reports remain available in the Reports tab.
@@ -122,6 +124,7 @@ export default function TradeCheckView({ report, onPrint }: TradeCheckViewProps)
           Print / Save PDF
         </button>
       </div>
+      ) : null}
 
       <header className={styles.header}>
         <div>
