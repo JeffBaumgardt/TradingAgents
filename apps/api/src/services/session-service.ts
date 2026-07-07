@@ -448,12 +448,16 @@ export async function getSessionReport(
   }
 
   if (sessionRow.status === "completed" && sessionRow.report_markdown) {
+    let tradeCheck = rowTradeCheck(sessionRow);
+    if (!tradeCheck) {
+      tradeCheck = await backfillTradeCheckForSession(client, sessionRow);
+    }
     return {
       sessionId: id,
       markdown: sessionRow.report_markdown,
       sections: sessionRow.report_sections ?? {},
       decision: sessionRow.decision,
-      tradeCheck: rowTradeCheck(sessionRow),
+      tradeCheck,
     };
   }
 
@@ -462,12 +466,16 @@ export async function getSessionReport(
     sessionRow.status === "completed" &&
     Object.values(storedSections).some((value) => Boolean(value))
   ) {
+    let tradeCheck = rowTradeCheck(sessionRow);
+    if (!tradeCheck) {
+      tradeCheck = await backfillTradeCheckForSession(client, sessionRow);
+    }
     return {
       sessionId: id,
       markdown: sectionsToMarkdown(storedSections),
       sections: storedSections,
       decision: sessionRow.decision,
-      tradeCheck: rowTradeCheck(sessionRow),
+      tradeCheck,
     };
   }
 
@@ -500,6 +508,50 @@ function rowTradeCheck(row: SessionRow): TradeCheckReport | null {
     return null;
   }
   return row.trade_check_json as unknown as TradeCheckReport;
+}
+
+async function backfillTradeCheckForSession(
+  client: AppSupabaseClient,
+  sessionRow: SessionRow,
+): Promise<TradeCheckReport | null> {
+  if (sessionRow.run_id) {
+    try {
+      const report = await agentsClient.fetchRunReport(sessionRow.run_id);
+      if (report.tradeCheck && typeof report.tradeCheck === "object") {
+        await persistTradeCheck(client, sessionRow.id, report.tradeCheck);
+        return report.tradeCheck as unknown as TradeCheckReport;
+      }
+    } catch {
+      // Run may have expired after a redeploy — fall through to rebuild.
+    }
+  }
+
+  const sections = sessionRow.report_sections ?? {};
+  if (!Object.values(sections).some((value) => Boolean(value))) {
+    return null;
+  }
+
+  const config = sessionRow.config;
+  try {
+    const rebuilt = await agentsClient.rebuildTradeCheck({
+      sessionId: sessionRow.id,
+      ticker: sessionRow.ticker,
+      analysisDate: sessionRow.analysis_date,
+      userContext: config.userContext,
+      sections,
+      llmProvider: config.llmProvider,
+      quickThinkLlm: config.quickThinkLlm,
+      backendUrl: config.backendUrl,
+      openaiReasoningEffort: config.openaiReasoningEffort,
+      anthropicEffort: config.anthropicEffort,
+      googleThinkingLevel: config.googleThinkingLevel,
+      llmEnhance: false,
+    });
+    await persistTradeCheck(client, sessionRow.id, rebuilt.tradeCheck);
+    return rebuilt.tradeCheck as unknown as TradeCheckReport;
+  } catch {
+    return null;
+  }
 }
 
 export async function persistTradeCheck(
@@ -549,6 +601,10 @@ export async function getSessionTradeCheck(
   }
 
   if (sessionRow.status === "completed" && !stored) {
+    const backfilled = await backfillTradeCheckForSession(client, sessionRow);
+    if (backfilled) {
+      return { sessionId: id, tradeCheck: backfilled };
+    }
     return "unavailable";
   }
 

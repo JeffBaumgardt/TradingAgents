@@ -185,6 +185,31 @@ export async function fetchRunReport(runId: string): Promise<{
   return request(`/internal/runs/${runId}/report`);
 }
 
+export interface RebuildTradeCheckRequest {
+  sessionId?: string;
+  ticker: string;
+  analysisDate: string;
+  userContext?: string | null;
+  sections: Record<string, string | null>;
+  toolEvents?: Array<Record<string, unknown>>;
+  llmProvider?: string;
+  quickThinkLlm?: string;
+  backendUrl?: string | null;
+  openaiReasoningEffort?: string | null;
+  anthropicEffort?: string | null;
+  googleThinkingLevel?: string | null;
+  llmEnhance?: boolean;
+}
+
+export async function rebuildTradeCheck(
+  body: RebuildTradeCheckRequest,
+): Promise<{ tradeCheck: Record<string, unknown> }> {
+  return request("/internal/trade-check/rebuild", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function getAgentsServiceUrl(): string {
   return AGENTS_SERVICE_URL;
 }

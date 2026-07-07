@@ -122,7 +122,7 @@ def _build_agent_sections(
             score = float(score_match.group(1))
 
         section_sources = _top_sources_for_section(content, sources, limit=3)
-        key_points = _extract_bullet_points(content, limit=4)
+        key_points = _extract_bullet_points(content, limit=5)
 
         data_bucket: dict[str, str | float | int | None] = {}
         band_match = _SENTIMENT_BAND_RE.search(content)
@@ -171,7 +171,20 @@ def _top_sources_for_section(
     return kind_matched[:limit]
 
 
-def _extract_bullet_points(text: str, limit: int = 4) -> list[str]:
+def _extract_labeled_points(text: str, limit: int = 5) -> list[str]:
+    points: list[str] = []
+    for match in re.finditer(r"\*\*([^*]+)\*\*[:\s]+([^\n]+)", text or ""):
+        label = match.group(1).strip()
+        value = match.group(2).strip()
+        if not value or label.lower() in {"rating", "recommendation", "action"}:
+            continue
+        points.append(f"{label}: {value[:160]}")
+        if len(points) >= limit:
+            break
+    return points
+
+
+def _extract_bullet_points(text: str, limit: int = 5) -> list[str]:
     points: list[str] = []
     for line in (text or "").splitlines():
         stripped = line.strip()
@@ -179,6 +192,12 @@ def _extract_bullet_points(text: str, limit: int = 4) -> list[str]:
             points.append(stripped.lstrip("-*• ").strip())
         if len(points) >= limit:
             break
+    if len(points) < limit:
+        for point in _extract_labeled_points(text, limit):
+            if point not in points:
+                points.append(point)
+            if len(points) >= limit:
+                break
     if not points:
         for sentence in re.split(r"(?<=[.!?])\s+", text or ""):
             if len(sentence.strip()) > 30:

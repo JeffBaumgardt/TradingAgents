@@ -52,17 +52,17 @@
   border: 1px solid var(--color-border);
   border-radius: 14px;
   background: var(--color-bg-surface);
-  padding: 1rem;
+  padding: 1.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 1.1rem;
   transition:
     padding 0.45s ease,
     transform 0.45s ease;
 }
 
 .agentPipelineCompact {
-  padding: 0.75rem;
+  padding: 1rem;
   order: 3;
 }
 
@@ -113,12 +113,12 @@
 .agentTeamGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.85rem;
 }
 
 .agentTeamTitle {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--color-text-faint);
@@ -126,13 +126,13 @@
 
 .agentGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
 }
 
 .agentGridCompact {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
 }
 
 .fullReportsAppendix {
