@@ -514,15 +514,24 @@ async function backfillTradeCheckForSession(
   client: AppSupabaseClient,
   sessionRow: SessionRow,
 ): Promise<TradeCheckReport | null> {
+  const existing = rowTradeCheck(sessionRow);
+  if (existing) {
+    return existing;
+  }
+
   if (sessionRow.run_id) {
     try {
       const report = await agentsClient.fetchRunReport(sessionRow.run_id);
       if (report.tradeCheck && typeof report.tradeCheck === "object") {
-        await persistTradeCheck(client, sessionRow.id, report.tradeCheck);
-        return report.tradeCheck as unknown as TradeCheckReport;
+        const tradeCheck = report.tradeCheck as unknown as TradeCheckReport;
+        await persistTradeCheckIfMissing(client, sessionRow.id, report.tradeCheck);
+        return tradeCheck;
       }
-    } catch {
-      // Run may have expired after a redeploy — fall through to rebuild.
+    } catch (error) {
+      console.error(
+        `[session-service] Trade Check backfill from run ${sessionRow.run_id} failed:`,
+        error,
+      );
     }
   }
 
@@ -547,11 +556,37 @@ async function backfillTradeCheckForSession(
       googleThinkingLevel: config.googleThinkingLevel,
       llmEnhance: false,
     });
-    await persistTradeCheck(client, sessionRow.id, rebuilt.tradeCheck);
+    await persistTradeCheckIfMissing(client, sessionRow.id, rebuilt.tradeCheck);
     return rebuilt.tradeCheck as unknown as TradeCheckReport;
-  } catch {
+  } catch (error) {
+    console.error(
+      `[session-service] Trade Check rebuild for session ${sessionRow.id} failed:`,
+      error,
+    );
     return null;
   }
+}
+
+async function persistTradeCheckIfMissing(
+  client: AppSupabaseClient,
+  sessionId: string,
+  tradeCheck: Record<string, unknown>,
+): Promise<void> {
+  const { data: row, error } = await client
+    .from("sessions")
+    .select("trade_check_json")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (row?.trade_check_json && typeof row.trade_check_json === "object") {
+    return;
+  }
+
+  await persistTradeCheck(client, sessionId, tradeCheck);
 }
 
 export async function persistTradeCheck(
