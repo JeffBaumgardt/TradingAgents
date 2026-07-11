@@ -654,19 +654,37 @@ export async function getSessionTradeCheck(
   return "not_ready";
 }
 
+const EVENTS_PAGE_SIZE = 1000;
+
 export async function getStoredEvents(
   client: AppSupabaseClient,
   sessionId: string,
 ): Promise<EventRow[]> {
-  const { data, error } = await client
-    .from("events")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("id", { ascending: true });
+  const events: EventRow[] = [];
+  let offset = 0;
 
-  if (error) {
-    throw new Error(error.message);
+  // PostgREST defaults to max 1000 rows; page explicitly so long runs replay fully.
+  for (;;) {
+    const { data, error } = await client
+      .from("events")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("id", { ascending: true })
+      .range(offset, offset + EVENTS_PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const page = (data ?? []) as EventRow[];
+    events.push(...page);
+
+    if (page.length < EVENTS_PAGE_SIZE) {
+      break;
+    }
+
+    offset += EVENTS_PAGE_SIZE;
   }
 
-  return (data ?? []) as EventRow[];
+  return events;
 }

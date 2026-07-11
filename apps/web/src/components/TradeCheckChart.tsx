@@ -190,6 +190,7 @@ export default function TradeCheckChart({
         layout: {
           background: { type: ColorType.Solid, color: "#0f1419" },
           textColor: "#cbd5e1",
+          attributionLogo: false,
         },
         grid: {
           vertLines: { color: "#1e293b" },

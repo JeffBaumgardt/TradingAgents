@@ -49,12 +49,13 @@ import {
   fetchSessionTradeCheck,
   subscribeToSessionStream,
 } from "@/lib/api-client";
-import { runWithPrintMode } from "@/lib/print-mode";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
 import AgentProgressCard from "@/components/AgentProgressCard";
+import ReportModal from "@/components/ReportModal";
 import RunExportBar from "@/components/RunExportBar";
 import FeedbackPrompt from "@/components/FeedbackPrompt";
-import TradeCheckView from "@/components/TradeCheckView";
+import TradeCheckChart from "@/components/TradeCheckChart";
+import { TRADE_CHECK_SHARE_ROOT_ID } from "@/lib/trade-check-share";
 import styles from "./RunView.module.css";
 
 type ResultsPhase = "running" | "transitioning" | "complete";
@@ -200,6 +201,16 @@ function ThinkingDots() {
   );
 }
 
+function formatChartPrice(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) {
+    return "—";
+  }
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const [agentStatus, setAgentStatus] = useState<
     Record<string, AgentStatusValue>
@@ -244,7 +255,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   );
   const [tradeCheckReport, setTradeCheckReport] =
     useState<TradeCheckReport | null>(null);
-  const [tradeCheckLoading, setTradeCheckLoading] = useState(false);
+  const [openReportSection, setOpenReportSection] =
+    useState<ReportSectionKey | null>(null);
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [tick, setTick] = useState(0);
   const startTimeRef = useRef<number>(Date.now());
@@ -261,7 +273,6 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     if (tradeCheckReport) {
       return Promise.resolve();
     }
-    setTradeCheckLoading(true);
     return fetchSessionTradeCheck(sessionId)
       .then((response) => {
         setTradeCheckReport(response.tradeCheck);
@@ -269,9 +280,6 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       .catch(() => {
         // Keep any SSE-delivered report; only clear when we never had one.
         setTradeCheckReport((current) => current ?? null);
-      })
-      .finally(() => {
-        setTradeCheckLoading(false);
       });
   }
 
@@ -703,7 +711,28 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     }
   }, [agentStatus, reports, expectedReportSections, runError]);
 
-  function renderReportAccordion(section: ReportSectionKey) {
+  function handleOpenReport(section: ReportSectionKey) {
+    if (!reports[section]) {
+      return;
+    }
+    setOpenReportSection(section);
+  }
+
+  function handleCloseReport() {
+    setOpenReportSection(null);
+  }
+
+  function handleReportRowKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    section: ReportSectionKey,
+  ) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleOpenReport(section);
+    }
+  }
+
+  function renderReportRow(section: ReportSectionKey) {
     const agent = SECTION_AGENT[section];
     const status = agent ? agentStatus[agent] : undefined;
     const content = reports[section];
@@ -711,71 +740,52 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     const label = reportStatusLabel(status, Boolean(content), isRunning);
     const isWorking = label === "working";
     const signal = content ? extractReportSignal(section, content) : null;
+    const canOpen = Boolean(content);
 
     return (
-      <details key={section} className={styles.reportAccordion}>
-        <summary className={styles.reportAccordionSummary}>
-          <span className={styles.reportAccordionMain}>
-            <span className={styles.chevron} aria-hidden>
-              ›
-            </span>
-            <span className={styles.reportAccordionTitle}>{title}</span>
-          </span>
-          <span className={styles.reportAccordionMeta}>
+      <button
+        key={section}
+        type="button"
+        className={`${styles.reportRow} ${canOpen ? styles.reportRowOpenable : ""}`}
+        onClick={() => handleOpenReport(section)}
+        onKeyDown={(event) => handleReportRowKeyDown(event, section)}
+        disabled={!canOpen}
+        aria-label={
+          canOpen ? `Open ${title} report` : `${title} report unavailable`
+        }
+      >
+        <span className={styles.reportRowMain}>
+          <span className={styles.reportRowTitle}>{title}</span>
+          {signal ? (
             <span
-              className={`${styles.reportBadge} ${statusClass(status ?? "pending")}`}
+              className={`${styles.reportSignal} ${reportSignalToneClass(signal)}`}
+              aria-label={`Signal: ${signal}`}
             >
-              {isWorking ? (
-                <>
-                  {label}
-                  <ThinkingDots />
-                </>
-              ) : (
-                label
-              )}
+              {signal}
             </span>
-          </span>
-        </summary>
-        <div className={styles.reportAccordionBody}>
-          {content && signal ? (
-            <div className={styles.reportBodySignal}>
-              <span
-                className={`${styles.reportSignal} ${reportSignalToneClass(signal)}`}
-                aria-label={`Signal: ${signal}`}
-              >
-                {signal}
-              </span>
-            </div>
           ) : null}
-          {content ? (
-            <pre>{content}</pre>
-          ) : isWorking ? (
-            <p className="muted">
-              {isDeepThinking ? "Deep thinking" : "Analyzing"}
-              <ThinkingDots />
-            </p>
-          ) : (
-            <p className="muted">Waiting for this agent to start…</p>
-          )}
-        </div>
-      </details>
+        </span>
+        <span className={styles.reportRowMeta}>
+          <span
+            className={`${styles.reportBadge} ${statusClass(status ?? "pending")}`}
+          >
+            {isWorking ? (
+              <>
+                {label}
+                <ThinkingDots />
+              </>
+            ) : (
+              label
+            )}
+          </span>
+          {canOpen ? (
+            <span className={styles.reportRowAction} aria-hidden>
+              View
+            </span>
+          ) : null}
+        </span>
+      </button>
     );
-  }
-
-  function handlePrintDigest() {
-    runWithPrintMode(() => window.print(), {
-      attributes: { "data-print-trade-check": "true" },
-      removeAttributes: ["data-print-full-report"],
-    });
-  }
-
-  function handlePrintFull() {
-    runWithPrintMode(() => window.print(), {
-      attributes: {
-        "data-print-trade-check": "true",
-        "data-print-full-report": "true",
-      },
-    });
   }
 
   function renderAgentPipeline(compact: boolean) {
@@ -904,6 +914,14 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     }
   }
 
+  const openReportContent = openReportSection
+    ? reports[openReportSection]
+    : undefined;
+  const openReportSignal =
+    openReportSection && openReportContent
+      ? extractReportSignal(openReportSection, openReportContent)
+      : null;
+
   return (
     <div className={layoutClassName}>
       <div className={styles.runHeader}>
@@ -932,8 +950,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             depth and provider speed.
           </p>
           <p className={styles.bannerInfoFootnote}>
-            Cards update live — the digestible report appears when all agents
-            finish.
+            Cards update live — full agent reports appear when the run finishes.
           </p>
         </div>
       )}
@@ -970,8 +987,6 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           sessionId={sessionId}
           ticker={sessionMeta?.config.ticker ?? "Analysis"}
           canShareDigest={Boolean(tradeCheckReport)}
-          onPrintDigest={handlePrintDigest}
-          onPrintFull={handlePrintFull}
         />
       ) : null}
 
@@ -1011,45 +1026,68 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </div>
       )}
 
-      {showResults ? (
+      {showResults && tradeCheckReport ? (
         <section
-          className={`${styles.resultsHero} ${styles.resultsHeroVisible}`}
-          aria-label="Trade Check digest"
-          aria-live={resultsPhase === "complete" ? "polite" : undefined}
+          className={styles.chartHero}
+          aria-label="Price chart"
         >
-          {tradeCheckLoading && !tradeCheckReport ? (
-            <div className={styles.resultsLoading}>
-              <p className={styles.resultsLoadingTitle}>
-                Building your Trade Check
-              </p>
-              <p className="muted">
-                Distilling levels, scenarios, and cited sources…
-              </p>
-              <ThinkingDots />
-            </div>
-          ) : tradeCheckReport ? (
-            <TradeCheckView report={tradeCheckReport} showToolbar={false} />
-          ) : (
-            <p className="muted">
-              Trade Check summary is not available for this run. Full agent
-              reports are below.
-            </p>
-          )}
+          <div id={TRADE_CHECK_SHARE_ROOT_ID} className={styles.chartShareRoot}>
+            <header className={styles.chartHeader}>
+              <div>
+                <h2 className={styles.chartTitle}>
+                  {tradeCheckReport.header.companyName
+                    ? `${tradeCheckReport.header.ticker} — ${tradeCheckReport.header.companyName}`
+                    : tradeCheckReport.header.ticker}
+                </h2>
+                <p className={styles.chartMeta}>
+                  {tradeCheckReport.header.exchange
+                    ? `${tradeCheckReport.header.exchange} · `
+                    : ""}
+                  {tradeCheckReport.header.analysisDate}
+                  {tradeCheckReport.header.strategy
+                    ? ` · ${tradeCheckReport.header.strategy}`
+                    : ""}
+                </p>
+              </div>
+              <div className={styles.chartPriceBlock}>
+                <div
+                  className={`${styles.chartPrice} ${
+                    (tradeCheckReport.priceSummary.changePct ?? 0) >= 0
+                      ? styles.chartPriceUp
+                      : styles.chartPriceDown
+                  }`}
+                >
+                  {formatChartPrice(tradeCheckReport.priceSummary.currentPrice)}
+                </div>
+                {tradeCheckReport.priceSummary.changePct != null ? (
+                  <div
+                    className={
+                      tradeCheckReport.priceSummary.changePct >= 0
+                        ? styles.chartPriceUp
+                        : styles.chartPriceDown
+                    }
+                  >
+                    {tradeCheckReport.priceSummary.changePct >= 0 ? "+" : ""}
+                    {tradeCheckReport.priceSummary.changePct.toFixed(2)}%
+                  </div>
+                ) : null}
+              </div>
+            </header>
+            <TradeCheckChart chart={tradeCheckReport.chart} />
+          </div>
         </section>
       ) : null}
 
-      {renderAgentPipeline(showResults)}
-
       {showResults ? (
         <section
-          className={styles.fullReportsAppendix}
+          className={`${styles.resultsHero} ${styles.resultsHeroVisible}`}
           aria-label="Full agent reports"
+          aria-live={resultsPhase === "complete" ? "polite" : undefined}
         >
           <header className={styles.appendixHeader}>
             <h2 className={styles.appendixTitle}>Full agent reports</h2>
             <p className={styles.appendixHint}>
-              Raw write-ups from every team — included on following pages when
-              you export the full report.
+              Click any report to open the full write-up in a readable view.
             </p>
           </header>
 
@@ -1065,12 +1103,24 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
               <div key={group.title} className={styles.reportGroup}>
                 <h3 className={styles.reportGroupTitle}>{group.title}</h3>
                 <div className={styles.reportList}>
-                  {sections.map((section) => renderReportAccordion(section))}
+                  {sections.map((section) => renderReportRow(section))}
                 </div>
               </div>
             );
           })}
         </section>
+      ) : null}
+
+      {renderAgentPipeline(showResults)}
+
+      {openReportSection && openReportContent ? (
+        <ReportModal
+          title={REPORT_SECTION_TITLES[openReportSection]}
+          content={openReportContent}
+          signal={openReportSignal}
+          signalClassName={reportSignalToneClass(openReportSignal)}
+          onClose={handleCloseReport}
+        />
       ) : null}
 
       <section className={styles.activityPanel} data-print-hide="true">
