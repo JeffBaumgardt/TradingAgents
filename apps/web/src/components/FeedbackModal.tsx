@@ -63,6 +63,8 @@ export default function FeedbackModal({
   const [success, setSuccess] = useState(false);
 
   const signedInEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) {
@@ -86,7 +88,7 @@ export default function FeedbackModal({
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -126,7 +128,7 @@ export default function FeedbackModal({
       document.body.style.overflow = previousOverflowRef.current ?? "";
       previouslyFocusedRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;
