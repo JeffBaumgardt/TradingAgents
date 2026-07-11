@@ -53,6 +53,7 @@ import { runWithPrintMode } from "@/lib/print-mode";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
 import AgentProgressCard from "@/components/AgentProgressCard";
 import RunExportBar from "@/components/RunExportBar";
+import FeedbackPrompt from "@/components/FeedbackPrompt";
 import TradeCheckView from "@/components/TradeCheckView";
 import styles from "./RunView.module.css";
 
@@ -972,6 +973,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           onPrintDigest={handlePrintDigest}
           onPrintFull={handlePrintFull}
         />
+      ) : null}
+
+      {completed && !runError && showResults && resultsPhase === "complete" ? (
+        <FeedbackPrompt sessionId={sessionId} visible />
       ) : null}
 
       {!connected && !runError && !showTimingNotice && (

@@ -1,0 +1,85 @@
+/**
+ * @file apps/web/src/components/FeedbackPrompt.module.css
+ * Compact post-run feedback nudge styles.
+ */
+
+.prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-top: 0.65rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg-surface-raised);
+}
+
+.ask {
+  margin: 0;
+  flex: 1 1 14rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.primaryButton,
+.secondaryButton,
+.ghostButton {
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+}
+
+.primaryButton {
+  background: var(--color-link);
+  border-color: var(--color-link);
+  color: #fff;
+  font-weight: 600;
+}
+
+.primaryButton:hover {
+  filter: brightness(1.05);
+}
+
+.secondaryButton {
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+.secondaryButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.ghostButton {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-subtle);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.ghostButton:hover {
+  color: var(--color-text-muted);
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.ghostButton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+@media print {
+  .prompt {
+    display: none !important;
+  }
+}

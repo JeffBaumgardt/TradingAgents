@@ -66,3 +66,23 @@
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
+
+.linkButton {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.linkButton:hover {
+  color: var(--color-link);
+}
+
+.linkButton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}

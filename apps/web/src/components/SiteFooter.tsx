@@ -1,9 +1,10 @@
 /**
  * @file apps/web/src/components/SiteFooter.tsx
- * Shared site footer with legal links and open-source attribution.
+ * Shared site footer with legal links, feedback, and open-source attribution.
  */
 
 import Link from "next/link";
+import FeedbackFooterLink from "@/components/FeedbackFooterLink";
 import { UPSTREAM_PROJECT } from "@/lib/license-content";
 import styles from "./SiteFooter.module.css";
 
@@ -34,13 +35,14 @@ export default function SiteFooter({ disclaimer }: SiteFooterProps) {
             .
           </p>
         </div>
-        <nav className={styles.nav} aria-label="Legal">
+        <nav className={styles.nav} aria-label="Legal and feedback">
           <Link href="/privacy" className={styles.link}>
             Privacy & cookies
           </Link>
           <Link href="/license" className={styles.link}>
             License
           </Link>
+          <FeedbackFooterLink />
         </nav>
       </div>
     </footer>

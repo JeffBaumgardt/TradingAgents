@@ -197,6 +197,9 @@ Vercel cannot run the API or Python agents service (long SSE, LangGraph, heavy d
 | `CLERK_SECRET_KEY` | Same as Vercel |
 | `CLERK_PUBLISHABLE_KEY` | Same as Vercel |
 | `CREDENTIALS_ENCRYPTION_KEY` | `openssl rand -base64 32` — keep stable across deploys |
+| `RESEND_API_KEY` | Resend API key for `POST /feedback` (omit → clear 503) |
+| `FEEDBACK_TO_EMAIL` | `jeff@bugfoot.net` (default) |
+| `FEEDBACK_FROM_EMAIL` | `TradingAgents Feedback <onboarding@resend.dev>` until domain verified |
 
 ### Agents service environment
 
