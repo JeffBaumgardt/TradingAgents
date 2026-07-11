@@ -53,4 +53,51 @@ describe("getStoredEvents", () => {
     assert.equal(events[0]?.type, "agent.status");
     assert.equal(events[1]?.type, "report.section");
   });
+
+  it("returns more than one PostgREST page of events", async () => {
+    const client = createInMemorySupabase();
+    const sessionId = "session-events-page";
+    const now = new Date().toISOString();
+
+    await client.from("sessions").insert({
+      id: sessionId,
+      user_id: "user-1",
+      ticker: "MU",
+      analysis_date: "2026-07-07",
+      status: "completed",
+      config: {
+        ticker: "MU",
+        analysisDate: "2026-07-07",
+        outputLanguage: "English",
+        analysts: ["market"],
+        researchDepth: 1,
+        llmProvider: "openai",
+        quickThinkLlm: "gpt-4o-mini",
+        deepThinkLlm: "gpt-4o",
+      },
+      created_at: now,
+      updated_at: now,
+    });
+
+    const total = 1005;
+    for (let i = 0; i < total; i += 1) {
+      await client.from("events").insert({
+        session_id: sessionId,
+        type: i === total - 1 ? "agent.status" : "message",
+        payload:
+          i === total - 1
+            ? { agent: "Portfolio Manager", status: "completed" }
+            : { messageType: "Reasoning", content: `step ${i}` },
+        created_at: now,
+      });
+    }
+
+    const events = await getStoredEvents(client, sessionId);
+    assert.equal(events.length, total);
+    assert.equal(events[total - 1]?.type, "agent.status");
+    assert.deepEqual(events[total - 1]?.payload, {
+      agent: "Portfolio Manager",
+      status: "completed",
+    });
+  });
 });

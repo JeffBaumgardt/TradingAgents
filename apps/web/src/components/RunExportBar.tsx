@@ -13,16 +13,12 @@ interface RunExportBarProps {
   sessionId: string;
   ticker: string;
   canShareDigest?: boolean;
-  onPrintDigest: () => void;
-  onPrintFull: () => void;
 }
 
 export default function RunExportBar({
   sessionId,
   ticker,
   canShareDigest = false,
-  onPrintDigest,
-  onPrintFull,
 }: RunExportBarProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -72,18 +68,12 @@ export default function RunExportBar({
   return (
     <div className={styles.bar} data-print-hide="true">
       <div className={styles.actions}>
-        <button type="button" className={styles.primaryButton} onClick={onPrintDigest}>
-          Save / Print digest
-        </button>
-        <button type="button" className={styles.secondaryButton} onClick={onPrintFull}>
-          Export full report
-        </button>
         <button type="button" className={styles.secondaryButton} onClick={handleCopyLink}>
           Copy link
         </button>
         <button
           type="button"
-          className={styles.secondaryButton}
+          className={styles.primaryButton}
           onClick={handleShare}
           disabled={!canShareDigest || isSharing}
           aria-busy={isSharing}
@@ -97,8 +87,7 @@ export default function RunExportBar({
         </p>
       ) : (
         <p className={styles.hint}>
-          Share PNG copies or downloads the Trade Check digest for Discord. Full export adds every agent
-          report on following pages.
+          Share PNG copies or downloads the Trade Check digest for Discord.
         </p>
       )}
     </div>
