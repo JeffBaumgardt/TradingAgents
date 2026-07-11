@@ -343,6 +343,23 @@ export interface UpdateUserRequest {
   imageUrl?: string | null;
 }
 
+export type FeedbackSource = "post_run" | "footer";
+
+export type FeedbackCategory = "bug" | "idea" | "praise" | "other";
+
+export interface FeedbackRequest {
+  message: string;
+  category?: FeedbackCategory;
+  rating?: 1 | 2 | 3 | 4 | 5;
+  sessionId?: string;
+  pageUrl?: string;
+  source: FeedbackSource;
+}
+
+export interface FeedbackResponse {
+  ok: true;
+}
+
 export interface AgentStatusEvent {
   agent: string;
   status: AgentStatusValue;

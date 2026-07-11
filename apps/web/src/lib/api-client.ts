@@ -7,6 +7,8 @@ import type {
   ConfigOptions,
   CreateSessionRequest,
   CredentialsSchemaResponse,
+  FeedbackRequest,
+  FeedbackResponse,
   ModelMode,
   ProviderCredentials,
   ProviderModelsResponse,
@@ -207,6 +209,22 @@ export async function fetchSessions(
     cache: "no-store",
   });
   return parseJson<SessionListResponse>(response);
+}
+
+/** Submit product feedback (emailed via the API; no local persistence). */
+export async function submitFeedback(
+  body: FeedbackRequest,
+): Promise<FeedbackResponse> {
+  const response = await fetch(`${API_BASE}/feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await buildUserHeaders()),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  return parseJson<FeedbackResponse>(response);
 }
 
 /** Permanently delete a session and its stored events. */

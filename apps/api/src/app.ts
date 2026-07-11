@@ -15,6 +15,7 @@ import { withSupabaseContext } from "./middleware/with-supabase.js";
 import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
 import { credentialsRoutes } from "./routes/credentials.js";
+import { feedbackRoutes } from "./routes/feedback.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { userRoutes } from "./routes/users.js";
 import { webhookRoutes } from "./routes/webhooks.js";
@@ -52,6 +53,7 @@ export function createApp() {
   app.route("/", webhookRoutes);
   app.route("/", credentialsRoutes);
   app.route("/", userRoutes);
+  app.route("/", feedbackRoutes);
   app.route("/", sessionRoutes);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));

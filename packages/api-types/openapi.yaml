@@ -14,6 +14,7 @@ tags:
   - name: credentials
   - name: users
   - name: sessions
+  - name: feedback
 paths:
   /health:
     get:
@@ -100,6 +101,60 @@ paths:
                 $ref: "#/components/schemas/StoredCredentialsResponse"
         "401":
           description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /feedback:
+    post:
+      tags: [feedback]
+      summary: Submit product feedback
+      description: |
+        Sends feedback email via Resend. When sessionId is provided, includes
+        run metadata (not report bodies). Reply-To is the authenticated user's
+        email from the database when available.
+      operationId: submitFeedback
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackRequest"
+      responses:
+        "200":
+          description: Feedback accepted and emailed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+        "400":
+          description: Invalid feedback payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found or not owned by the user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many feedback submissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Feedback email provider not configured
           content:
             application/json:
               schema:
@@ -537,6 +592,42 @@ components:
         imageUrl:
           type: string
           nullable: true
+    FeedbackSource:
+      type: string
+      enum: [post_run, footer]
+    FeedbackCategory:
+      type: string
+      enum: [bug, idea, praise, other]
+    FeedbackRequest:
+      type: object
+      required: [message, source]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        category:
+          $ref: "#/components/schemas/FeedbackCategory"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        sessionId:
+          type: string
+          format: uuid
+        pageUrl:
+          type: string
+          maxLength: 2048
+          description: Absolute http(s) page URL where feedback was submitted.
+        source:
+          $ref: "#/components/schemas/FeedbackSource"
+    FeedbackResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
     AnalystType:
       type: string
       enum: [market, social, news, fundamentals]
