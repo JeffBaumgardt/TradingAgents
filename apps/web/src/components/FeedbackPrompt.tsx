@@ -17,15 +17,14 @@ import styles from "./FeedbackPrompt.module.css";
 
 interface FeedbackPromptProps {
   sessionId: string;
-  visible: boolean;
 }
 
-export default function FeedbackPrompt({ sessionId, visible }: FeedbackPromptProps) {
+export default function FeedbackPrompt({ sessionId }: FeedbackPromptProps) {
   const [showNudge, setShowNudge] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!visible || !sessionId) {
+    if (!sessionId) {
       setShowNudge(false);
       return;
     }
@@ -33,7 +32,7 @@ export default function FeedbackPrompt({ sessionId, visible }: FeedbackPromptPro
     setShowNudge(
       !isFeedbackOptedOut() && !isFeedbackDismissedForSession(sessionId),
     );
-  }, [visible, sessionId]);
+  }, [sessionId]);
 
   if (!showNudge && !modalOpen) {
     return null;

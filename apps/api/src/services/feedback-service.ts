@@ -21,8 +21,16 @@ import { ensureUser } from "./user-service.js";
 import { getSession } from "./session-service.js";
 
 const MAX_MESSAGE_LENGTH = 4000;
+const MAX_PAGE_URL_LENGTH = 2048;
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Soft in-process rate limit (MVP). This Map is per Node process only — it is
+ * not shared across instances and resets on restart. Prefer a shared store
+ * before treating the 5/hour cap as a hard guarantee.
+ */
+const submissionTimestampsByUser = new Map<string, number[]>();
 
 const FEEDBACK_SOURCES = new Set<FeedbackSource>(["post_run", "footer"]);
 const FEEDBACK_CATEGORIES = new Set<FeedbackCategory>([
@@ -52,8 +60,6 @@ export interface FeedbackEmailPayload {
 }
 
 export type FeedbackEmailSender = (payload: FeedbackEmailPayload) => Promise<void>;
-
-const submissionTimestampsByUser = new Map<string, number[]>();
 
 /** Test helper — clears the in-memory rate-limit window. */
 export function resetFeedbackRateLimitForTests(): void {
@@ -127,7 +133,17 @@ export function parseFeedbackRequest(body: unknown): FeedbackRequest {
   }
 
   const sessionId = asOptionalString(record.sessionId);
-  const pageUrl = asOptionalString(record.pageUrl);
+  const pageUrlRaw = asOptionalString(record.pageUrl);
+  if (pageUrlRaw && pageUrlRaw.length > MAX_PAGE_URL_LENGTH) {
+    throw new FeedbackServiceError(
+      `pageUrl must be at most ${MAX_PAGE_URL_LENGTH} characters`,
+      400,
+    );
+  }
+  if (pageUrlRaw && !/^https?:\/\//i.test(pageUrlRaw)) {
+    throw new FeedbackServiceError("pageUrl must be an http(s) URL", 400);
+  }
+  const pageUrl = pageUrlRaw;
 
   return {
     message,
@@ -139,7 +155,11 @@ export function parseFeedbackRequest(body: unknown): FeedbackRequest {
   };
 }
 
-function assertWithinRateLimit(userId: string): void {
+/**
+ * Soft rate limit: reserve a slot before send so concurrent requests cannot
+ * all pass a check-then-record race. Failures still consume a slot (MVP tradeoff).
+ */
+function reserveRateLimitSlot(userId: string): void {
   const now = Date.now();
   const recent = (submissionTimestampsByUser.get(userId) ?? []).filter(
     (timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS,
@@ -151,13 +171,7 @@ function assertWithinRateLimit(userId: string): void {
       429,
     );
   }
-}
 
-function recordSuccessfulSubmission(userId: string): void {
-  const now = Date.now();
-  const recent = (submissionTimestampsByUser.get(userId) ?? []).filter(
-    (timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS,
-  );
   recent.push(now);
   submissionTimestampsByUser.set(userId, recent);
 }
@@ -305,7 +319,8 @@ export async function sendFeedbackEmail(
     );
   }
 
-  const to = process.env.FEEDBACK_TO_EMAIL?.trim() || "jeff@bugfoot.net";
+  const to =
+    process.env.FEEDBACK_TO_EMAIL?.trim() || "jeff@bugfoot.net"; // product default per locked decision
 
   const user = await ensureUser(client, userId);
 
@@ -317,7 +332,7 @@ export async function sendFeedbackEmail(
     }
   }
 
-  assertWithinRateLimit(userId);
+  reserveRateLimitSlot(userId);
 
   const { subject, text, html } = buildFeedbackEmailContent({
     userId,
@@ -335,8 +350,6 @@ export async function sendFeedbackEmail(
     text,
     html,
   });
-
-  recordSuccessfulSubmission(userId);
 
   return { ok: true };
 }

@@ -30,6 +30,9 @@ const CATEGORY_OPTIONS: { value: FeedbackCategory; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 interface FeedbackModalProps {
   open: boolean;
   onClose: () => void;
@@ -47,7 +50,9 @@ export default function FeedbackModal({
 }: FeedbackModalProps) {
   const { user } = useUser();
   const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const previousOverflowRef = useRef<string | null>(null);
 
   const [category, setCategory] = useState<FeedbackCategory | "">("");
@@ -57,13 +62,17 @@ export default function FeedbackModal({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const replyToEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+  const signedInEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     previousOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
@@ -78,6 +87,36 @@ export default function FeedbackModal({
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((element) => !element.hasAttribute("disabled"));
+
+      if (focusable.length === 0) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
@@ -85,6 +124,7 @@ export default function FeedbackModal({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflowRef.current ?? "";
+      previouslyFocusedRef.current?.focus();
     };
   }, [open, onClose]);
 
@@ -153,6 +193,7 @@ export default function FeedbackModal({
       onKeyDown={handleBackdropKeyDown}
     >
       <div
+        ref={dialogRef}
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
@@ -183,9 +224,8 @@ export default function FeedbackModal({
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
             <p className={styles.replyHint}>
-              {replyToEmail
-                ? `We’ll reply to ${replyToEmail}`
-                : "We’ll reply if we have an email on your account."}
+              Replies go to the email on your TradingAgents account
+              {signedInEmail ? ` (signed in as ${signedInEmail})` : ""}.
             </p>
 
             <label className={styles.field}>

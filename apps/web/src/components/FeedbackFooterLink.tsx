@@ -1,10 +1,11 @@
 /**
  * @file apps/web/src/components/FeedbackFooterLink.tsx
- * Footer control that always opens the feedback modal (ignores post-run opt-out).
+ * Footer control that opens feedback when signed in (or prompts sign-in).
  */
 
 "use client";
 
+import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import FeedbackModal from "@/components/FeedbackModal";
@@ -33,21 +34,30 @@ export default function FeedbackFooterLink() {
 
   return (
     <>
-      <button
-        type="button"
-        className={styles.linkButton}
-        onClick={handleOpen}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        Feedback
-      </button>
-      <FeedbackModal
-        open={open}
-        onClose={handleClose}
-        source="footer"
-        sessionId={sessionId}
-      />
+      <SignedIn>
+        <button
+          type="button"
+          className={styles.linkButton}
+          onClick={handleOpen}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          Feedback
+        </button>
+        <FeedbackModal
+          open={open}
+          onClose={handleClose}
+          source="footer"
+          sessionId={sessionId}
+        />
+      </SignedIn>
+      <SignedOut>
+        <SignInButton mode="modal">
+          <button type="button" className={styles.linkButton} aria-label="Sign in to send feedback">
+            Feedback
+          </button>
+        </SignInButton>
+      </SignedOut>
     </>
   );
 }

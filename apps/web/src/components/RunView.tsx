@@ -976,7 +976,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       ) : null}
 
       {completed && !runError && showResults && resultsPhase === "complete" ? (
-        <FeedbackPrompt sessionId={sessionId} visible />
+        <FeedbackPrompt sessionId={sessionId} />
       ) : null}
 
       {!connected && !runError && !showTimingNotice && (

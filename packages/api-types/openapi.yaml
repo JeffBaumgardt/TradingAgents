@@ -617,6 +617,8 @@ components:
           format: uuid
         pageUrl:
           type: string
+          maxLength: 2048
+          description: Absolute http(s) page URL where feedback was submitted.
         source:
           $ref: "#/components/schemas/FeedbackSource"
     FeedbackResponse:

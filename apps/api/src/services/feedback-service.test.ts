@@ -113,6 +113,29 @@ describe("parseFeedbackRequest", () => {
         error instanceof FeedbackServiceError && error.status === 400,
     );
   });
+
+  it("rejects invalid or oversized pageUrl values", () => {
+    assert.throws(
+      () =>
+        parseFeedbackRequest({
+          message: "hello",
+          source: "footer",
+          pageUrl: "javascript:alert(1)",
+        }),
+      (error: unknown) =>
+        error instanceof FeedbackServiceError && error.status === 400,
+    );
+    assert.throws(
+      () =>
+        parseFeedbackRequest({
+          message: "hello",
+          source: "footer",
+          pageUrl: `https://example.com/${"x".repeat(2100)}`,
+        }),
+      (error: unknown) =>
+        error instanceof FeedbackServiceError && error.status === 400,
+    );
+  });
 });
 
 describe("buildFeedbackEmailContent", () => {
@@ -194,6 +217,25 @@ describe("sendFeedbackEmail", () => {
         error instanceof FeedbackServiceError &&
         error.status === 503 &&
         /RESEND_API_KEY/.test(error.message),
+    );
+  });
+
+  it("returns 503 when FEEDBACK_FROM_EMAIL is missing", async () => {
+    delete process.env.FEEDBACK_FROM_EMAIL;
+    const client = createInMemorySupabase();
+
+    await assert.rejects(
+      () =>
+        sendFeedbackEmail(
+          client,
+          USER_A,
+          { message: "hello", source: "footer" },
+          { sendEmail: async () => undefined },
+        ),
+      (error: unknown) =>
+        error instanceof FeedbackServiceError &&
+        error.status === 503 &&
+        /FEEDBACK_FROM_EMAIL/.test(error.message),
     );
   });
 
