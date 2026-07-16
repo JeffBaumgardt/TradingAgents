@@ -138,6 +138,36 @@ class TestChartPayload:
         assert len(projection_times) == len(set(projection_times))
         assert projection_times == sorted(projection_times)
 
+    def test_legend_describes_axis_labels_and_shaded_band(self):
+        dates = pd.date_range(end="2026-07-07", periods=30, freq="B")
+        history = pd.DataFrame(
+            {
+                "Open": range(400, 430),
+                "High": range(405, 435),
+                "Low": range(395, 425),
+                "Close": range(402, 432),
+                "Volume": [1_000_000] * 30,
+            },
+            index=dates,
+        )
+
+        chart = build_chart_payload(history, "2026-07-07", [])
+        joined = " ".join(chart.legend).lower()
+
+        assert "close-price line" in joined
+        assert "right-axis labels" in joined
+        assert "shaded blue band" in joined
+        assert "dashed" not in joined
+
+    def test_empty_history_legend_matches_populated_wording(self):
+        chart = build_chart_payload(None, "2026-07-07", [])
+        joined = " ".join(chart.legend).lower()
+
+        assert not chart.bars
+        assert "close-price line" in joined
+        assert "right-axis labels" in joined
+        assert "shaded blue band" in joined
+
 
 class TestChartLevelFiltering:
     def _build_report(self, levels: list[PriceLevel]) -> TradeCheckReport:
@@ -180,3 +210,7 @@ class TestChartLevelFiltering:
         assert "Entry" not in labels
         assert "Stop" not in labels
         assert "Risk from entry" not in labels
+
+    def test_no_actionable_levels_yields_no_chart_levels(self):
+        report = self._build_report([])
+        assert _chart_levels_from_report(report) == []

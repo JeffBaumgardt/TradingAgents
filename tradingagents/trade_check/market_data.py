@@ -148,7 +148,7 @@ def build_chart_payload(
         return TradeCheckChart(
             legend=[
                 "Historical OHLCV (daily) with close-price line",
-                "Right-axis labels mark actionable levels",
+                "Right-axis labels mark support, resistance, current price & target",
                 "Shaded blue band = statistical p90 range (not a forecast guarantee)",
             ]
         )

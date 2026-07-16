@@ -12,6 +12,18 @@ import type {
   TradeCheckOhlcvBar,
   TradeCheckProjectionPoint,
 } from "@tradingagents/api-types";
+import type {
+  Coordinate,
+  IChartApiBase,
+  ISeriesApi,
+  ISeriesPrimitive,
+  ISeriesPrimitivePaneRenderer,
+  ISeriesPrimitivePaneView,
+  SeriesAttachedParameter,
+  SeriesPrimitivePaneViewZOrder,
+  SeriesType,
+  Time,
+} from "lightweight-charts";
 import styles from "./TradeCheckChart.module.css";
 
 interface TradeCheckChartProps {
@@ -22,8 +34,8 @@ interface TradeCheckChartProps {
 const DISPLAY_TRADING_DAYS = 30;
 const RECENT_BARS_FOR_SCALE = 15;
 const CHART_BACKGROUND = "#0f1419";
-const PROJECTION_BAND_FILL = "rgba(56, 189, 248, 0.16)";
-const PROJECTION_BAND_LINE = "rgba(56, 189, 248, 0.55)";
+const PROJECTION_BAND_FILL = "rgba(56, 189, 248, 0.28)";
+const PROJECTION_BAND_LINE = "rgba(56, 189, 248, 0.7)";
 const PROJECTION_P50_COLOR = "#38bdf8";
 const CLOSE_LINE_COLOR = "rgba(226, 232, 240, 0.85)";
 
@@ -101,6 +113,123 @@ function computeVisiblePriceRange(
     min: min - padding,
     max: max + padding,
   };
+}
+
+interface ProjectionBandDatum {
+  time: Time;
+  high: number;
+  low: number;
+}
+
+type CanvasTarget = Parameters<ISeriesPrimitivePaneRenderer["draw"]>[0];
+
+/**
+ * Draws a translucent p90 range band between the low/high projection lines.
+ *
+ * A series primitive is used instead of stacked area series so the fill is
+ * genuinely transparent: gridlines and the pane background stay visible through
+ * the band rather than being painted over by an opaque mask.
+ */
+class ProjectionBandPrimitive implements ISeriesPrimitive<Time> {
+  private chart: IChartApiBase<Time> | null = null;
+  private series: ISeriesApi<SeriesType, Time> | null = null;
+  private readonly paneViewList: ISeriesPrimitivePaneView[];
+
+  constructor(
+    private readonly data: ProjectionBandDatum[],
+    private readonly fillColor: string,
+    private readonly lineColor: string,
+  ) {
+    this.paneViewList = [
+      {
+        zOrder: (): SeriesPrimitivePaneViewZOrder => "bottom",
+        renderer: (): ISeriesPrimitivePaneRenderer | null => this.createRenderer(),
+      },
+    ];
+  }
+
+  attached(param: SeriesAttachedParameter<Time>): void {
+    this.chart = param.chart;
+    this.series = param.series;
+  }
+
+  detached(): void {
+    this.chart = null;
+    this.series = null;
+  }
+
+  updateAllViews(): void {}
+
+  paneViews(): readonly ISeriesPrimitivePaneView[] {
+    return this.paneViewList;
+  }
+
+  private createRenderer(): ISeriesPrimitivePaneRenderer | null {
+    const chart = this.chart;
+    const series = this.series;
+    if (!chart || !series || this.data.length < 2) {
+      return null;
+    }
+
+    const data = this.data;
+    const fillColor = this.fillColor;
+    const lineColor = this.lineColor;
+
+    return {
+      draw: (target: CanvasTarget) => {
+        target.useMediaCoordinateSpace((scope) => {
+          const ctx = scope.context;
+          const timeScale = chart.timeScale();
+          const points = data
+            .map((datum) => ({
+              x: timeScale.timeToCoordinate(datum.time),
+              high: series.priceToCoordinate(datum.high),
+              low: series.priceToCoordinate(datum.low),
+            }))
+            .filter(
+              (point): point is { x: Coordinate; high: Coordinate; low: Coordinate } =>
+                point.x !== null && point.high !== null && point.low !== null,
+            );
+
+          if (points.length < 2) {
+            return;
+          }
+
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].high);
+          for (let index = 1; index < points.length; index += 1) {
+            ctx.lineTo(points[index].x, points[index].high);
+          }
+          for (let index = points.length - 1; index >= 0; index -= 1) {
+            ctx.lineTo(points[index].x, points[index].low);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fillColor;
+          ctx.fill();
+
+          ctx.strokeStyle = lineColor;
+          ctx.lineWidth = 1;
+          drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.high })));
+          drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.low })));
+        });
+      },
+    };
+  }
+}
+
+function drawPolyline(
+  ctx: CanvasRenderingContext2D,
+  points: { x: number; y: number }[],
+): void {
+  if (points.length < 2) {
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let index = 1; index < points.length; index += 1) {
+    ctx.lineTo(points[index].x, points[index].y);
+  }
+  ctx.stroke();
 }
 
 function renderPrintFallback(chart: TradeCheckChartData) {
@@ -284,8 +413,6 @@ export default function TradeCheckChart({
         candleSeries.createPriceLine({
           price: level.price,
           color: level.color,
-          lineWidth: 1,
-          lineStyle: 2,
           lineVisible: false,
           axisLabelVisible: true,
           axisLabelColor: level.color,
@@ -295,46 +422,24 @@ export default function TradeCheckChart({
       }
 
       if (displayProjection.length > 0) {
-        // Shade the p90 range as a light-blue band using two stacked area
-        // series: an upper fill down to the price floor, then an opaque mask
-        // from the lower bound down, leaving colour only between p90 low/high.
-        const upperBand = chartInstance.addAreaSeries({
-          topColor: PROJECTION_BAND_FILL,
-          bottomColor: PROJECTION_BAND_FILL,
-          lineColor: PROJECTION_BAND_LINE,
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        upperBand.setData(
-          displayProjection
-            .filter((point) => point.p90High != null)
-            .map((point) => ({
-              time: point.time,
-              value: point.p90High as number,
-            })),
-        );
+        // Only shade where both p90 bounds exist so the band never desyncs.
+        const bandData: ProjectionBandDatum[] = displayProjection
+          .filter((point) => point.p90High != null && point.p90Low != null)
+          .map((point) => ({
+            time: point.time,
+            high: point.p90High as number,
+            low: point.p90Low as number,
+          }));
 
-        const lowerMask = chartInstance.addAreaSeries({
-          topColor: CHART_BACKGROUND,
-          bottomColor: CHART_BACKGROUND,
-          lineColor: PROJECTION_BAND_LINE,
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        lowerMask.setData(
-          displayProjection
-            .filter((point) => point.p90Low != null)
-            .map((point) => ({
-              time: point.time,
-              value: point.p90Low as number,
-            })),
-        );
+        if (bandData.length >= 2) {
+          candleSeries.attachPrimitive(
+            new ProjectionBandPrimitive(
+              bandData,
+              PROJECTION_BAND_FILL,
+              PROJECTION_BAND_LINE,
+            ),
+          );
+        }
 
         const p50Series = chartInstance.addLineSeries({
           color: PROJECTION_P50_COLOR,
