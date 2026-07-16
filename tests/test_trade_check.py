@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from tradingagents.trade_check.builder import _chart_levels_from_report
 from tradingagents.trade_check.distiller import build_rule_based_report
 from tradingagents.trade_check.market_data import CHART_DISPLAY_TRADING_DAYS, build_chart_payload
 from tradingagents.trade_check.normalize import (
@@ -12,7 +13,13 @@ from tradingagents.trade_check.normalize import (
     parse_price_range,
     source_from_url,
 )
-from tradingagents.trade_check.schemas import TradeCheckReport
+from tradingagents.trade_check.schemas import (
+    PriceLevel,
+    PriceLevelKind,
+    PriceSummary,
+    TradeCheckHeader,
+    TradeCheckReport,
+)
 
 
 class TestNormalization:
@@ -130,3 +137,46 @@ class TestChartPayload:
         assert projection_times
         assert len(projection_times) == len(set(projection_times))
         assert projection_times == sorted(projection_times)
+
+
+class TestChartLevelFiltering:
+    def _build_report(self, levels: list[PriceLevel]) -> TradeCheckReport:
+        return TradeCheckReport(
+            header=TradeCheckHeader(ticker="EXMP", analysis_date="2026-07-06"),
+            price_summary=PriceSummary(),
+            actionable_levels=levels,
+        )
+
+    def test_excludes_trade_management_levels_from_chart(self):
+        report = self._build_report(
+            [
+                PriceLevel(label="Current price", kind=PriceLevelKind.CURRENT, price=100.0),
+                PriceLevel(
+                    label="Resistance 1 — day high",
+                    kind=PriceLevelKind.RESISTANCE,
+                    price=110.0,
+                ),
+                PriceLevel(label="Support 1 — day low", kind=PriceLevelKind.SUPPORT, price=95.0),
+                PriceLevel(label="Entry", kind=PriceLevelKind.ENTRY, price=101.0),
+                PriceLevel(label="Stop", kind=PriceLevelKind.STOP, price=90.0),
+                PriceLevel(
+                    label="Risk from entry",
+                    kind=PriceLevelKind.STOP,
+                    low=90.0,
+                    high=101.0,
+                ),
+                PriceLevel(label="Target", kind=PriceLevelKind.TARGET, price=130.0),
+            ]
+        )
+
+        labels = [label for label, _price, _color in _chart_levels_from_report(report)]
+
+        assert labels == [
+            "Current price",
+            "Resistance 1 — day high",
+            "Support 1 — day low",
+            "Target",
+        ]
+        assert "Entry" not in labels
+        assert "Stop" not in labels
+        assert "Risk from entry" not in labels

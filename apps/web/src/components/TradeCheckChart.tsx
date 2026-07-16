@@ -21,6 +21,11 @@ interface TradeCheckChartProps {
 
 const DISPLAY_TRADING_DAYS = 30;
 const RECENT_BARS_FOR_SCALE = 15;
+const CHART_BACKGROUND = "#0f1419";
+const PROJECTION_BAND_FILL = "rgba(56, 189, 248, 0.16)";
+const PROJECTION_BAND_LINE = "rgba(56, 189, 248, 0.55)";
+const PROJECTION_P50_COLOR = "#38bdf8";
+const CLOSE_LINE_COLOR = "rgba(226, 232, 240, 0.85)";
 
 function formatPrice(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -62,6 +67,7 @@ function selectDisplayProjection(
 function computeVisiblePriceRange(
   displayBars: TradeCheckOhlcvBar[],
   levels: TradeCheckChartLevel[],
+  projection: TradeCheckProjectionPoint[],
 ): { min: number; max: number } {
   const recentBars = displayBars.slice(-RECENT_BARS_FOR_SCALE);
   const values: number[] = [];
@@ -71,6 +77,15 @@ function computeVisiblePriceRange(
   }
   for (const level of levels) {
     values.push(level.price);
+  }
+  for (const point of projection) {
+    values.push(point.p50);
+    if (point.p90High != null) {
+      values.push(point.p90High);
+    }
+    if (point.p90Low != null) {
+      values.push(point.p90Low);
+    }
   }
 
   if (values.length === 0) {
@@ -180,7 +195,11 @@ export default function TradeCheckChart({
 
       const lastBarTime = displayBars[displayBars.length - 1].time;
       const displayProjection = selectDisplayProjection(chart, lastBarTime);
-      const priceRange = computeVisiblePriceRange(displayBars, chart.levels);
+      const priceRange = computeVisiblePriceRange(
+        displayBars,
+        chart.levels,
+        displayProjection,
+      );
       const slotCount = displayBars.length + displayProjection.length + 2;
 
       container.replaceChildren();
@@ -188,7 +207,7 @@ export default function TradeCheckChart({
         width: container.clientWidth,
         height,
         layout: {
-          background: { type: ColorType.Solid, color: "#0f1419" },
+          background: { type: ColorType.Solid, color: CHART_BACKGROUND },
           textColor: "#cbd5e1",
           attributionLogo: false,
         },
@@ -244,44 +263,52 @@ export default function TradeCheckChart({
         })),
       );
 
+      const closeLineSeries = chartInstance.addLineSeries({
+        color: CLOSE_LINE_COLOR,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        autoscaleInfoProvider,
+      });
+      closeLineSeries.setData(
+        displayBars.map((bar) => ({
+          time: bar.time,
+          value: bar.close,
+        })),
+      );
+
+      // Show only the right-axis annotation for each level; the horizontal
+      // line across the chart was visual noise the user could not decode.
       for (const level of chart.levels) {
         candleSeries.createPriceLine({
           price: level.price,
           color: level.color,
-          lineWidth: 2,
-          lineStyle: level.style === "dotted" ? 1 : 2,
+          lineWidth: 1,
+          lineStyle: 2,
+          lineVisible: false,
           axisLabelVisible: true,
+          axisLabelColor: level.color,
+          axisLabelTextColor: CHART_BACKGROUND,
           title: level.label,
         });
       }
 
       if (displayProjection.length > 0) {
-        const projectionSeries = chartInstance.addLineSeries({
-          color: "#38bdf8",
-          lineWidth: 2,
-          lineStyle: 2,
-          title: "p50 projection",
-          priceLineVisible: false,
-          lastValueVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        projectionSeries.setData(
-          displayProjection.map((point) => ({
-            time: point.time,
-            value: point.p50,
-          })),
-        );
-
-        const upper = chartInstance.addLineSeries({
-          color: "rgba(56, 189, 248, 0.35)",
+        // Shade the p90 range as a light-blue band using two stacked area
+        // series: an upper fill down to the price floor, then an opaque mask
+        // from the lower bound down, leaving colour only between p90 low/high.
+        const upperBand = chartInstance.addAreaSeries({
+          topColor: PROJECTION_BAND_FILL,
+          bottomColor: PROJECTION_BAND_FILL,
+          lineColor: PROJECTION_BAND_LINE,
           lineWidth: 1,
-          lineStyle: 2,
-          title: "p90 high",
           priceLineVisible: false,
           lastValueVisible: false,
+          crosshairMarkerVisible: false,
           autoscaleInfoProvider: () => null,
         });
-        upper.setData(
+        upperBand.setData(
           displayProjection
             .filter((point) => point.p90High != null)
             .map((point) => ({
@@ -290,22 +317,39 @@ export default function TradeCheckChart({
             })),
         );
 
-        const lower = chartInstance.addLineSeries({
-          color: "rgba(56, 189, 248, 0.35)",
+        const lowerMask = chartInstance.addAreaSeries({
+          topColor: CHART_BACKGROUND,
+          bottomColor: CHART_BACKGROUND,
+          lineColor: PROJECTION_BAND_LINE,
           lineWidth: 1,
-          lineStyle: 2,
-          title: "p90 low",
           priceLineVisible: false,
           lastValueVisible: false,
+          crosshairMarkerVisible: false,
           autoscaleInfoProvider: () => null,
         });
-        lower.setData(
+        lowerMask.setData(
           displayProjection
             .filter((point) => point.p90Low != null)
             .map((point) => ({
               time: point.time,
               value: point.p90Low as number,
             })),
+        );
+
+        const p50Series = chartInstance.addLineSeries({
+          color: PROJECTION_P50_COLOR,
+          lineWidth: 1,
+          lineStyle: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+          autoscaleInfoProvider: () => null,
+        });
+        p50Series.setData(
+          displayProjection.map((point) => ({
+            time: point.time,
+            value: point.p50,
+          })),
         );
       }
 
