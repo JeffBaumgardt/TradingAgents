@@ -147,9 +147,9 @@ def build_chart_payload(
     if history is None or history.empty:
         return TradeCheckChart(
             legend=[
-                "Historical OHLCV (daily)",
-                "Dashed lines = actionable levels",
-                "Shaded band = statistical p90 range (not a forecast guarantee)",
+                "Historical OHLCV (daily) with close-price line",
+                "Right-axis labels mark support, resistance, current price & target",
+                "Shaded blue band = statistical p90 range (not a forecast guarantee)",
             ]
         )
 
@@ -191,9 +191,9 @@ def build_chart_payload(
         levels=chart_levels,
         projection=projection,
         legend=[
-            f"Last {CHART_DISPLAY_TRADING_DAYS} trading days (daily OHLCV)",
-            "Green/red dashed = support/resistance & trade levels",
-            "Dotted path = short p50 projection; band = p90 range",
+            f"Last {CHART_DISPLAY_TRADING_DAYS} trading days (daily OHLCV) with close-price line",
+            "Right-axis labels mark support, resistance, current price & target",
+            "Shaded blue band = p90 projection range; dotted line = p50 path",
         ],
     )
 

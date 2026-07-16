@@ -14,9 +14,13 @@ from .distiller import (
 )
 from .market_data import build_chart_payload, fetch_market_snapshot, level_color
 from .normalize import extract_urls_from_text, normalize_tool_event_source, source_from_url
-from .schemas import TradeCheckReport
+from .schemas import PriceLevelKind, TradeCheckReport
 
 logger = logging.getLogger(__name__)
+
+# Trade-management levels (entry/stop/risk) add clutter to the price chart and
+# are already covered by the actionable-levels table, so keep them off the chart.
+CHART_EXCLUDED_LEVEL_KINDS = frozenset({PriceLevelKind.ENTRY, PriceLevelKind.STOP})
 
 
 def _collect_sources(
@@ -63,6 +67,8 @@ def _collect_sources(
 def _chart_levels_from_report(report: TradeCheckReport) -> list[tuple[str, float, str]]:
     levels: list[tuple[str, float, str]] = []
     for level in report.actionable_levels:
+        if level.kind in CHART_EXCLUDED_LEVEL_KINDS:
+            continue
         price = level.price
         if price is None and level.low is not None:
             price = level.low

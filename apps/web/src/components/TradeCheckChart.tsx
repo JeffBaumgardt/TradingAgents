@@ -12,6 +12,18 @@ import type {
   TradeCheckOhlcvBar,
   TradeCheckProjectionPoint,
 } from "@tradingagents/api-types";
+import type {
+  Coordinate,
+  IChartApiBase,
+  ISeriesApi,
+  ISeriesPrimitive,
+  ISeriesPrimitivePaneRenderer,
+  ISeriesPrimitivePaneView,
+  SeriesAttachedParameter,
+  SeriesPrimitivePaneViewZOrder,
+  SeriesType,
+  Time,
+} from "lightweight-charts";
 import styles from "./TradeCheckChart.module.css";
 
 interface TradeCheckChartProps {
@@ -21,6 +33,11 @@ interface TradeCheckChartProps {
 
 const DISPLAY_TRADING_DAYS = 30;
 const RECENT_BARS_FOR_SCALE = 15;
+const CHART_BACKGROUND = "#0f1419";
+const PROJECTION_BAND_FILL = "rgba(56, 189, 248, 0.28)";
+const PROJECTION_BAND_LINE = "rgba(56, 189, 248, 0.7)";
+const PROJECTION_P50_COLOR = "#38bdf8";
+const CLOSE_LINE_COLOR = "rgba(226, 232, 240, 0.85)";
 
 function formatPrice(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -62,6 +79,7 @@ function selectDisplayProjection(
 function computeVisiblePriceRange(
   displayBars: TradeCheckOhlcvBar[],
   levels: TradeCheckChartLevel[],
+  projection: TradeCheckProjectionPoint[],
 ): { min: number; max: number } {
   const recentBars = displayBars.slice(-RECENT_BARS_FOR_SCALE);
   const values: number[] = [];
@@ -71,6 +89,15 @@ function computeVisiblePriceRange(
   }
   for (const level of levels) {
     values.push(level.price);
+  }
+  for (const point of projection) {
+    values.push(point.p50);
+    if (point.p90High != null) {
+      values.push(point.p90High);
+    }
+    if (point.p90Low != null) {
+      values.push(point.p90Low);
+    }
   }
 
   if (values.length === 0) {
@@ -86,6 +113,153 @@ function computeVisiblePriceRange(
     min: min - padding,
     max: max + padding,
   };
+}
+
+interface ProjectionBandDatum {
+  time: Time;
+  high: number;
+  low: number;
+}
+
+interface BandScreenPoint {
+  x: Coordinate;
+  high: Coordinate;
+  low: Coordinate;
+}
+
+type CanvasTarget = Parameters<ISeriesPrimitivePaneRenderer["draw"]>[0];
+
+/**
+ * Renders the translucent fill + boundary strokes for the p90 range band.
+ *
+ * A single instance is cached on the primitive so lightweight-charts' internal
+ * renderer cache (which compares by reference) keeps hitting across redraws.
+ */
+class ProjectionBandRenderer implements ISeriesPrimitivePaneRenderer {
+  constructor(
+    private readonly chart: IChartApiBase<Time>,
+    private readonly series: ISeriesApi<SeriesType, Time>,
+    private readonly data: ProjectionBandDatum[],
+    private readonly fillColor: string,
+    private readonly lineColor: string,
+  ) {}
+
+  draw(target: CanvasTarget): void {
+    if (this.data.length < 2) {
+      return;
+    }
+
+    target.useMediaCoordinateSpace((scope) => {
+      const ctx = scope.context;
+      const timeScale = this.chart.timeScale();
+
+      // Split into contiguous runs of convertible coordinates so a point that
+      // can't be mapped never bridges the fill across a discontinuity.
+      let run: BandScreenPoint[] = [];
+      const flush = () => {
+        this.paintSegment(ctx, run);
+        run = [];
+      };
+
+      for (const datum of this.data) {
+        const x = timeScale.timeToCoordinate(datum.time);
+        const high = this.series.priceToCoordinate(datum.high);
+        const low = this.series.priceToCoordinate(datum.low);
+        if (x === null || high === null || low === null) {
+          flush();
+          continue;
+        }
+        run.push({ x, high, low });
+      }
+      flush();
+    });
+  }
+
+  private paintSegment(
+    ctx: CanvasRenderingContext2D,
+    points: BandScreenPoint[],
+  ): void {
+    if (points.length < 2) {
+      return;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].high);
+    for (let index = 1; index < points.length; index += 1) {
+      ctx.lineTo(points[index].x, points[index].high);
+    }
+    for (let index = points.length - 1; index >= 0; index -= 1) {
+      ctx.lineTo(points[index].x, points[index].low);
+    }
+    ctx.closePath();
+    ctx.fillStyle = this.fillColor;
+    ctx.fill();
+
+    ctx.strokeStyle = this.lineColor;
+    ctx.lineWidth = 1;
+    drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.high })));
+    drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.low })));
+  }
+}
+
+/**
+ * Draws a translucent p90 range band between the low/high projection lines.
+ *
+ * A series primitive is used instead of stacked area series so the fill is
+ * genuinely transparent: gridlines and the pane background stay visible through
+ * the band rather than being painted over by an opaque mask.
+ */
+class ProjectionBandPrimitive implements ISeriesPrimitive<Time> {
+  private renderer: ProjectionBandRenderer | null = null;
+  private readonly paneViewList: ISeriesPrimitivePaneView[];
+
+  constructor(
+    private readonly data: ProjectionBandDatum[],
+    private readonly fillColor: string,
+    private readonly lineColor: string,
+  ) {
+    this.paneViewList = [
+      {
+        zOrder: (): SeriesPrimitivePaneViewZOrder => "bottom",
+        renderer: (): ISeriesPrimitivePaneRenderer | null => this.renderer,
+      },
+    ];
+  }
+
+  attached(param: SeriesAttachedParameter<Time>): void {
+    this.renderer = new ProjectionBandRenderer(
+      param.chart,
+      param.series,
+      this.data,
+      this.fillColor,
+      this.lineColor,
+    );
+  }
+
+  detached(): void {
+    this.renderer = null;
+  }
+
+  updateAllViews(): void {}
+
+  paneViews(): readonly ISeriesPrimitivePaneView[] {
+    return this.paneViewList;
+  }
+}
+
+function drawPolyline(
+  ctx: CanvasRenderingContext2D,
+  points: { x: number; y: number }[],
+): void {
+  if (points.length < 2) {
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let index = 1; index < points.length; index += 1) {
+    ctx.lineTo(points[index].x, points[index].y);
+  }
+  ctx.stroke();
 }
 
 function renderPrintFallback(chart: TradeCheckChartData) {
@@ -180,7 +354,11 @@ export default function TradeCheckChart({
 
       const lastBarTime = displayBars[displayBars.length - 1].time;
       const displayProjection = selectDisplayProjection(chart, lastBarTime);
-      const priceRange = computeVisiblePriceRange(displayBars, chart.levels);
+      const priceRange = computeVisiblePriceRange(
+        displayBars,
+        chart.levels,
+        displayProjection,
+      );
       const slotCount = displayBars.length + displayProjection.length + 2;
 
       container.replaceChildren();
@@ -188,7 +366,7 @@ export default function TradeCheckChart({
         width: container.clientWidth,
         height,
         layout: {
-          background: { type: ColorType.Solid, color: "#0f1419" },
+          background: { type: ColorType.Solid, color: CHART_BACKGROUND },
           textColor: "#cbd5e1",
           attributionLogo: false,
         },
@@ -244,68 +422,69 @@ export default function TradeCheckChart({
         })),
       );
 
+      const closeLineSeries = chartInstance.addLineSeries({
+        color: CLOSE_LINE_COLOR,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        autoscaleInfoProvider,
+      });
+      closeLineSeries.setData(
+        displayBars.map((bar) => ({
+          time: bar.time,
+          value: bar.close,
+        })),
+      );
+
+      // Show only the right-axis annotation for each level; the horizontal
+      // line across the chart was visual noise the user could not decode.
       for (const level of chart.levels) {
         candleSeries.createPriceLine({
           price: level.price,
           color: level.color,
-          lineWidth: 2,
-          lineStyle: level.style === "dotted" ? 1 : 2,
+          lineVisible: false,
           axisLabelVisible: true,
+          axisLabelColor: level.color,
+          axisLabelTextColor: CHART_BACKGROUND,
           title: level.label,
         });
       }
 
       if (displayProjection.length > 0) {
-        const projectionSeries = chartInstance.addLineSeries({
-          color: "#38bdf8",
-          lineWidth: 2,
-          lineStyle: 2,
-          title: "p50 projection",
+        // Only shade where both p90 bounds exist so the band never desyncs.
+        const bandData: ProjectionBandDatum[] = displayProjection
+          .filter((point) => point.p90High != null && point.p90Low != null)
+          .map((point) => ({
+            time: point.time,
+            high: point.p90High as number,
+            low: point.p90Low as number,
+          }));
+
+        if (bandData.length >= 2) {
+          candleSeries.attachPrimitive(
+            new ProjectionBandPrimitive(
+              bandData,
+              PROJECTION_BAND_FILL,
+              PROJECTION_BAND_LINE,
+            ),
+          );
+        }
+
+        const p50Series = chartInstance.addLineSeries({
+          color: PROJECTION_P50_COLOR,
+          lineWidth: 1,
+          lineStyle: 1,
           priceLineVisible: false,
           lastValueVisible: false,
+          crosshairMarkerVisible: false,
           autoscaleInfoProvider: () => null,
         });
-        projectionSeries.setData(
+        p50Series.setData(
           displayProjection.map((point) => ({
             time: point.time,
             value: point.p50,
           })),
-        );
-
-        const upper = chartInstance.addLineSeries({
-          color: "rgba(56, 189, 248, 0.35)",
-          lineWidth: 1,
-          lineStyle: 2,
-          title: "p90 high",
-          priceLineVisible: false,
-          lastValueVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        upper.setData(
-          displayProjection
-            .filter((point) => point.p90High != null)
-            .map((point) => ({
-              time: point.time,
-              value: point.p90High as number,
-            })),
-        );
-
-        const lower = chartInstance.addLineSeries({
-          color: "rgba(56, 189, 248, 0.35)",
-          lineWidth: 1,
-          lineStyle: 2,
-          title: "p90 low",
-          priceLineVisible: false,
-          lastValueVisible: false,
-          autoscaleInfoProvider: () => null,
-        });
-        lower.setData(
-          displayProjection
-            .filter((point) => point.p90Low != null)
-            .map((point) => ({
-              time: point.time,
-              value: point.p90Low as number,
-            })),
         );
       }
 
