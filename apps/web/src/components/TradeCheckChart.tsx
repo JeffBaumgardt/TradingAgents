@@ -153,8 +153,8 @@ class ProjectionBandRenderer implements ISeriesPrimitivePaneRenderer {
       const ctx = scope.context;
       const timeScale = this.chart.timeScale();
 
-      // Split into contiguous runs of on-screen points so an off-screen gap
-      // never bridges the fill across a discontinuity while panning.
+      // Split into contiguous runs of convertible coordinates so a point that
+      // can't be mapped never bridges the fill across a discontinuity.
       let run: BandScreenPoint[] = [];
       const flush = () => {
         this.paintSegment(ctx, run);
