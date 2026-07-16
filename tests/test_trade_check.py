@@ -167,6 +167,7 @@ class TestChartPayload:
         assert "close-price line" in joined
         assert "right-axis labels" in joined
         assert "shaded blue band" in joined
+        assert "dashed" not in joined
 
 
 class TestChartLevelFiltering:

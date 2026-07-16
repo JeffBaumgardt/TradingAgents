@@ -121,7 +121,86 @@ interface ProjectionBandDatum {
   low: number;
 }
 
+interface BandScreenPoint {
+  x: Coordinate;
+  high: Coordinate;
+  low: Coordinate;
+}
+
 type CanvasTarget = Parameters<ISeriesPrimitivePaneRenderer["draw"]>[0];
+
+/**
+ * Renders the translucent fill + boundary strokes for the p90 range band.
+ *
+ * A single instance is cached on the primitive so lightweight-charts' internal
+ * renderer cache (which compares by reference) keeps hitting across redraws.
+ */
+class ProjectionBandRenderer implements ISeriesPrimitivePaneRenderer {
+  constructor(
+    private readonly chart: IChartApiBase<Time>,
+    private readonly series: ISeriesApi<SeriesType, Time>,
+    private readonly data: ProjectionBandDatum[],
+    private readonly fillColor: string,
+    private readonly lineColor: string,
+  ) {}
+
+  draw(target: CanvasTarget): void {
+    if (this.data.length < 2) {
+      return;
+    }
+
+    target.useMediaCoordinateSpace((scope) => {
+      const ctx = scope.context;
+      const timeScale = this.chart.timeScale();
+
+      // Split into contiguous runs of on-screen points so an off-screen gap
+      // never bridges the fill across a discontinuity while panning.
+      let run: BandScreenPoint[] = [];
+      const flush = () => {
+        this.paintSegment(ctx, run);
+        run = [];
+      };
+
+      for (const datum of this.data) {
+        const x = timeScale.timeToCoordinate(datum.time);
+        const high = this.series.priceToCoordinate(datum.high);
+        const low = this.series.priceToCoordinate(datum.low);
+        if (x === null || high === null || low === null) {
+          flush();
+          continue;
+        }
+        run.push({ x, high, low });
+      }
+      flush();
+    });
+  }
+
+  private paintSegment(
+    ctx: CanvasRenderingContext2D,
+    points: BandScreenPoint[],
+  ): void {
+    if (points.length < 2) {
+      return;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].high);
+    for (let index = 1; index < points.length; index += 1) {
+      ctx.lineTo(points[index].x, points[index].high);
+    }
+    for (let index = points.length - 1; index >= 0; index -= 1) {
+      ctx.lineTo(points[index].x, points[index].low);
+    }
+    ctx.closePath();
+    ctx.fillStyle = this.fillColor;
+    ctx.fill();
+
+    ctx.strokeStyle = this.lineColor;
+    ctx.lineWidth = 1;
+    drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.high })));
+    drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.low })));
+  }
+}
 
 /**
  * Draws a translucent p90 range band between the low/high projection lines.
@@ -131,8 +210,7 @@ type CanvasTarget = Parameters<ISeriesPrimitivePaneRenderer["draw"]>[0];
  * the band rather than being painted over by an opaque mask.
  */
 class ProjectionBandPrimitive implements ISeriesPrimitive<Time> {
-  private chart: IChartApiBase<Time> | null = null;
-  private series: ISeriesApi<SeriesType, Time> | null = null;
+  private renderer: ProjectionBandRenderer | null = null;
   private readonly paneViewList: ISeriesPrimitivePaneView[];
 
   constructor(
@@ -143,77 +221,29 @@ class ProjectionBandPrimitive implements ISeriesPrimitive<Time> {
     this.paneViewList = [
       {
         zOrder: (): SeriesPrimitivePaneViewZOrder => "bottom",
-        renderer: (): ISeriesPrimitivePaneRenderer | null => this.createRenderer(),
+        renderer: (): ISeriesPrimitivePaneRenderer | null => this.renderer,
       },
     ];
   }
 
   attached(param: SeriesAttachedParameter<Time>): void {
-    this.chart = param.chart;
-    this.series = param.series;
+    this.renderer = new ProjectionBandRenderer(
+      param.chart,
+      param.series,
+      this.data,
+      this.fillColor,
+      this.lineColor,
+    );
   }
 
   detached(): void {
-    this.chart = null;
-    this.series = null;
+    this.renderer = null;
   }
 
   updateAllViews(): void {}
 
   paneViews(): readonly ISeriesPrimitivePaneView[] {
     return this.paneViewList;
-  }
-
-  private createRenderer(): ISeriesPrimitivePaneRenderer | null {
-    const chart = this.chart;
-    const series = this.series;
-    if (!chart || !series || this.data.length < 2) {
-      return null;
-    }
-
-    const data = this.data;
-    const fillColor = this.fillColor;
-    const lineColor = this.lineColor;
-
-    return {
-      draw: (target: CanvasTarget) => {
-        target.useMediaCoordinateSpace((scope) => {
-          const ctx = scope.context;
-          const timeScale = chart.timeScale();
-          const points = data
-            .map((datum) => ({
-              x: timeScale.timeToCoordinate(datum.time),
-              high: series.priceToCoordinate(datum.high),
-              low: series.priceToCoordinate(datum.low),
-            }))
-            .filter(
-              (point): point is { x: Coordinate; high: Coordinate; low: Coordinate } =>
-                point.x !== null && point.high !== null && point.low !== null,
-            );
-
-          if (points.length < 2) {
-            return;
-          }
-
-          ctx.beginPath();
-          ctx.moveTo(points[0].x, points[0].high);
-          for (let index = 1; index < points.length; index += 1) {
-            ctx.lineTo(points[index].x, points[index].high);
-          }
-          for (let index = points.length - 1; index >= 0; index -= 1) {
-            ctx.lineTo(points[index].x, points[index].low);
-          }
-          ctx.closePath();
-          ctx.fillStyle = fillColor;
-          ctx.fill();
-
-          ctx.strokeStyle = lineColor;
-          ctx.lineWidth = 1;
-          drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.high })));
-          drawPolyline(ctx, points.map((point) => ({ x: point.x, y: point.low })));
-        });
-      },
-    };
   }
 }
 
