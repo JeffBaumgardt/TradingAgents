@@ -373,41 +373,12 @@ def _rule_based_levels(
             )
         )
 
-    if entry is not None:
-        levels.append(
-            PriceLevel(
-                label="Entry",
-                kind=PriceLevelKind.ENTRY,
-                price=entry,
-                note="From trader proposal",
-            )
-        )
-    if stop is not None:
-        levels.append(
-            PriceLevel(
-                label="Stop",
-                kind=PriceLevelKind.STOP,
-                price=stop,
-            )
-        )
     if target is not None:
         levels.append(
             PriceLevel(
                 label="Target",
                 kind=PriceLevelKind.TARGET,
                 price=target,
-            )
-        )
-
-    if entry is not None and stop is not None:
-        risk = abs(entry - stop)
-        levels.append(
-            PriceLevel(
-                label="Risk from entry",
-                kind=PriceLevelKind.STOP,
-                low=min(entry, stop),
-                high=max(entry, stop),
-                note=f"~${risk:,.2f} / sh",
             )
         )
 

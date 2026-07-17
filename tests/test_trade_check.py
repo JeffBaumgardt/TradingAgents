@@ -188,14 +188,6 @@ class TestChartLevelFiltering:
                     price=110.0,
                 ),
                 PriceLevel(label="Support 1 — day low", kind=PriceLevelKind.SUPPORT, price=95.0),
-                PriceLevel(label="Entry", kind=PriceLevelKind.ENTRY, price=101.0),
-                PriceLevel(label="Stop", kind=PriceLevelKind.STOP, price=90.0),
-                PriceLevel(
-                    label="Risk from entry",
-                    kind=PriceLevelKind.STOP,
-                    low=90.0,
-                    high=101.0,
-                ),
                 PriceLevel(label="Target", kind=PriceLevelKind.TARGET, price=130.0),
             ]
         )
@@ -208,9 +200,6 @@ class TestChartLevelFiltering:
             "Support 1 — day low",
             "Target",
         ]
-        assert "Entry" not in labels
-        assert "Stop" not in labels
-        assert "Risk from entry" not in labels
 
     def test_no_actionable_levels_yields_no_chart_levels(self):
         report = self._build_report([])
