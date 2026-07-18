@@ -159,14 +159,9 @@ sessionRoutes.get("/sessions/:id/report", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
-  const session = await sessionService.getSession(client, id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
-
-  const isOwner = Boolean(requesterId && session.userId === requesterId);
   const report = await sessionService.getSessionReport(client, id, undefined, {
-    allowSideEffects: isOwner,
+    allowSideEffects: false,
+    ...(requesterId ? { requesterId } : {}),
   });
 
   if (report === "not_found") {
@@ -184,14 +179,9 @@ sessionRoutes.get("/sessions/:id/trade-check", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
-  const session = await sessionService.getSession(client, id);
-  if (!session) {
-    return c.json({ error: "Session not found" }, 404);
-  }
-
-  const isOwner = Boolean(requesterId && session.userId === requesterId);
   const tradeCheck = await sessionService.getSessionTradeCheck(client, id, undefined, {
-    allowSideEffects: isOwner,
+    allowSideEffects: false,
+    ...(requesterId ? { requesterId } : {}),
   });
 
   if (tradeCheck === "not_found") {

@@ -694,7 +694,16 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             });
           }
           return;
-        } catch {
+        } catch (error) {
+          if (error instanceof ApiClientError && error.status === 404) {
+            if (!cancelled) {
+              setRunError({
+                message: "Session not found",
+                hint: "This share link may be invalid or the run was deleted.",
+              });
+            }
+            return;
+          }
           consecutiveFailures += 1;
           if (consecutiveFailures >= maxConsecutiveFailures) {
             if (!cancelled) {

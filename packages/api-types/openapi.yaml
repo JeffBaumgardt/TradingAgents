@@ -911,6 +911,12 @@ components:
         id:
           type: string
           format: uuid
+        userId:
+          type: string
+          nullable: true
+          description: >
+            Owning Clerk user id. Present for the session owner; null on
+            anonymous share-by-link responses.
         status:
           $ref: "#/components/schemas/SessionStatus"
         ticker:

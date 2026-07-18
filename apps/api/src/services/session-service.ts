@@ -49,11 +49,16 @@ function rowToSession(row: SessionRow): Session {
  * Session UUID remains the capability; Clerk ids / run ids / private notes stay private.
  */
 export function toShareSession(session: Session): Session {
-  const { userContext: _userContext, ...config } = session.config;
+  const {
+    userContext: _userContext,
+    backendUrl: _backendUrl,
+    ...config
+  } = session.config;
   return {
     ...session,
     userId: null,
     runId: null,
+    error: null,
     config,
   };
 }
@@ -447,9 +452,8 @@ export async function getSessionReport(
   client: AppSupabaseClient,
   id: string,
   userId?: string,
-  options: { allowSideEffects?: boolean } = {},
+  options: { allowSideEffects?: boolean; requesterId?: string } = {},
 ): Promise<SessionReport | "not_found" | "not_ready"> {
-  const allowSideEffects = options.allowSideEffects !== false;
   const { data: row, error } = await client
     .from("sessions")
     .select("*")
@@ -467,6 +471,11 @@ export async function getSessionReport(
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
     return "not_found";
   }
+
+  const allowSideEffects =
+    options.requesterId !== undefined
+      ? isSessionOwnedByUser(sessionRow, options.requesterId)
+      : options.allowSideEffects !== false;
 
   if (sessionRow.status === "completed" && sessionRow.report_markdown) {
     let tradeCheck = rowTradeCheck(sessionRow);
@@ -625,9 +634,8 @@ export async function getSessionTradeCheck(
   client: AppSupabaseClient,
   id: string,
   userId?: string,
-  options: { allowSideEffects?: boolean } = {},
+  options: { allowSideEffects?: boolean; requesterId?: string } = {},
 ): Promise<SessionTradeCheckResponse | "not_found" | "not_ready" | "unavailable"> {
-  const allowSideEffects = options.allowSideEffects !== false;
   const { data: row, error } = await client
     .from("sessions")
     .select("*")
@@ -645,6 +653,11 @@ export async function getSessionTradeCheck(
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
     return "not_found";
   }
+
+  const allowSideEffects =
+    options.requesterId !== undefined
+      ? isSessionOwnedByUser(sessionRow, options.requesterId)
+      : options.allowSideEffects !== false;
 
   const stored = rowTradeCheck(sessionRow);
   if (sessionRow.status === "completed" && stored) {

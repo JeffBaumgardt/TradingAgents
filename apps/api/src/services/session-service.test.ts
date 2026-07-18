@@ -82,7 +82,9 @@ describe("session-service ownership", () => {
     const share = toShareSession(session);
     assert.equal(share.userId, null);
     assert.equal(share.runId, null);
+    assert.equal(share.error, null);
     assert.equal(share.config.userContext, undefined);
+    assert.equal(share.config.backendUrl, undefined);
     assert.equal(share.ticker, "MSFT");
     assert.equal(session.userId, USER_A);
     assert.equal(session.config.userContext, "private thesis notes");
