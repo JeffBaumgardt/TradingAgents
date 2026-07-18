@@ -176,7 +176,9 @@ function reportStatusLabel(
   hasContent: boolean,
   isRunning: boolean,
 ): string {
-  if (hasContent && status === "completed") {
+  // Content is the source of truth for completed sections (share views have no
+  // agent.status events, so status alone would stay "pending").
+  if (hasContent) {
     return "ready";
   }
   if (status === "in_progress" && isRunning) {
@@ -911,6 +913,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     const isWorking = label === "working";
     const signal = content ? extractReportSignal(section, content) : null;
     const canOpen = Boolean(content);
+    // Finished sections: only show View — no ready/pending badge.
+    const showStatusBadge = !canOpen || isWorking || label === "error";
 
     return (
       <button
@@ -936,18 +940,22 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           ) : null}
         </span>
         <span className={styles.reportRowMeta}>
-          <span
-            className={`${styles.reportBadge} ${statusClass(status ?? "pending")}`}
-          >
-            {isWorking ? (
-              <>
-                {label}
-                <ThinkingDots />
-              </>
-            ) : (
-              label
-            )}
-          </span>
+          {showStatusBadge ? (
+            <span
+              className={`${styles.reportBadge} ${statusClass(
+                canOpen ? "completed" : (status ?? "pending"),
+              )}`}
+            >
+              {isWorking ? (
+                <>
+                  {label}
+                  <ThinkingDots />
+                </>
+              ) : (
+                label
+              )}
+            </span>
+          ) : null}
           {canOpen ? (
             <span className={styles.reportRowAction} aria-hidden>
               View
