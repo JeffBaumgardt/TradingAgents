@@ -6,6 +6,7 @@
 "use client";
 
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
 import {
   useEffect,
   useMemo,
@@ -121,6 +122,7 @@ const ANALYST_TYPE_ORDER: AnalystType[] = [
 ];
 const DEEP_THINKING_THRESHOLD_SECONDS = 8;
 const RESULTS_TRANSITION_MS = 700;
+const SHARED_RUN_POLL_MS = 5000;
 
 function statusClass(status: AgentStatusValue): string {
   switch (status) {
@@ -212,6 +214,7 @@ function formatChartPrice(value: number | null | undefined): string {
 }
 
 export default function RunView({ sessionId, initialSession }: RunViewProps) {
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const [agentStatus, setAgentStatus] = useState<
     Record<string, AgentStatusValue>
   >({});
@@ -227,6 +230,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     elapsedSeconds: 0,
   });
   const [connected, setConnected] = useState(false);
+  /** Owner-only sections (pipeline, messages, stats, feedback) after events load. */
+  const [hasPrivateAccess, setHasPrivateAccess] = useState(false);
   const [usesLiveStream, setUsesLiveStream] = useState(
     initialSession ? isLiveSessionStatus(initialSession.status) : true,
   );
@@ -430,6 +435,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   }, []);
 
   useEffect(() => {
+    if (!isAuthLoaded) {
+      return;
+    }
+
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
     let feedCounter = 0;
@@ -530,20 +539,33 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       }
     }
 
-    async function loadTerminalSession() {
+    async function loadSharedTerminalSession(status: string) {
       setUsesLiveStream(false);
+      setHasPrivateAccess(false);
       try {
-        const eventsResponse = await fetchSessionEvents(sessionId);
-        if (cancelled) {
-          return;
+        if (status === "completed") {
+          terminalRef.current = true;
+          setCompleted(true);
+          setResultsPhase("complete");
+          await hydrateReportFromApi();
+          await hydrateTradeCheckFromApi();
+        } else if (status === "error") {
+          terminalRef.current = true;
+          setRunError((current) =>
+            current ?? {
+              message: sessionMeta?.error ?? "Run failed",
+              hint: "This analysis ended with an error.",
+            },
+          );
+        } else if (status === "cancelled") {
+          terminalRef.current = true;
+          setRunError((current) =>
+            current ?? {
+              message: "Run cancelled",
+              hint: "This analysis was cancelled.",
+            },
+          );
         }
-
-        for (const item of eventsResponse.items) {
-          handleStreamEvent(item.type, item.payload);
-        }
-
-        await hydrateReportFromApi();
-        await hydrateTradeCheckFromApi();
         if (!cancelled) {
           setConnected(true);
         }
@@ -557,8 +579,35 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       }
     }
 
+    async function loadOwnerTerminalSession(status: string) {
+      setUsesLiveStream(false);
+      try {
+        const eventsResponse = await fetchSessionEvents(sessionId);
+        if (cancelled) {
+          return;
+        }
+
+        setHasPrivateAccess(true);
+        for (const item of eventsResponse.items) {
+          handleStreamEvent(item.type, item.payload);
+        }
+
+        await hydrateReportFromApi();
+        await hydrateTradeCheckFromApi();
+        if (!cancelled) {
+          setConnected(true);
+        }
+      } catch {
+        // Signed-in non-owners (or expired tokens) fall back to the public share view.
+        if (!cancelled) {
+          await loadSharedTerminalSession(status);
+        }
+      }
+    }
+
     function startLiveStream() {
       setUsesLiveStream(true);
+      setHasPrivateAccess(true);
       unsubscribe = subscribeToSessionStream(sessionId, {
         onOpen: () => {
           setConnected(true);
@@ -583,6 +632,63 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           setActiveAgent(null);
         },
       });
+    }
+
+    async function pollSharedLiveSession() {
+      setUsesLiveStream(false);
+      setHasPrivateAccess(false);
+      setConnected(true);
+
+      while (!cancelled) {
+        try {
+          const session = await fetchSession(sessionId);
+          if (cancelled) {
+            return;
+          }
+          setSessionMeta(session);
+          setSelectedAnalysts(session.config.analysts);
+
+          if (isLiveSessionStatus(session.status)) {
+            await new Promise((resolve) => {
+              window.setTimeout(resolve, SHARED_RUN_POLL_MS);
+            });
+            continue;
+          }
+
+          if (session.status === "completed") {
+            await hydrateReportFromApi();
+            await hydrateTradeCheckFromApi();
+            markRunComplete();
+            return;
+          }
+
+          if (session.status === "error") {
+            terminalRef.current = true;
+            setRunError({
+              message: session.error ?? "Run failed",
+              hint: "This analysis ended with an error.",
+            });
+            return;
+          }
+
+          if (session.status === "cancelled") {
+            terminalRef.current = true;
+            setRunError({
+              message: "Run cancelled",
+              hint: "This analysis was cancelled.",
+            });
+          }
+          return;
+        } catch {
+          if (!cancelled) {
+            setRunError({
+              message: "Failed to load session",
+              hint: "Try refreshing this page.",
+            });
+          }
+          return;
+        }
+      }
     }
 
     async function initRunData() {
@@ -611,12 +717,34 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         return;
       }
 
+      const preferOwnerAccess = Boolean(isSignedIn);
+
       if (!isLiveSessionStatus(status)) {
-        await loadTerminalSession();
+        if (preferOwnerAccess) {
+          await loadOwnerTerminalSession(status);
+        } else {
+          await loadSharedTerminalSession(status);
+        }
         return;
       }
 
-      startLiveStream();
+      if (preferOwnerAccess) {
+        try {
+          // Ownership probe: events stay owner-scoped; non-owners fall back to public poll.
+          await fetchSessionEvents(sessionId);
+          if (cancelled) {
+            return;
+          }
+          startLiveStream();
+        } catch {
+          if (!cancelled) {
+            await pollSharedLiveSession();
+          }
+        }
+        return;
+      }
+
+      await pollSharedLiveSession();
     }
 
     void initRunData();
@@ -625,7 +753,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       cancelled = true;
       unsubscribe?.();
     };
-  }, [sessionId]);
+  }, [sessionId, isAuthLoaded, isSignedIn]);
 
   const isRunning = connected && !completed && !runError;
 
@@ -924,15 +1052,17 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
 
   return (
     <div className={layoutClassName}>
-      <div className={styles.runHeader}>
-        <Link
-          href="/dashboard"
-          className={styles.backLink}
-          aria-label="Return to dashboard"
-        >
-          ← Back to dashboard
-        </Link>
-      </div>
+      {isSignedIn ? (
+        <div className={styles.runHeader}>
+          <Link
+            href="/dashboard"
+            className={styles.backLink}
+            aria-label="Return to dashboard"
+          >
+            ← Back to dashboard
+          </Link>
+        </div>
+      ) : null}
       <div className={styles.runTitleBlock}>
         <h1>{runTitle}</h1>
         {runSubtitle ? (
@@ -990,7 +1120,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         />
       ) : null}
 
-      {completed && !runError && showResults && resultsPhase === "complete" ? (
+      {completed && !runError && showResults && resultsPhase === "complete" && hasPrivateAccess ? (
         <FeedbackPrompt sessionId={sessionId} />
       ) : null}
 
@@ -1111,7 +1241,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </section>
       ) : null}
 
-      {renderAgentPipeline(showResults)}
+      {hasPrivateAccess ? renderAgentPipeline(showResults) : null}
 
       {openReportSection && openReportContent ? (
         <ReportModal
@@ -1123,71 +1253,75 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         />
       ) : null}
 
-      <section className={styles.activityPanel} data-print-hide="true">
-        <button
-          type="button"
-          className={styles.activityToggle}
-          aria-expanded={activityExpanded}
-          aria-controls="activity-log"
-          onClick={handleToggleActivity}
-          onKeyDown={handleActivityKeyDown}
-        >
-          <span className={styles.activityToggleLabel}>
-            <span
-              className={`${styles.chevron} ${activityExpanded ? styles.chevronOpen : ""}`}
-              aria-hidden
-            >
-              ›
+      {hasPrivateAccess ? (
+        <section className={styles.activityPanel} data-print-hide="true">
+          <button
+            type="button"
+            className={styles.activityToggle}
+            aria-expanded={activityExpanded}
+            aria-controls="activity-log"
+            onClick={handleToggleActivity}
+            onKeyDown={handleActivityKeyDown}
+          >
+            <span className={styles.activityToggleLabel}>
+              <span
+                className={`${styles.chevron} ${activityExpanded ? styles.chevronOpen : ""}`}
+                aria-hidden
+              >
+                ›
+              </span>
+              Messages &amp; tools
             </span>
-            Messages &amp; tools
-          </span>
-          <span className={styles.activitySummary}>
-            {activitySummary.total === 0 ? (
-              "No activity yet"
-            ) : (
-              <>
-                {activitySummary.messages} message
-                {activitySummary.messages === 1 ? "" : "s"}
-                {activitySummary.tools > 0 && (
-                  <>
-                    {" · "}
-                    {activitySummary.tools} tool
-                    {activitySummary.tools === 1 ? "" : "s"}
-                  </>
-                )}
-              </>
-            )}
-          </span>
-        </button>
+            <span className={styles.activitySummary}>
+              {activitySummary.total === 0 ? (
+                "No activity yet"
+              ) : (
+                <>
+                  {activitySummary.messages} message
+                  {activitySummary.messages === 1 ? "" : "s"}
+                  {activitySummary.tools > 0 && (
+                    <>
+                      {" · "}
+                      {activitySummary.tools} tool
+                      {activitySummary.tools === 1 ? "" : "s"}
+                    </>
+                  )}
+                </>
+              )}
+            </span>
+          </button>
 
-        {activityExpanded && (
-          <div id="activity-log" className={styles.activityBody}>
-            {feed.length === 0 ? (
-              <p className="muted">No messages yet.</p>
-            ) : (
-              feed.map((entry) => (
-                <details key={entry.id} className={styles.feedItem}>
-                  <summary className={styles.feedSummary}>
-                    <span className={styles.feedMeta}>
-                      {entry.timestamp} · {entry.type}
-                    </span>
-                    <span className={styles.feedPreview}>{entry.content}</span>
-                  </summary>
-                  <div className={styles.feedContent}>{entry.content}</div>
-                </details>
-              ))
-            )}
-          </div>
-        )}
-      </section>
+          {activityExpanded && (
+            <div id="activity-log" className={styles.activityBody}>
+              {feed.length === 0 ? (
+                <p className="muted">No messages yet.</p>
+              ) : (
+                feed.map((entry) => (
+                  <details key={entry.id} className={styles.feedItem}>
+                    <summary className={styles.feedSummary}>
+                      <span className={styles.feedMeta}>
+                        {entry.timestamp} · {entry.type}
+                      </span>
+                      <span className={styles.feedPreview}>{entry.content}</span>
+                    </summary>
+                    <div className={styles.feedContent}>{entry.content}</div>
+                  </details>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      ) : null}
 
-      <footer className={styles.footer} data-print-hide="true">
-        <span>LLM calls: {stats.llmCalls}</span>
-        <span>Tool calls: {stats.toolCalls}</span>
-        <span>Tokens in: {formatTokens(stats.tokensIn)}</span>
-        <span>Tokens out: {formatTokens(stats.tokensOut)}</span>
-        <span>Elapsed: {formatElapsed(stats.elapsedSeconds)}</span>
-      </footer>
+      {hasPrivateAccess ? (
+        <footer className={styles.footer} data-print-hide="true">
+          <span>LLM calls: {stats.llmCalls}</span>
+          <span>Tool calls: {stats.toolCalls}</span>
+          <span>Tokens in: {formatTokens(stats.tokensIn)}</span>
+          <span>Tokens out: {formatTokens(stats.tokensOut)}</span>
+          <span>Elapsed: {formatElapsed(stats.elapsedSeconds)}</span>
+        </footer>
+      ) : null}
     </div>
   );
 }

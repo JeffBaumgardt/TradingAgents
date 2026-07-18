@@ -372,8 +372,13 @@ paths:
   /sessions/{id}:
     get:
       tags: [sessions]
-      summary: Get session status
+      summary: Get session status (public share-by-link)
+      description: >
+        Returns session metadata for the given id. No authentication required —
+        the session UUID is the capability for share links. Mutations and event
+        streams remain owner-scoped.
       operationId: getSession
+      security: []
       parameters:
         - $ref: "#/components/parameters/SessionId"
       responses:
@@ -457,8 +462,12 @@ paths:
   /sessions/{id}/report:
     get:
       tags: [sessions]
-      summary: Get final report
+      summary: Get final report (public share-by-link)
+      description: >
+        Returns the final analysis report. No authentication required — the
+        session UUID is the capability for share links.
       operationId: getSessionReport
+      security: []
       parameters:
         - $ref: "#/components/parameters/SessionId"
       responses:
@@ -483,8 +492,12 @@ paths:
   /sessions/{id}/trade-check:
     get:
       tags: [sessions]
-      summary: Get distilled Trade Check report
+      summary: Get distilled Trade Check report (public share-by-link)
+      description: >
+        Returns the Trade Check chart payload. No authentication required — the
+        session UUID is the capability for share links.
       operationId: getSessionTradeCheck
+      security: []
       parameters:
         - $ref: "#/components/parameters/SessionId"
       responses:

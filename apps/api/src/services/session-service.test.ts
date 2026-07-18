@@ -61,6 +61,15 @@ describe("session-service ownership", () => {
     assert.equal(await getSession(client, "session-a-1", USER_B), null);
   });
 
+  it("allows reading a session by id without a userId for share links", async () => {
+    const client = createInMemorySupabase();
+    await insertSession(client, "session-share-1", USER_A, "AAPL");
+
+    const shared = await getSession(client, "session-share-1");
+    assert.notEqual(shared, null);
+    assert.equal(shared?.ticker, "AAPL");
+  });
+
   it("prevents deleting another user's session", async () => {
     const client = createInMemorySupabase();
     await insertSession(client, "session-a-2", USER_A, "QQQ");

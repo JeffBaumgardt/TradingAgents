@@ -173,6 +173,11 @@ export async function createSession(
   return session;
 }
 
+/**
+ * Load a session by id.
+ * When `userId` is provided, ownership is enforced (returns null for other users).
+ * When omitted, any session can be read — used for public share-by-link URLs.
+ */
 export async function getSession(
   client: AppSupabaseClient,
   id: string,

@@ -2,7 +2,10 @@
  * apps/api/src/routes/sessions.ts
  *
  * Session CRUD, report retrieval, and SSE streaming endpoints.
- * All routes require a verified Clerk session and are scoped to the owner.
+ *
+ * Share-by-link reads (GET session / report / trade-check) are public: the
+ * session UUID is the capability. Mutations, event history, and live streams
+ * still require a verified Clerk session and are scoped to the owner.
  */
 
 import { Hono } from "hono";
@@ -16,7 +19,13 @@ import * as sessionService from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
 
-sessionRoutes.use("*", requireUserId());
+function sessionIdParam(c: { req: { param: (key: string) => string | undefined } }): string {
+  const id = c.req.param("id");
+  if (!id) {
+    throw new Error("Missing session id");
+  }
+  return id;
+}
 
 async function relayRunError(
   stream: Parameters<Parameters<typeof streamSSE>[1]>[0],
@@ -96,7 +105,7 @@ async function relayAgentsFrame(
   return false;
 }
 
-sessionRoutes.get("/sessions", async (c) => {
+sessionRoutes.get("/sessions", requireUserId(), async (c) => {
   const userId = getRequestUserId(c);
   const limit = Number(c.req.query("limit") ?? "20");
   const offset = Number(c.req.query("offset") ?? "0");
@@ -105,7 +114,7 @@ sessionRoutes.get("/sessions", async (c) => {
   return c.json(result);
 });
 
-sessionRoutes.post("/sessions", async (c) => {
+sessionRoutes.post("/sessions", requireUserId(), async (c) => {
   const body = (await c.req.json()) as CreateSessionRequest;
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
@@ -119,31 +128,31 @@ sessionRoutes.post("/sessions", async (c) => {
   }
 });
 
+/** Public share-by-link: session UUID is the capability (no ownership check). */
 sessionRoutes.get("/sessions/:id", async (c) => {
-  const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
-  const session = await sessionService.getSession(client, c.req.param("id"), userId);
+  const session = await sessionService.getSession(client, sessionIdParam(c));
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
   }
   return c.json(session);
 });
 
-sessionRoutes.delete("/sessions/:id", async (c) => {
+sessionRoutes.delete("/sessions/:id", requireUserId(), async (c) => {
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
-  const deleted = await sessionService.deleteSession(client, c.req.param("id"), userId);
+  const deleted = await sessionService.deleteSession(client, sessionIdParam(c), userId);
   if (!deleted) {
     return c.json({ error: "Session not found" }, 404);
   }
   return c.body(null, 204);
 });
 
+/** Public share-by-link: final agent report for a completed run. */
 sessionRoutes.get("/sessions/:id/report", async (c) => {
-  const userId = getRequestUserId(c);
-  const id = c.req.param("id");
+  const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
-  const report = await sessionService.getSessionReport(client, id, userId);
+  const report = await sessionService.getSessionReport(client, id);
 
   if (report === "not_found") {
     return c.json({ error: "Session not found" }, 404);
@@ -155,11 +164,11 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
   return c.json(report);
 });
 
+/** Public share-by-link: Trade Check chart payload. */
 sessionRoutes.get("/sessions/:id/trade-check", async (c) => {
-  const userId = getRequestUserId(c);
-  const id = c.req.param("id");
+  const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
-  const tradeCheck = await sessionService.getSessionTradeCheck(client, id, userId);
+  const tradeCheck = await sessionService.getSessionTradeCheck(client, id);
 
   if (tradeCheck === "not_found") {
     return c.json({ error: "Session not found" }, 404);
@@ -174,9 +183,9 @@ sessionRoutes.get("/sessions/:id/trade-check", async (c) => {
   return c.json(tradeCheck);
 });
 
-sessionRoutes.get("/sessions/:id/events", async (c) => {
+sessionRoutes.get("/sessions/:id/events", requireUserId(), async (c) => {
   const userId = getRequestUserId(c);
-  const id = c.req.param("id");
+  const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const session = await sessionService.getSession(client, id, userId);
 
@@ -195,9 +204,9 @@ sessionRoutes.get("/sessions/:id/events", async (c) => {
   });
 });
 
-sessionRoutes.get("/sessions/:id/stream", async (c) => {
+sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
   const userId = getRequestUserId(c);
-  const id = c.req.param("id");
+  const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const session = await sessionService.getSession(client, id, userId);
 
