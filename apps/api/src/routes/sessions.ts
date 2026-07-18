@@ -13,7 +13,7 @@ import { streamSSE } from "hono/streaming";
 import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
-import { requireUserId, getRequestUserId } from "../middleware/user-context.js";
+import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUserId } from "../middleware/user-context.js";
 import { getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
 import * as sessionService from "../services/session-service.js";
 
@@ -129,13 +129,19 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
 });
 
 /** Public share-by-link: session UUID is the capability (no ownership check). */
-sessionRoutes.get("/sessions/:id", async (c) => {
+sessionRoutes.get("/sessions/:id", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
   const session = await sessionService.getSession(client, sessionIdParam(c));
   if (!session) {
     return c.json({ error: "Session not found" }, 404);
   }
-  return c.json(session);
+
+  const requesterId = getOptionalRequestUserId(c);
+  if (requesterId && session.userId === requesterId) {
+    return c.json(session);
+  }
+
+  return c.json(sessionService.toShareSession(session));
 });
 
 sessionRoutes.delete("/sessions/:id", requireUserId(), async (c) => {
@@ -149,10 +155,19 @@ sessionRoutes.delete("/sessions/:id", requireUserId(), async (c) => {
 });
 
 /** Public share-by-link: final agent report for a completed run. */
-sessionRoutes.get("/sessions/:id/report", async (c) => {
+sessionRoutes.get("/sessions/:id/report", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
-  const report = await sessionService.getSessionReport(client, id);
+  const requesterId = getOptionalRequestUserId(c);
+  const session = await sessionService.getSession(client, id);
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const isOwner = Boolean(requesterId && session.userId === requesterId);
+  const report = await sessionService.getSessionReport(client, id, undefined, {
+    allowSideEffects: isOwner,
+  });
 
   if (report === "not_found") {
     return c.json({ error: "Session not found" }, 404);
@@ -165,10 +180,19 @@ sessionRoutes.get("/sessions/:id/report", async (c) => {
 });
 
 /** Public share-by-link: Trade Check chart payload. */
-sessionRoutes.get("/sessions/:id/trade-check", async (c) => {
+sessionRoutes.get("/sessions/:id/trade-check", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
-  const tradeCheck = await sessionService.getSessionTradeCheck(client, id);
+  const requesterId = getOptionalRequestUserId(c);
+  const session = await sessionService.getSession(client, id);
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const isOwner = Boolean(requesterId && session.userId === requesterId);
+  const tradeCheck = await sessionService.getSessionTradeCheck(client, id, undefined, {
+    allowSideEffects: isOwner,
+  });
 
   if (tradeCheck === "not_found") {
     return c.json({ error: "Session not found" }, 404);

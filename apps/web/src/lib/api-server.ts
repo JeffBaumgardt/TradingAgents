@@ -82,11 +82,11 @@ export async function fetchSessionsServer(
   return parseJson<SessionListResponse>(response);
 }
 
-/** Fetch session metadata for run page shell (short cache; public share-by-link). */
+/** Fetch session metadata for run page shell (no shared cache across auth states). */
 export async function fetchSessionServer(sessionId: string): Promise<Session> {
   const response = await fetchWithTimeout(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
     headers: await buildOptionalServerAuthHeaders(),
-    next: { revalidate: SESSIONS_REVALIDATE_SECONDS },
+    cache: "no-store",
   });
   return parseJson<Session>(response);
 }

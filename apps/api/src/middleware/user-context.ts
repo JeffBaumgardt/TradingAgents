@@ -75,10 +75,39 @@ export function requireUserId() {
   };
 }
 
+/**
+ * Attach a verified Clerk user id when a Bearer token is present.
+ * Missing or invalid tokens leave the request anonymous (no 401).
+ */
+export function optionalUserId() {
+  return async (c: Context, next: Next) => {
+    const token = extractBearerToken(c.req.header("Authorization"));
+    if (!token) {
+      await next();
+      return;
+    }
+
+    try {
+      const payload = await verifySessionToken(token);
+      if (payload.sub) {
+        c.set("userId", payload.sub);
+      }
+    } catch {
+      // Anonymous share viewers may send stale tokens; ignore verification failures.
+    }
+
+    await next();
+  };
+}
+
 export function getRequestUserId(c: Context): string {
   const userId = c.get("userId") as string | undefined;
   if (!userId) {
     throw new Error("User id missing from request context");
   }
   return userId;
+}
+
+export function getOptionalRequestUserId(c: Context): string | undefined {
+  return c.get("userId") as string | undefined;
 }

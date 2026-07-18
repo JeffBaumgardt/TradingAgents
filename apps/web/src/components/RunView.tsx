@@ -49,6 +49,7 @@ import {
   fetchSessionReport,
   fetchSessionTradeCheck,
   subscribeToSessionStream,
+  ApiClientError,
 } from "@/lib/api-client";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
 import AgentProgressCard from "@/components/AgentProgressCard";
@@ -597,10 +598,20 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         if (!cancelled) {
           setConnected(true);
         }
-      } catch {
-        // Signed-in non-owners (or expired tokens) fall back to the public share view.
-        if (!cancelled) {
+      } catch (error) {
+        const isNotFound =
+          error instanceof ApiClientError && error.status === 404;
+        if (isNotFound && !cancelled) {
+          // Signed-in non-owners fall back to the public share view.
           await loadSharedTerminalSession(status);
+          return;
+        }
+        if (!cancelled) {
+          setRunError({
+            message:
+              error instanceof Error ? error.message : "Failed to load run data",
+            hint: "Try refreshing this page.",
+          });
         }
       }
     }
@@ -639,12 +650,16 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       setHasPrivateAccess(false);
       setConnected(true);
 
+      let consecutiveFailures = 0;
+      const maxConsecutiveFailures = 3;
+
       while (!cancelled) {
         try {
           const session = await fetchSession(sessionId);
           if (cancelled) {
             return;
           }
+          consecutiveFailures = 0;
           setSessionMeta(session);
           setSelectedAnalysts(session.config.analysts);
 
@@ -680,13 +695,19 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           }
           return;
         } catch {
-          if (!cancelled) {
-            setRunError({
-              message: "Failed to load session",
-              hint: "Try refreshing this page.",
-            });
+          consecutiveFailures += 1;
+          if (consecutiveFailures >= maxConsecutiveFailures) {
+            if (!cancelled) {
+              setRunError({
+                message: "Failed to load session",
+                hint: "Try refreshing this page.",
+              });
+            }
+            return;
           }
-          return;
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, SHARED_RUN_POLL_MS * consecutiveFailures);
+          });
         }
       }
     }
@@ -736,9 +757,21 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
             return;
           }
           startLiveStream();
-        } catch {
-          if (!cancelled) {
+        } catch (error) {
+          const isNotFound =
+            error instanceof ApiClientError && error.status === 404;
+          if (isNotFound && !cancelled) {
             await pollSharedLiveSession();
+            return;
+          }
+          if (!cancelled) {
+            setRunError({
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to load live run",
+              hint: "Try refreshing this page.",
+            });
           }
         }
         return;
