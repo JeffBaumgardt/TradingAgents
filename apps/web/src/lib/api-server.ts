@@ -25,6 +25,16 @@ async function buildServerAuthHeaders(): Promise<HeadersInit> {
   return { Authorization: `Bearer ${token}` };
 }
 
+/** Auth when present; empty headers for public share-by-link fetches. */
+async function buildOptionalServerAuthHeaders(): Promise<HeadersInit> {
+  const { getToken } = await auth();
+  const token = await getToken();
+  if (!token) {
+    return {};
+  }
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function fetchWithTimeout(
   input: string,
   init?: RequestInit & { next?: { revalidate?: number } },
@@ -72,11 +82,11 @@ export async function fetchSessionsServer(
   return parseJson<SessionListResponse>(response);
 }
 
-/** Fetch session metadata for run page shell (short cache). */
+/** Fetch session metadata for run page shell (no shared cache across auth states). */
 export async function fetchSessionServer(sessionId: string): Promise<Session> {
   const response = await fetchWithTimeout(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
-    headers: await buildServerAuthHeaders(),
-    next: { revalidate: SESSIONS_REVALIDATE_SECONDS },
+    headers: await buildOptionalServerAuthHeaders(),
+    cache: "no-store",
   });
   return parseJson<Session>(response);
 }

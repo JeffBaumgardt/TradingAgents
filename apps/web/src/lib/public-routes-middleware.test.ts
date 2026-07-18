@@ -19,8 +19,11 @@ describe("Clerk public route matcher", () => {
   it("treats only the root landing path as public, not every app route", () => {
     assert.equal(isPublicRoute(createRequest("/")), true);
     assert.equal(isPublicRoute(createRequest("/dashboard")), false);
-    assert.equal(isPublicRoute(createRequest("/run/session-123")), false);
     assert.equal(isPublicRoute(createRequest("/settings/credentials")), false);
+  });
+
+  it("treats shared run links as public", () => {
+    assert.equal(isPublicRoute(createRequest("/run/session-123")), true);
   });
 
   it("treats marketing, auth, and webhook routes as public", () => {

@@ -11,6 +11,7 @@ import {
   deleteSession,
   getSession,
   listSessions,
+  toShareSession,
   validateCreateRequest,
 } from "./session-service.js";
 
@@ -59,6 +60,34 @@ describe("session-service ownership", () => {
 
     assert.notEqual(await getSession(client, "session-a-1", USER_A), null);
     assert.equal(await getSession(client, "session-a-1", USER_B), null);
+  });
+
+  it("allows reading a session by id without a userId for share links", async () => {
+    const client = createInMemorySupabase();
+    await insertSession(client, "session-share-1", USER_A, "AAPL");
+
+    const shared = await getSession(client, "session-share-1");
+    assert.notEqual(shared, null);
+    assert.equal(shared?.ticker, "AAPL");
+  });
+
+  it("redacts owner fields for anonymous share payloads", async () => {
+    const client = createInMemorySupabase();
+    await insertSession(client, "session-share-2", USER_A, "MSFT");
+
+    const session = await getSession(client, "session-share-2");
+    assert.ok(session);
+    session.config.userContext = "private thesis notes";
+
+    const share = toShareSession(session);
+    assert.equal(share.userId, null);
+    assert.equal(share.runId, null);
+    assert.equal(share.error, null);
+    assert.equal(share.config.userContext, undefined);
+    assert.equal(share.config.backendUrl, undefined);
+    assert.equal(share.ticker, "MSFT");
+    assert.equal(session.userId, USER_A);
+    assert.equal(session.config.userContext, "private thesis notes");
   });
 
   it("prevents deleting another user's session", async () => {

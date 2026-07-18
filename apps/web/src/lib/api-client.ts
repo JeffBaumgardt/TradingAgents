@@ -186,7 +186,7 @@ export async function createSession(config: CreateSessionRequest): Promise<Sessi
   return parseJson<Session>(response);
 }
 
-/** Fetch session metadata (ticker, config, status). */
+/** Fetch session metadata (ticker, config, status). Public for share-by-link. */
 export async function fetchSession(sessionId: string): Promise<Session> {
   const response = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
     headers: await buildAuthHeaders(),
@@ -238,7 +238,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
   }
 }
 
-/** Fetch the final report for a completed session. */
+/** Fetch the final report for a completed session. Public for share-by-link. */
 export async function fetchSessionReport(sessionId: string): Promise<SessionReport> {
   const response = await fetch(
     `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/report`,

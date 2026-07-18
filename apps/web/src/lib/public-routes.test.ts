@@ -21,16 +21,21 @@ describe("isPublicPath", () => {
     assert.equal(isPublicPath("/api/webhooks/clerk"), true);
   });
 
+  it("treats shared run links as public", () => {
+    assert.equal(isPublicPath("/run"), true);
+    assert.equal(isPublicPath("/run/session-123"), true);
+  });
+
   it("requires authentication for app routes", () => {
     assert.equal(isPublicPath("/dashboard"), false);
     assert.equal(isPublicPath("/onboarding"), false);
     assert.equal(isPublicPath("/settings/credentials"), false);
-    assert.equal(isPublicPath("/run/session-123"), false);
   });
 
   it("does not treat other paths as public by prefix accident", () => {
     assert.equal(isPublicPath("/dashboard/sign-in"), false);
     assert.equal(isPublicPath("/sign-in-attempt"), false);
+    assert.equal(isPublicPath("/runner"), false);
   });
 
   it("exports the expected public route prefixes", () => {
@@ -40,6 +45,7 @@ describe("isPublicPath", () => {
       "/license",
       "/sign-in",
       "/sign-up",
+      "/run",
       "/api/webhooks",
     ]);
   });
@@ -47,5 +53,6 @@ describe("isPublicPath", () => {
   it("keeps the landing matcher exact for middleware", () => {
     assert.equal(PUBLIC_ROUTE_MATCHERS[0], "/");
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/sign-in(.*)"));
+    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/run(.*)"));
   });
 });

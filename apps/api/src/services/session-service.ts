@@ -44,6 +44,25 @@ function rowToSession(row: SessionRow): Session {
   };
 }
 
+/**
+ * Redact owner-scoped fields for anonymous share-by-link responses.
+ * Session UUID remains the capability; Clerk ids / run ids / private notes stay private.
+ */
+export function toShareSession(session: Session): Session {
+  const {
+    userContext: _userContext,
+    backendUrl: _backendUrl,
+    ...config
+  } = session.config;
+  return {
+    ...session,
+    userId: null,
+    runId: null,
+    error: null,
+    config,
+  };
+}
+
 function isSessionOwnedByUser(row: SessionRow, userId: string): boolean {
   return row.user_id === userId;
 }
@@ -173,6 +192,11 @@ export async function createSession(
   return session;
 }
 
+/**
+ * Load a session by id.
+ * When `userId` is provided, ownership is enforced (returns null for other users).
+ * When omitted, any session can be read — used for public share-by-link URLs.
+ */
 export async function getSession(
   client: AppSupabaseClient,
   id: string,
@@ -428,6 +452,7 @@ export async function getSessionReport(
   client: AppSupabaseClient,
   id: string,
   userId?: string,
+  options: { allowSideEffects?: boolean; requesterId?: string } = {},
 ): Promise<SessionReport | "not_found" | "not_ready"> {
   const { data: row, error } = await client
     .from("sessions")
@@ -447,9 +472,14 @@ export async function getSessionReport(
     return "not_found";
   }
 
+  const allowSideEffects =
+    options.requesterId !== undefined
+      ? isSessionOwnedByUser(sessionRow, options.requesterId)
+      : options.allowSideEffects !== false;
+
   if (sessionRow.status === "completed" && sessionRow.report_markdown) {
     let tradeCheck = rowTradeCheck(sessionRow);
-    if (!tradeCheck) {
+    if (!tradeCheck && allowSideEffects) {
       tradeCheck = await backfillTradeCheckForSession(client, sessionRow);
     }
     return {
@@ -467,7 +497,7 @@ export async function getSessionReport(
     Object.values(storedSections).some((value) => Boolean(value))
   ) {
     let tradeCheck = rowTradeCheck(sessionRow);
-    if (!tradeCheck) {
+    if (!tradeCheck && allowSideEffects) {
       tradeCheck = await backfillTradeCheckForSession(client, sessionRow);
     }
     return {
@@ -479,7 +509,7 @@ export async function getSessionReport(
     };
   }
 
-  if (sessionRow.run_id && sessionRow.status === "running") {
+  if (allowSideEffects && sessionRow.run_id && sessionRow.status === "running") {
     try {
       const report = await agentsClient.fetchRunReport(sessionRow.run_id);
       await markSessionCompleted(client, id, {
@@ -604,6 +634,7 @@ export async function getSessionTradeCheck(
   client: AppSupabaseClient,
   id: string,
   userId?: string,
+  options: { allowSideEffects?: boolean; requesterId?: string } = {},
 ): Promise<SessionTradeCheckResponse | "not_found" | "not_ready" | "unavailable"> {
   const { data: row, error } = await client
     .from("sessions")
@@ -623,12 +654,20 @@ export async function getSessionTradeCheck(
     return "not_found";
   }
 
+  const allowSideEffects =
+    options.requesterId !== undefined
+      ? isSessionOwnedByUser(sessionRow, options.requesterId)
+      : options.allowSideEffects !== false;
+
   const stored = rowTradeCheck(sessionRow);
   if (sessionRow.status === "completed" && stored) {
     return { sessionId: id, tradeCheck: stored };
   }
 
   if (sessionRow.status === "completed" && !stored) {
+    if (!allowSideEffects) {
+      return "unavailable";
+    }
     const backfilled = await backfillTradeCheckForSession(client, sessionRow);
     if (backfilled) {
       return { sessionId: id, tradeCheck: backfilled };
@@ -636,7 +675,7 @@ export async function getSessionTradeCheck(
     return "unavailable";
   }
 
-  if (sessionRow.run_id && sessionRow.status === "running") {
+  if (allowSideEffects && sessionRow.run_id && sessionRow.status === "running") {
     try {
       const report = await agentsClient.fetchRunReport(sessionRow.run_id);
       if (report.tradeCheck) {

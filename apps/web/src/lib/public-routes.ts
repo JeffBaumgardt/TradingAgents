@@ -10,6 +10,7 @@ export const PUBLIC_ROUTE_PREFIXES = [
   "/license",
   "/sign-in",
   "/sign-up",
+  "/run",
   "/api/webhooks",
 ] as const;
 
@@ -20,6 +21,7 @@ export const PUBLIC_ROUTE_MATCHERS = [
   "/license",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/run(.*)",
   "/api/webhooks(.*)",
 ] as const;
 

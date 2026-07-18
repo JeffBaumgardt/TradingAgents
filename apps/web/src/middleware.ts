@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/middleware.ts
- * Protect app routes with Clerk; keep landing, sign-in, and webhook paths public.
+ * Protect app routes with Clerk; keep landing, shared runs, sign-in, and webhook paths public.
  * CSP is injected here via Clerk so FAPI hosts and clerk.browser.js load correctly.
  */
 
