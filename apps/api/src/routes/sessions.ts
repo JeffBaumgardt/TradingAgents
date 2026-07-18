@@ -6,6 +6,8 @@
  * Share-by-link reads (GET session / report / trade-check) are public: the
  * session UUID is the capability. Mutations, event history, and live streams
  * still require a verified Clerk session and are scoped to the owner.
+ *
+ * Note: anonymous GET must stay free of requireUserId() — share links depend on it.
  */
 
 import { Hono } from "hono";
