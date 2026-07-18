@@ -15,7 +15,10 @@ import {
 
 export const credentialsRoutes = new Hono();
 
-credentialsRoutes.use("*", requireUserId());
+// Scope auth to /credentials only — use("*") on an app mounted at "/" would
+// intercept later public routes (e.g. share-by-link GET /sessions/:id).
+credentialsRoutes.use("/credentials", requireUserId());
+credentialsRoutes.use("/credentials/*", requireUserId());
 
 credentialsRoutes.get("/credentials", async (c) => {
   const userId = getRequestUserId(c);
