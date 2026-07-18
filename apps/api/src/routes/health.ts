@@ -16,6 +16,8 @@ healthRoutes.get("/health", async (c) => {
   return c.json({
     status: agentsOk ? "ok" : "degraded",
     service: "tradingagents-api",
+    // Railway injects RAILWAY_GIT_COMMIT_SHA on deploy — used to confirm which build is live.
+    gitSha: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     agentsService: agentsOk ? "ok" : agents.reachable ? "misconfigured" : "unreachable",
     ...(agents.hint ? { agentsServiceHint: agents.hint } : {}),
     ...(agents.service ? { agentsServiceIdentity: agents.service } : {}),
