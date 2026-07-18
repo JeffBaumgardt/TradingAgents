@@ -51,10 +51,12 @@ export function createApp() {
 
   app.route("/", configRoutes);
   app.route("/", webhookRoutes);
+  // Public share-by-link session reads must be mounted before sub-apps that
+  // historically used use("*", requireUserId()) when mounted at "/".
+  app.route("/", sessionRoutes);
   app.route("/", credentialsRoutes);
   app.route("/", userRoutes);
   app.route("/", feedbackRoutes);
-  app.route("/", sessionRoutes);
 
   app.notFound((c) => c.json({ error: "Not found" }, 404));
 

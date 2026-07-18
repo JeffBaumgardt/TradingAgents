@@ -14,7 +14,10 @@ import {
 
 export const feedbackRoutes = new Hono();
 
-feedbackRoutes.use("*", requireUserId());
+// Scope auth to /feedback only — use("*") on an app mounted at "/" would
+// intercept later public routes (e.g. share-by-link GET /sessions/:id).
+feedbackRoutes.use("/feedback", requireUserId());
+feedbackRoutes.use("/feedback/*", requireUserId());
 
 feedbackRoutes.post("/feedback", async (c) => {
   const userId = getRequestUserId(c);
