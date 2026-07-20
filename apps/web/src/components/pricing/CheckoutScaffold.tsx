@@ -22,22 +22,52 @@ import {
 import shared from "./pricing-shared.module.css";
 import styles from "./CheckoutScaffold.module.css";
 
+function resolveCheckoutSelection(
+  planParam: string | null,
+  intervalParam: string | null,
+):
+  | { ok: true; planId: BillingPlanId; interval: BillingInterval }
+  | { ok: false; reason: string } {
+  const planMissing = planParam === null || planParam === "";
+  const intervalMissing = intervalParam === null || intervalParam === "";
+
+  if (planMissing && intervalMissing) {
+    return { ok: true, planId: "byok", interval: "monthly" };
+  }
+
+  if (!planMissing && !isPricingPlanId(planParam)) {
+    return {
+      ok: false,
+      reason: `Unknown plan “${planParam}”. Choose a plan from the pricing page.`,
+    };
+  }
+
+  if (!intervalMissing && !isBillingInterval(intervalParam)) {
+    return {
+      ok: false,
+      reason: `Unknown billing interval “${intervalParam}”. Use monthly or annual.`,
+    };
+  }
+
+  return {
+    ok: true,
+    planId: isPricingPlanId(planParam) ? planParam : "byok",
+    interval: isBillingInterval(intervalParam) ? intervalParam : "monthly",
+  };
+}
+
 export default function CheckoutScaffold() {
   const searchParams = useSearchParams();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const planParam = searchParams.get("plan");
-  const intervalParam = searchParams.get("interval");
-  const planId: BillingPlanId = isPricingPlanId(planParam) ? planParam : "byok";
-  const interval: BillingInterval = isBillingInterval(intervalParam)
-    ? intervalParam
-    : "monthly";
-  const plan = getPricingPlan(planId);
-  const price = displayPriceCents(plan, interval);
+  const selection = resolveCheckoutSelection(
+    searchParams.get("plan"),
+    searchParams.get("interval"),
+  );
 
-  async function handleContinueToPayment() {
+  async function handleContinueToPayment(planId: BillingPlanId, interval: BillingInterval) {
     setPending(true);
     setError(null);
     setMessage(null);
@@ -61,6 +91,39 @@ export default function CheckoutScaffold() {
       setPending(false);
     }
   }
+
+  if (!selection.ok) {
+    return (
+      <div className={styles.page}>
+        <Link href="/pricing" className={styles.backLink}>
+          ← Back to pricing
+        </Link>
+
+        <header className={styles.header}>
+          <p className={shared.eyebrow}>Checkout</p>
+          <h1 className={styles.title}>Invalid checkout link</h1>
+          <p className={styles.intro}>
+            This checkout URL has an invalid plan or billing interval. Return to pricing and
+            pick a plan again.
+          </p>
+        </header>
+
+        <p className={styles.error} role="alert">
+          {selection.reason}
+        </p>
+
+        <div className={styles.actions}>
+          <Link href="/pricing" className={shared.primaryButton} aria-label="View pricing">
+            View pricing
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const { planId, interval } = selection;
+  const plan = getPricingPlan(planId);
+  const price = displayPriceCents(plan, interval);
 
   return (
     <div className={styles.page}>
@@ -108,7 +171,7 @@ export default function CheckoutScaffold() {
           className={styles.primaryButton}
           aria-label="Continue to payment"
           disabled={pending}
-          onClick={() => void handleContinueToPayment()}
+          onClick={() => void handleContinueToPayment(planId, interval)}
         >
           {pending ? "Starting checkout…" : "Continue to payment"}
         </button>

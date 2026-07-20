@@ -38,4 +38,9 @@ describe("Clerk public route matcher", () => {
     assert.equal(isPublicRoute(createRequest("/api/webhooks/clerk")), true);
     assert.equal(isPublicRoute(createRequest("/pricing/options")), true);
   });
+
+  it("does not treat sibling pricing/checkout paths as public", () => {
+    assert.equal(isPublicRoute(createRequest("/pricing-settings")), false);
+    assert.equal(isPublicRoute(createRequest("/checkoutfoo")), false);
+  });
 });

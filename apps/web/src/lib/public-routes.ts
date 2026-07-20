@@ -21,8 +21,9 @@ export const PUBLIC_ROUTE_MATCHERS = [
   "/",
   "/privacy",
   "/license",
-  "/pricing(.*)",
-  "/checkout(.*)",
+  // Use `(/.*)?` (not `(.*)`) so sibling paths like `/pricing-settings` stay protected.
+  "/pricing(/.*)?",
+  "/checkout(/.*)?",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/run(.*)",

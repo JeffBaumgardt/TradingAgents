@@ -29,7 +29,7 @@ export default function PricingLayoutB() {
 
   const byok = PRICING_PLANS[0]!;
   const hosted = PRICING_PLANS[1]!;
-  const byokMonthlyLabel = formatUsdFromCents(byok.monthlyPriceCents);
+  const byokMonthlyLabel = formatUsdFromCents(displayPriceCents(byok, interval));
 
   const matrixRows = [
     {

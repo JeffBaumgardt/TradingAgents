@@ -57,8 +57,8 @@ describe("isPublicPath", () => {
 
   it("keeps the landing matcher exact for middleware", () => {
     assert.equal(PUBLIC_ROUTE_MATCHERS[0], "/");
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/pricing(.*)"));
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/checkout(.*)"));
+    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/pricing(/.*)?"));
+    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/checkout(/.*)?"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/sign-in(.*)"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/run(.*)"));
   });
