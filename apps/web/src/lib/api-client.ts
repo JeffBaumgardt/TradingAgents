@@ -4,6 +4,9 @@
  */
 
 import type {
+  BillingPlansResponse,
+  CheckoutRequest,
+  CheckoutResponse,
   ConfigOptions,
   CreateSessionRequest,
   CredentialsSchemaResponse,
@@ -225,6 +228,40 @@ export async function submitFeedback(
     cache: "no-store",
   });
   return parseJson<FeedbackResponse>(response);
+}
+
+/** Public billing catalog for pricing / checkout UIs. */
+export async function fetchBillingPlans(): Promise<BillingPlansResponse> {
+  const response = await fetch(`${API_BASE}/billing/plans`, {
+    cache: "no-store",
+  });
+  return parseJson<BillingPlansResponse>(response);
+}
+
+/**
+ * Start checkout. Returns the scaffold payload when the payment provider is
+ * not configured yet (HTTP 501 with status "not_configured").
+ */
+export async function createCheckoutSession(
+  body: CheckoutRequest,
+): Promise<CheckoutResponse> {
+  const response = await fetch(`${API_BASE}/billing/checkout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (response.status === 501) {
+    const payload = (await response.json()) as CheckoutResponse;
+    if (payload.status === "not_configured") {
+      return payload;
+    }
+  }
+
+  return parseJson<CheckoutResponse>(response);
 }
 
 /** Permanently delete a session and its stored events. */

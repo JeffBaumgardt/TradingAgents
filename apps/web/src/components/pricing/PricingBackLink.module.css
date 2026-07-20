@@ -1,0 +1,15 @@
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 0;
+}
+
+.link {
+  color: var(--color-link);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}

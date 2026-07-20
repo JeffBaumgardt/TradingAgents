@@ -360,6 +360,38 @@ export interface FeedbackResponse {
   ok: true;
 }
 
+export type BillingPlanId = "byok" | "hosted";
+
+export type BillingInterval = "monthly" | "annual";
+
+export interface BillingPlan {
+  id: BillingPlanId;
+  name: string;
+  monthlyPriceCents: number;
+  priceProvisional: boolean;
+  annualDiscountPercent: number;
+}
+
+export interface BillingPlansResponse {
+  plans: BillingPlan[];
+}
+
+export interface CheckoutRequest {
+  planId: BillingPlanId;
+  interval: BillingInterval;
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+/** Returned while the payment provider is not wired (HTTP 501). */
+export interface CheckoutResponse {
+  status: "not_configured";
+  planId: BillingPlanId;
+  interval: BillingInterval;
+  checkoutUrl: null;
+  message: string;
+}
+
 export interface AgentStatusEvent {
   agent: string;
   status: AgentStatusValue;

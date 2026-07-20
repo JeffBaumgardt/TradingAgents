@@ -110,12 +110,17 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
             </h2>
             <p className={styles.finalCtaCopy}>
               Create a free account, add your provider API key, and watch analyst, researcher,
-              trader, and risk agents collaborate on your next ticker. No subscription required
-              today.
+              trader, and risk agents collaborate on your next ticker. Bring-your-own-key starts at
+              $3/month to help cover infrastructure.
             </p>
-            <Link href="/sign-up" className={styles.primaryButton}>
-              Get started free
-            </Link>
+            <div className={styles.heroActions}>
+              <Link href="/sign-up" className={styles.primaryButton}>
+                Get started free
+              </Link>
+              <Link href="/pricing" className={styles.secondaryButton}>
+                View pricing
+              </Link>
+            </div>
           </div>
         </section>
 

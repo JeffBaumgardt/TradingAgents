@@ -36,6 +36,9 @@ export default function SiteFooter({ disclaimer }: SiteFooterProps) {
           </p>
         </div>
         <nav className={styles.nav} aria-label="Legal and feedback">
+          <Link href="/pricing" className={styles.link}>
+            Pricing
+          </Link>
           <Link href="/privacy" className={styles.link}>
             Privacy & cookies
           </Link>

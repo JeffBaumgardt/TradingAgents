@@ -1,0 +1,157 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 3.5rem;
+  display: grid;
+  gap: 2rem;
+}
+
+.hero {
+  max-width: 40rem;
+  margin: 0 auto;
+  text-align: center;
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  line-height: 1.1;
+}
+
+.intro {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.annualHint {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.9rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.card,
+.cardFeatured {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 1rem;
+  background: var(--color-bg-surface);
+  padding: 1.5rem;
+  box-shadow: 0 18px 48px rgba(28, 25, 23, 0.06);
+}
+
+.cardFeatured {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-subtle));
+  box-shadow: 0 22px 56px rgba(21, 128, 61, 0.12);
+}
+
+.cardBadge {
+  margin: 0;
+  width: fit-content;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.cardTagline {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.priceRow {
+  margin: 0.25rem 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.price {
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.priceSuffix {
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+.priceCaption,
+.bestFor {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.sharedBand {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 1rem;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-bg-surface) 88%, var(--color-primary) 12%),
+    var(--color-bg-surface)
+  );
+  padding: 1.5rem;
+}
+
+.bandTitle {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+}
+
+.sharedGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sharedGrid li {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sharedGrid strong {
+  font-size: 0.98rem;
+}
+
+.sharedGrid span {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 800px) {
+  .cards,
+  .sharedGrid {
+    grid-template-columns: 1fr;
+  }
+}

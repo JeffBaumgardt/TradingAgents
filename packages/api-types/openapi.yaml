@@ -15,6 +15,7 @@ tags:
   - name: users
   - name: sessions
   - name: feedback
+  - name: billing
 paths:
   /health:
     get:
@@ -101,6 +102,48 @@ paths:
                 $ref: "#/components/schemas/StoredCredentialsResponse"
         "401":
           description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /billing/plans:
+    get:
+      tags: [billing]
+      summary: List subscription plans
+      description: |
+        Public pricing catalog for marketing and checkout scaffolding.
+        Annual billing is 20% off the monthly list price.
+      operationId: listBillingPlans
+      responses:
+        "200":
+          description: Billing plan catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPlansResponse"
+  /billing/checkout:
+    post:
+      tags: [billing]
+      summary: Start checkout (scaffold)
+      description: |
+        Validates plan selection and returns a not_configured payload until a
+        payment provider (e.g. Stripe Checkout) is integrated.
+      operationId: createCheckoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "501":
+          description: Checkout route exists but payment provider is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "400":
+          description: Invalid checkout payload
           content:
             application/json:
               schema:
@@ -641,6 +684,66 @@ components:
         ok:
           type: boolean
           enum: [true]
+    BillingPlanId:
+      type: string
+      enum: [byok, hosted]
+    BillingInterval:
+      type: string
+      enum: [monthly, annual]
+    BillingPlan:
+      type: object
+      required:
+        [id, name, monthlyPriceCents, priceProvisional, annualDiscountPercent]
+      properties:
+        id:
+          $ref: "#/components/schemas/BillingPlanId"
+        name:
+          type: string
+        monthlyPriceCents:
+          type: integer
+          minimum: 0
+        priceProvisional:
+          type: boolean
+        annualDiscountPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+    BillingPlansResponse:
+      type: object
+      required: [plans]
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingPlan"
+    CheckoutRequest:
+      type: object
+      required: [planId, interval]
+      properties:
+        planId:
+          $ref: "#/components/schemas/BillingPlanId"
+        interval:
+          $ref: "#/components/schemas/BillingInterval"
+        successUrl:
+          type: string
+        cancelUrl:
+          type: string
+    CheckoutResponse:
+      type: object
+      required: [status, planId, interval, checkoutUrl, message]
+      properties:
+        status:
+          type: string
+          enum: [not_configured]
+        planId:
+          $ref: "#/components/schemas/BillingPlanId"
+        interval:
+          $ref: "#/components/schemas/BillingInterval"
+        checkoutUrl:
+          type: string
+          nullable: true
+        message:
+          type: string
     AnalystType:
       type: string
       enum: [market, social, news, fundamentals]
