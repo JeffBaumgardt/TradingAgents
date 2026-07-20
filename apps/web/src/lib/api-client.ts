@@ -4,7 +4,6 @@
  */
 
 import type {
-  BillingPlansResponse,
   CheckoutRequest,
   CheckoutResponse,
   ConfigOptions,
@@ -228,14 +227,6 @@ export async function submitFeedback(
     cache: "no-store",
   });
   return parseJson<FeedbackResponse>(response);
-}
-
-/** Public billing catalog for pricing / checkout UIs. */
-export async function fetchBillingPlans(): Promise<BillingPlansResponse> {
-  const response = await fetch(`${API_BASE}/billing/plans`, {
-    cache: "no-store",
-  });
-  return parseJson<BillingPlansResponse>(response);
 }
 
 /**

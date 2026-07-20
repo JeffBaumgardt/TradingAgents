@@ -233,5 +233,3 @@ apps/web/.env.local
 
 # API SQLite database (local dev)
 **/tradingagents-api.db
-
-.vscode/

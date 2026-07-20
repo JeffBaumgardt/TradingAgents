@@ -148,7 +148,9 @@ export default function PricingLayoutB() {
       </div>
 
       <aside className={styles.callout} aria-label="Platform fee framing">
-        <h2 className={styles.calloutTitle}>Why a $3 platform fee?</h2>
+        <h2 className={styles.calloutTitle}>
+          Why a {byokMonthlyLabel} platform fee?
+        </h2>
         <p className={styles.calloutCopy}>{PRICING_PAGE.infraFraming}</p>
         <p className={shared.note}>{PRICING_PAGE.provisionalNote}</p>
       </aside>
