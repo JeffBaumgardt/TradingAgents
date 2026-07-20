@@ -4,31 +4,17 @@
  * Billing catalog + checkout scaffold. Payment provider (e.g. Stripe) comes later.
  */
 
-export type BillingPlanId = "byok" | "hosted";
-export type BillingInterval = "monthly" | "annual";
+import {
+  BILLING_CATALOG,
+  type BillingInterval,
+  type BillingPlan,
+  type BillingPlanId,
+  type CheckoutResponse,
+  isBillingInterval,
+  isBillingPlanId,
+} from "@tradingagents/api-types";
 
-export interface BillingPlan {
-  id: BillingPlanId;
-  name: string;
-  monthlyPriceCents: number;
-  priceProvisional: boolean;
-  annualDiscountPercent: number;
-}
-
-export interface CheckoutRequest {
-  planId: BillingPlanId;
-  interval: BillingInterval;
-  successUrl?: string;
-  cancelUrl?: string;
-}
-
-export interface CheckoutResponse {
-  status: "not_configured";
-  planId: BillingPlanId;
-  interval: BillingInterval;
-  checkoutUrl: null;
-  message: string;
-}
+export type { BillingInterval, BillingPlan, BillingPlanId };
 
 export class BillingServiceError extends Error {
   status: number;
@@ -40,40 +26,14 @@ export class BillingServiceError extends Error {
   }
 }
 
-export const ANNUAL_DISCOUNT_PERCENT = 20;
-
-export const BILLING_PLANS: BillingPlan[] = [
-  {
-    id: "byok",
-    name: "Bring your own key",
-    monthlyPriceCents: 300,
-    priceProvisional: false,
-    annualDiscountPercent: ANNUAL_DISCOUNT_PERCENT,
-  },
-  {
-    id: "hosted",
-    name: "Hosted models",
-    monthlyPriceCents: 2900,
-    priceProvisional: true,
-    annualDiscountPercent: ANNUAL_DISCOUNT_PERCENT,
-  },
-];
-
 export function listBillingPlans(): { plans: BillingPlan[] } {
-  return { plans: BILLING_PLANS };
-}
-
-function isBillingPlanId(value: unknown): value is BillingPlanId {
-  return value === "byok" || value === "hosted";
-}
-
-function isBillingInterval(value: unknown): value is BillingInterval {
-  return value === "monthly" || value === "annual";
+  return { plans: [...BILLING_CATALOG] };
 }
 
 /**
  * Validates checkout intent and returns a scaffold response.
  * Replace the body with a real Stripe Checkout Session create call later.
+ * successUrl/cancelUrl are intentionally omitted until an origin allowlist exists.
  */
 export function createCheckoutSession(body: unknown): CheckoutResponse {
   if (!body || typeof body !== "object") {
@@ -81,18 +41,20 @@ export function createCheckoutSession(body: unknown): CheckoutResponse {
   }
 
   const payload = body as Record<string, unknown>;
-  if (!isBillingPlanId(payload.planId)) {
+  if (!isBillingPlanId(typeof payload.planId === "string" ? payload.planId : null)) {
     throw new BillingServiceError("planId must be 'byok' or 'hosted'", 400);
   }
-  if (!isBillingInterval(payload.interval)) {
+  if (
+    !isBillingInterval(typeof payload.interval === "string" ? payload.interval : null)
+  ) {
     throw new BillingServiceError("interval must be 'monthly' or 'annual'", 400);
   }
 
-  if (payload.successUrl !== undefined && typeof payload.successUrl !== "string") {
-    throw new BillingServiceError("successUrl must be a string when provided", 400);
-  }
-  if (payload.cancelUrl !== undefined && typeof payload.cancelUrl !== "string") {
-    throw new BillingServiceError("cancelUrl must be a string when provided", 400);
+  if ("successUrl" in payload || "cancelUrl" in payload) {
+    throw new BillingServiceError(
+      "successUrl and cancelUrl are not accepted until checkout redirect allowlisting is implemented",
+      400,
+    );
   }
 
   return {

@@ -12,7 +12,7 @@ interface PricingBackLinkProps {
 }
 
 export default function PricingBackLink({
-  href = "/pricing",
+  href = "/pricing/options",
   label = "← All layout options",
 }: PricingBackLinkProps) {
   return (

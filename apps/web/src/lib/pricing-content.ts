@@ -1,6 +1,9 @@
 /**
  * @file apps/web/src/lib/pricing-content.ts
- * Shared pricing catalog, copy, and helpers for marketing layout options.
+ * Marketing copy and helpers for pricing layouts.
+ *
+ * Plan cents / names come from `@tradingagents/api-types` (BILLING_CATALOG) so
+ * the API and UI cannot drift.
  *
  * Model (industry hybrid pattern):
  * - BYOK + flat platform fee covers app infra (compute, storage, orchestration).
@@ -8,23 +11,41 @@
  * - Annual billing is 20% off the monthly rate (billed up front).
  */
 
-export type PricingPlanId = "byok" | "hosted";
-export type BillingInterval = "monthly" | "annual";
+import {
+  BILLING_ANNUAL_DISCOUNT_PERCENT,
+  BILLING_CATALOG,
+  billingAnnualMonthlyEquivalentCents,
+  billingAnnualTotalCents,
+  getBillingPlan,
+  isBillingInterval,
+  isBillingPlanId,
+  type BillingInterval,
+  type BillingPlanId,
+} from "@tradingagents/api-types";
+
+export type { BillingInterval, BillingPlanId };
 
 export interface PricingPlan {
-  id: PricingPlanId;
+  id: BillingPlanId;
   name: string;
   tagline: string;
-  /** Monthly list price in USD cents. */
   monthlyPriceCents: number;
-  /** When true, price is provisional until a market rate is finalized. */
   priceProvisional: boolean;
   ctaLabel: string;
   highlights: string[];
   bestFor: string;
 }
 
-export const ANNUAL_DISCOUNT_PERCENT = 20;
+export const ANNUAL_DISCOUNT_PERCENT = BILLING_ANNUAL_DISCOUNT_PERCENT;
+
+export function formatUsdFromCents(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
 
 /** Shared product capabilities available on every paid plan. */
 export const PRICING_SHARED_FEATURES = [
@@ -42,28 +63,25 @@ export const PRICING_SHARED_FEATURES = [
   },
 ] as const;
 
-export const PRICING_PLANS: PricingPlan[] = [
-  {
-    id: "byok",
-    name: "Bring your own key",
+const BYOK_MONTHLY_LABEL = formatUsdFromCents(getBillingPlan("byok").monthlyPriceCents);
+
+const PLAN_MARKETING: Record<
+  BillingPlanId,
+  Pick<PricingPlan, "tagline" | "ctaLabel" | "bestFor" | "highlights">
+> = {
+  byok: {
     tagline: "Use your provider keys. We keep the research workspace online.",
-    monthlyPriceCents: 300,
-    priceProvisional: false,
     ctaLabel: "Start with your keys",
     bestFor: "Traders who already have OpenAI, Anthropic, or another provider account.",
     highlights: [
-      "Flat $3/month platform fee — helps cover hosting and app infrastructure",
+      `Flat ${BYOK_MONTHLY_LABEL}/month platform fee — helps cover hosting and app infrastructure`,
       "You pay model usage directly to your provider (no token markup from us)",
       "Full multi-agent research pipeline",
       ...PRICING_SHARED_FEATURES.map((feature) => feature.title),
     ],
   },
-  {
-    id: "hosted",
-    name: "Hosted models",
+  hosted: {
     tagline: "Skip key setup and pick from a wide catalog of models we operate.",
-    monthlyPriceCents: 2900,
-    priceProvisional: true,
     ctaLabel: "Start with hosted models",
     bestFor: "Anyone who wants model choice without managing API keys.",
     highlights: [
@@ -73,7 +91,15 @@ export const PRICING_PLANS: PricingPlan[] = [
       ...PRICING_SHARED_FEATURES.map((feature) => feature.title),
     ],
   },
-];
+};
+
+export const PRICING_PLANS: PricingPlan[] = BILLING_CATALOG.map((plan) => ({
+  id: plan.id,
+  name: plan.name,
+  monthlyPriceCents: plan.monthlyPriceCents,
+  priceProvisional: plan.priceProvisional,
+  ...PLAN_MARKETING[plan.id],
+}));
 
 export const PRICING_PAGE = {
   eyebrow: "Simple pricing",
@@ -83,8 +109,7 @@ export const PRICING_PAGE = {
   annualNote: "Annual billing saves 20% versus paying month to month.",
   provisionalNote:
     "Hosted models pricing is provisional while we finalize a market rate. The checkout flow is scaffolded and not charged yet.",
-  infraFraming:
-    "The $3 Bring your own key plan is a platform fee — it helps pay for the servers, databases, and orchestration that run TradingAgents. Model tokens still bill to your provider.",
+  infraFraming: `The ${BYOK_MONTHLY_LABEL} Bring your own key plan is a platform fee — it helps pay for the servers, databases, and orchestration that run TradingAgents. Model tokens still bill to your provider.`,
 } as const;
 
 export const PRICING_LAYOUT_OPTIONS = [
@@ -108,34 +133,21 @@ export const PRICING_LAYOUT_OPTIONS = [
   },
 ] as const;
 
-export function getPricingPlan(planId: PricingPlanId): PricingPlan {
-  const plan = PRICING_PLANS.find((entry) => entry.id === planId);
-  if (!plan) {
-    throw new Error(`Unknown pricing plan: ${planId}`);
-  }
-  return plan;
+export function getPricingPlan(planId: BillingPlanId): PricingPlan {
+  const catalog = getBillingPlan(planId);
+  return {
+    id: catalog.id,
+    name: catalog.name,
+    monthlyPriceCents: catalog.monthlyPriceCents,
+    priceProvisional: catalog.priceProvisional,
+    ...PLAN_MARKETING[planId],
+  };
 }
 
-/** Annual total in cents after the 20% discount (billed once per year). */
-export function annualTotalCents(monthlyPriceCents: number): number {
-  return Math.round(monthlyPriceCents * 12 * (1 - ANNUAL_DISCOUNT_PERCENT / 100));
-}
+export const annualTotalCents = billingAnnualTotalCents;
+export const annualMonthlyEquivalentCents = billingAnnualMonthlyEquivalentCents;
 
-/** Effective monthly rate when paying annually. */
-export function annualMonthlyEquivalentCents(monthlyPriceCents: number): number {
-  return Math.round(annualTotalCents(monthlyPriceCents) / 12);
-}
-
-export function formatUsdFromCents(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-export function buildCheckoutHref(planId: PricingPlanId, interval: BillingInterval): string {
+export function buildCheckoutHref(planId: BillingPlanId, interval: BillingInterval): string {
   const params = new URLSearchParams({
     plan: planId,
     interval,
@@ -143,12 +155,10 @@ export function buildCheckoutHref(planId: PricingPlanId, interval: BillingInterv
   return `/checkout?${params.toString()}`;
 }
 
-export function isPricingPlanId(value: string | null | undefined): value is PricingPlanId {
-  return value === "byok" || value === "hosted";
-}
+export { isBillingInterval, isBillingPlanId };
 
-export function isBillingInterval(value: string | null | undefined): value is BillingInterval {
-  return value === "monthly" || value === "annual";
+export function isPricingPlanId(value: string | null | undefined): value is BillingPlanId {
+  return isBillingPlanId(value);
 }
 
 export function displayPriceCents(plan: PricingPlan, interval: BillingInterval): number {

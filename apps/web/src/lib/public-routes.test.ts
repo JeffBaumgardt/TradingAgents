@@ -51,7 +51,6 @@ describe("isPublicPath", () => {
       "/sign-in",
       "/sign-up",
       "/run",
-      "/api/billing",
       "/api/webhooks",
     ]);
   });
@@ -60,7 +59,6 @@ describe("isPublicPath", () => {
     assert.equal(PUBLIC_ROUTE_MATCHERS[0], "/");
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/pricing(.*)"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/checkout(.*)"));
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/api/billing(.*)"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/sign-in(.*)"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/run(.*)"));
   });

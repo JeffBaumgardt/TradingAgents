@@ -36,6 +36,6 @@ describe("Clerk public route matcher", () => {
     assert.equal(isPublicRoute(createRequest("/sign-in/factor-one")), true);
     assert.equal(isPublicRoute(createRequest("/sign-up")), true);
     assert.equal(isPublicRoute(createRequest("/api/webhooks/clerk")), true);
-    assert.equal(isPublicRoute(createRequest("/api/billing/checkout")), true);
+    assert.equal(isPublicRoute(createRequest("/pricing/options")), true);
   });
 });

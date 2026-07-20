@@ -16,7 +16,7 @@ export default function PricingLayoutAPage() {
   return (
     <>
       <PricingBackLink />
-      <PricingLayoutA />
+      <PricingLayoutA showLayoutLabel />
     </>
   );
 }

@@ -13,7 +13,6 @@ export const PUBLIC_ROUTE_PREFIXES = [
   "/sign-in",
   "/sign-up",
   "/run",
-  "/api/billing",
   "/api/webhooks",
 ] as const;
 
@@ -27,7 +26,6 @@ export const PUBLIC_ROUTE_MATCHERS = [
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/run(.*)",
-  "/api/billing(.*)",
   "/api/webhooks(.*)",
 ] as const;
 

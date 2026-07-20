@@ -254,14 +254,32 @@ export async function createCheckoutSession(
     cache: "no-store",
   });
 
-  if (response.status === 501) {
-    const payload = (await response.json()) as CheckoutResponse;
-    if (payload.status === "not_configured") {
-      return payload;
-    }
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ApiClientError(response.statusText || "Invalid checkout response", response.status);
   }
 
-  return parseJson<CheckoutResponse>(response);
+  if (
+    response.status === 501 &&
+    payload &&
+    typeof payload === "object" &&
+    "status" in payload &&
+    (payload as CheckoutResponse).status === "not_configured"
+  ) {
+    return payload as CheckoutResponse;
+  }
+
+  if (!response.ok) {
+    const errorBody = payload as { error?: string; message?: string };
+    throw new ApiClientError(
+      errorBody.error ?? errorBody.message ?? response.statusText,
+      response.status,
+    );
+  }
+
+  return payload as CheckoutResponse;
 }
 
 /** Permanently delete a session and its stored events. */

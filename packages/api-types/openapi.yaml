@@ -724,10 +724,9 @@ components:
           $ref: "#/components/schemas/BillingPlanId"
         interval:
           $ref: "#/components/schemas/BillingInterval"
-        successUrl:
-          type: string
-        cancelUrl:
-          type: string
+      description: |
+        Redirect URLs are intentionally omitted until an origin allowlist is
+        implemented for the payment provider integration.
     CheckoutResponse:
       type: object
       required: [status, planId, interval, checkoutUrl, message]
@@ -742,6 +741,7 @@ components:
         checkoutUrl:
           type: string
           nullable: true
+          description: Checkout URL when a payment provider is configured; null in scaffold mode.
         message:
           type: string
     AnalystType:

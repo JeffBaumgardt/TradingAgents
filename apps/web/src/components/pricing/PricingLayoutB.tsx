@@ -20,53 +20,54 @@ import {
 import shared from "./pricing-shared.module.css";
 import styles from "./PricingLayoutB.module.css";
 
-const MATRIX_ROWS = [
-  {
-    label: "Platform / infrastructure fee",
-    byok: "Yes — $3/mo keeps the app online",
-    hosted: "Included in plan price",
-  },
-  {
-    label: "Model API keys",
-    byok: "You bring your own",
-    hosted: "We provide them",
-  },
-  {
-    label: "Model catalog",
-    byok: "Whatever your provider supports",
-    hosted: "Wide curated array of models",
-  },
-  {
-    label: "Token / usage billing",
-    byok: "Billed by your provider",
-    hosted: "Bundled into the hosted plan",
-  },
-  {
-    label: "Detailed charts",
-    byok: "Included",
-    hosted: "Included",
-  },
-  {
-    label: "Share reports by link",
-    byok: "Included",
-    hosted: "Included",
-  },
-  {
-    label: "In-product feedback",
-    byok: "Included",
-    hosted: "Included",
-  },
-] as const;
-
 export default function PricingLayoutB() {
-  const [interval, setInterval] = useState<BillingInterval>("annual");
+  const [interval, setInterval] = useState<BillingInterval>("monthly");
 
   function handleIntervalChange(next: BillingInterval) {
     setInterval(next);
   }
 
-  const byok = PRICING_PLANS[0];
-  const hosted = PRICING_PLANS[1];
+  const byok = PRICING_PLANS[0]!;
+  const hosted = PRICING_PLANS[1]!;
+  const byokMonthlyLabel = formatUsdFromCents(byok.monthlyPriceCents);
+
+  const matrixRows = [
+    {
+      label: "Platform / infrastructure fee",
+      byok: `Yes — ${byokMonthlyLabel}/mo keeps the app online`,
+      hosted: "Included in plan price",
+    },
+    {
+      label: "Model API keys",
+      byok: "You bring your own",
+      hosted: "We provide them",
+    },
+    {
+      label: "Model catalog",
+      byok: "Whatever your provider supports",
+      hosted: "Wide curated array of models",
+    },
+    {
+      label: "Token / usage billing",
+      byok: "Billed by your provider",
+      hosted: "Bundled into the hosted plan",
+    },
+    {
+      label: "Detailed charts",
+      byok: "Included",
+      hosted: "Included",
+    },
+    {
+      label: "Share reports by link",
+      byok: "Included",
+      hosted: "Included",
+    },
+    {
+      label: "In-product feedback",
+      byok: "Included",
+      hosted: "Included",
+    },
+  ] as const;
 
   return (
     <div className={styles.page}>
@@ -135,7 +136,7 @@ export default function PricingLayoutB() {
             </tr>
           </thead>
           <tbody>
-            {MATRIX_ROWS.map((row) => (
+            {matrixRows.map((row) => (
               <tr key={row.label}>
                 <th scope="row">{row.label}</th>
                 <td>{row.byok}</td>

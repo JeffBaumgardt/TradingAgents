@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import { createCheckoutSession, ApiClientError } from "@/lib/api-client";
 import {
   displayPriceCaption,
@@ -17,7 +17,7 @@ import {
   isBillingInterval,
   isPricingPlanId,
   type BillingInterval,
-  type PricingPlanId,
+  type BillingPlanId,
 } from "@/lib/pricing-content";
 import shared from "./pricing-shared.module.css";
 import styles from "./CheckoutScaffold.module.css";
@@ -30,7 +30,7 @@ export default function CheckoutScaffold() {
 
   const planParam = searchParams.get("plan");
   const intervalParam = searchParams.get("interval");
-  const planId: PricingPlanId = isPricingPlanId(planParam) ? planParam : "byok";
+  const planId: BillingPlanId = isPricingPlanId(planParam) ? planParam : "byok";
   const interval: BillingInterval = isBillingInterval(intervalParam)
     ? intervalParam
     : "monthly";
@@ -59,13 +59,6 @@ export default function CheckoutScaffold() {
       }
     } finally {
       setPending(false);
-    }
-  }
-
-  function handleContinueKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      void handleContinueToPayment();
     }
   }
 
@@ -114,10 +107,8 @@ export default function CheckoutScaffold() {
           type="button"
           className={styles.primaryButton}
           aria-label="Continue to payment"
-          tabIndex={0}
           disabled={pending}
           onClick={() => void handleContinueToPayment()}
-          onKeyDown={handleContinueKeyDown}
         >
           {pending ? "Starting checkout…" : "Continue to payment"}
         </button>
@@ -127,7 +118,7 @@ export default function CheckoutScaffold() {
       </div>
 
       {message ? (
-        <p className={styles.success} role="status">
+        <p className={styles.info} role="status">
           {message}
         </p>
       ) : null}

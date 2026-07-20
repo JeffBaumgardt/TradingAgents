@@ -5,6 +5,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BILLING_ANNUAL_DISCOUNT_PERCENT,
+  BILLING_CATALOG,
+} from "@tradingagents/api-types";
+import {
   ANNUAL_DISCOUNT_PERCENT,
   annualMonthlyEquivalentCents,
   annualTotalCents,
@@ -18,9 +22,15 @@ import {
 } from "./pricing-content";
 
 describe("pricing-content", () => {
+  it("uses the shared billing catalog for plan cents", () => {
+    assert.equal(ANNUAL_DISCOUNT_PERCENT, BILLING_ANNUAL_DISCOUNT_PERCENT);
+    assert.equal(PRICING_PLANS.length, BILLING_CATALOG.length);
+    assert.equal(PRICING_PLANS[0]?.monthlyPriceCents, BILLING_CATALOG[0]?.monthlyPriceCents);
+    assert.equal(PRICING_PLANS[1]?.monthlyPriceCents, BILLING_CATALOG[1]?.monthlyPriceCents);
+  });
+
   it("applies a 20% annual discount to the BYOK plan", () => {
     const byok = getPricingPlan("byok");
-    assert.equal(ANNUAL_DISCOUNT_PERCENT, 20);
     assert.equal(byok.monthlyPriceCents, 300);
     assert.equal(annualTotalCents(byok.monthlyPriceCents), 2880);
     assert.equal(annualMonthlyEquivalentCents(byok.monthlyPriceCents), 240);
@@ -28,10 +38,12 @@ describe("pricing-content", () => {
     assert.equal(displayPriceCents(byok, "annual"), 240);
   });
 
-  it("marks hosted pricing as provisional with a higher list rate", () => {
+  it("applies a 20% annual discount to the provisional hosted plan", () => {
     const hosted = getPricingPlan("hosted");
     assert.equal(hosted.priceProvisional, true);
-    assert.ok(hosted.monthlyPriceCents > getPricingPlan("byok").monthlyPriceCents);
+    assert.equal(annualTotalCents(hosted.monthlyPriceCents), 27840);
+    assert.equal(annualMonthlyEquivalentCents(hosted.monthlyPriceCents), 2320);
+    assert.equal(formatUsdFromCents(2320), "$23.20");
   });
 
   it("formats currency and checkout hrefs", () => {
@@ -45,6 +57,5 @@ describe("pricing-content", () => {
     assert.equal(isPricingPlanId("enterprise"), false);
     assert.equal(isBillingInterval("monthly"), true);
     assert.equal(isBillingInterval("weekly"), false);
-    assert.equal(PRICING_PLANS.length, 2);
   });
 });

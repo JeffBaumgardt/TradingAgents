@@ -15,8 +15,8 @@ export default function PricingChooser() {
         <p className={shared.eyebrow}>{PRICING_PAGE.eyebrow}</p>
         <h1 className={styles.title}>Pick a pricing layout</h1>
         <p className={styles.intro}>
-          Three layout options share the same plans and copy. Open each, then delete the ones you
-          do not want and keep iterating on the winner.
+          Three layout options share the same plans and copy. Preview each, then delete the ones
+          you do not want. The live `/pricing` page currently shows Layout A until you choose.
         </p>
       </header>
 

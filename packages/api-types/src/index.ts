@@ -372,6 +372,30 @@ export interface BillingPlan {
   annualDiscountPercent: number;
 }
 
+/** Shared annual discount applied to monthly list prices when billed yearly. */
+export const BILLING_ANNUAL_DISCOUNT_PERCENT = 20;
+
+/**
+ * Canonical subscription catalog — consumed by the API and marketing UI so
+ * plan cents cannot drift between surfaces.
+ */
+export const BILLING_CATALOG: readonly BillingPlan[] = [
+  {
+    id: "byok",
+    name: "Bring your own key",
+    monthlyPriceCents: 300,
+    priceProvisional: false,
+    annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
+  },
+  {
+    id: "hosted",
+    name: "Hosted models",
+    monthlyPriceCents: 2900,
+    priceProvisional: true,
+    annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
+  },
+];
+
 export interface BillingPlansResponse {
   plans: BillingPlan[];
 }
@@ -379,8 +403,6 @@ export interface BillingPlansResponse {
 export interface CheckoutRequest {
   planId: BillingPlanId;
   interval: BillingInterval;
-  successUrl?: string;
-  cancelUrl?: string;
 }
 
 /** Returned while the payment provider is not wired (HTTP 501). */
@@ -388,8 +410,40 @@ export interface CheckoutResponse {
   status: "not_configured";
   planId: BillingPlanId;
   interval: BillingInterval;
-  checkoutUrl: null;
+  checkoutUrl: string | null;
   message: string;
+}
+
+export function isBillingPlanId(value: string | null | undefined): value is BillingPlanId {
+  return value === "byok" || value === "hosted";
+}
+
+export function isBillingInterval(
+  value: string | null | undefined,
+): value is BillingInterval {
+  return value === "monthly" || value === "annual";
+}
+
+export function getBillingPlan(planId: BillingPlanId): BillingPlan {
+  const plan = BILLING_CATALOG.find((entry) => entry.id === planId);
+  if (!plan) {
+    throw new Error(`Unknown billing plan: ${planId}`);
+  }
+  return plan;
+}
+
+/** Annual total in cents after the catalog discount (billed once per year). */
+export function billingAnnualTotalCents(monthlyPriceCents: number): number {
+  return Math.round(
+    monthlyPriceCents * 12 * (1 - BILLING_ANNUAL_DISCOUNT_PERCENT / 100),
+  );
+}
+
+/** Effective monthly rate when paying annually. */
+export function billingAnnualMonthlyEquivalentCents(
+  monthlyPriceCents: number,
+): number {
+  return Math.round(billingAnnualTotalCents(monthlyPriceCents) / 12);
 }
 
 export interface AgentStatusEvent {

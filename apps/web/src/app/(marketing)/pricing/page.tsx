@@ -1,10 +1,12 @@
 /**
  * @file apps/web/src/app/(marketing)/pricing/page.tsx
- * Pricing layout chooser — pick A/B/C, then delete the rest later.
+ * Public pricing page — Layout A by default while alternate layouts are compared.
  */
 
 import type { Metadata } from "next";
-import PricingChooser from "@/components/pricing/PricingChooser";
+import Link from "next/link";
+import PricingLayoutA from "@/components/pricing/PricingLayoutA";
+import styles from "@/components/pricing/PricingBackLink.module.css";
 
 export const metadata: Metadata = {
   title: "Pricing — TradingAgents",
@@ -13,5 +15,14 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
-  return <PricingChooser />;
+  return (
+    <>
+      <div className={styles.wrap}>
+        <Link href="/pricing/options" className={styles.link}>
+          Compare layout options A / B / C
+        </Link>
+      </div>
+      <PricingLayoutA />
+    </>
+  );
 }
