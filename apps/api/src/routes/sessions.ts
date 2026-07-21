@@ -17,6 +17,10 @@ import { formatSseEvent } from "@tradingagents/utils";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUserId } from "../middleware/user-context.js";
 import { getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
+import {
+  getBillingAccount,
+  userHasActiveSubscription,
+} from "../services/billing-account-service.js";
 import * as sessionService from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
@@ -120,6 +124,17 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
   const body = (await c.req.json()) as CreateSessionRequest;
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
+
+  const account = await getBillingAccount(client, userId);
+  if (!userHasActiveSubscription(account.subscription)) {
+    return c.json(
+      {
+        error: "An active subscription is required to start an analysis run.",
+        code: "subscription_required",
+      },
+      402,
+    );
+  }
 
   try {
     const session = await sessionService.createSession(client, body, userId);

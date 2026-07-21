@@ -314,3 +314,11 @@ export async function getBillingAccount(
 export function listKnownPlanIds(): BillingPlanId[] {
   return BILLING_CATALOG.map((plan) => plan.id);
 }
+
+/** True when the user may start model runs. */
+export function userHasActiveSubscription(subscription: UserSubscription): boolean {
+  return (
+    subscription.status === "active" &&
+    (subscription.planId === "byok" || subscription.planId === "hosted")
+  );
+}

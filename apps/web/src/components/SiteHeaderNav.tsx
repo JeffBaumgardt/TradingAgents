@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/SiteHeaderNav.tsx
- * Client nav links that depend on credential session state.
+ * Slim primary nav — account settings live in the Clerk UserButton menu.
  */
 
 "use client";
@@ -19,11 +19,8 @@ export default function SiteHeaderNav() {
           Start analysis
         </Link>
       ) : null}
-      <Link href="/settings/credentials" className={styles.navLink}>
-        API keys
-      </Link>
-      <Link href="/settings/billing" className={styles.navLink}>
-        Billing
+      <Link href="/pricing" className={styles.navLink}>
+        Pricing
       </Link>
     </nav>
   );

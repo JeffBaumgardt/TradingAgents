@@ -1,14 +1,19 @@
 /**
  * @file apps/web/src/components/pricing/CheckoutScaffold.tsx
- * Checkout entry UI — calls the billing API scaffold (Stripe later).
+ * Single checkout path: Clerk account first, then payment setup.
  */
 
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { useState } from "react";
 import { createCheckoutSession, ApiClientError } from "@/lib/api-client";
+import {
+  buildCheckoutSignInHref,
+  buildCheckoutSignUpHref,
+} from "@/lib/checkout-redirect";
 import {
   displayPriceCaption,
   displayPriceCents,
@@ -57,7 +62,9 @@ function resolveCheckoutSelection(
 }
 
 export default function CheckoutScaffold() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { isLoaded, isSignedIn } = useAuth();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [subscriptionActivated, setSubscriptionActivated] = useState(false);
@@ -95,6 +102,14 @@ export default function CheckoutScaffold() {
     }
   }
 
+  function handleContinue(planId: BillingPlanId, interval: BillingInterval) {
+    if (!isSignedIn) {
+      router.push(buildCheckoutSignUpHref(planId, interval));
+      return;
+    }
+    void handleContinueToPayment(planId, interval);
+  }
+
   if (!selection.ok) {
     return (
       <div className={styles.page}>
@@ -127,6 +142,18 @@ export default function CheckoutScaffold() {
   const { planId, interval } = selection;
   const plan = getPricingPlan(planId);
   const price = displayPriceCents(plan, interval);
+  const stepLabel = !isLoaded
+    ? "Loading…"
+    : isSignedIn
+      ? "Step 2 of 2 — Payment"
+      : "Step 1 of 2 — Create your account";
+  const ctaLabel = !isLoaded
+    ? "Loading…"
+    : isSignedIn
+      ? pending
+        ? "Starting payment…"
+        : "Continue to payment"
+      : "Continue to create account";
 
   return (
     <div className={styles.page}>
@@ -135,11 +162,14 @@ export default function CheckoutScaffold() {
       </Link>
 
       <header className={styles.header}>
-        <p className={shared.eyebrow}>Checkout</p>
-        <h1 className={styles.title}>Review your plan</h1>
+        <p className={shared.eyebrow}>Checkout · {stepLabel}</p>
+        <h1 className={styles.title}>
+          {isSignedIn ? "Set up payment" : "Create your account to continue"}
+        </h1>
         <p className={styles.intro}>
-          Payment processing is not live yet. Continuing will call the billing API scaffold and
-          return a clear “not configured” response until Stripe (or similar) is wired up.
+          {isSignedIn
+            ? "Your account is ready. Continue to payment setup. Stripe is not live yet — this step activates a scaffold subscription so you can use the app."
+            : "One path: create your TradingAgents account with Clerk, then you’ll return here to finish payment for the plan below."}
         </p>
       </header>
 
@@ -172,29 +202,32 @@ export default function CheckoutScaffold() {
         <button
           type="button"
           className={styles.primaryButton}
-          aria-label="Continue to payment"
-          disabled={pending}
-          onClick={() => void handleContinueToPayment(planId, interval)}
+          aria-label={ctaLabel}
+          disabled={!isLoaded || pending}
+          onClick={() => handleContinue(planId, interval)}
         >
-          {pending ? "Starting checkout…" : "Continue to payment"}
+          {ctaLabel}
         </button>
-        <Link href="/sign-up" className={shared.secondaryButton}>
-          Create account first
-        </Link>
       </div>
+
+      {!isSignedIn && isLoaded ? (
+        <p className={styles.caption}>
+          Already have an account?{" "}
+          <Link href={buildCheckoutSignInHref(planId, interval)}>Sign in</Link>
+          , then you’ll continue to payment.
+        </p>
+      ) : null}
 
       {message ? (
         <div className={styles.info} role="status">
           <p>{message}</p>
           {subscriptionActivated ? (
             <p>
-              <Link href="/settings/billing">Open billing & usage →</Link>
+              <Link href="/dashboard">Go to dashboard →</Link>
+              {" · "}
+              <Link href="/settings/billing">Billing & usage</Link>
             </p>
-          ) : (
-            <p>
-              Sign in before continuing if you want the scaffold plan applied to your account.
-            </p>
-          )}
+          ) : null}
         </div>
       ) : null}
       {error ? (

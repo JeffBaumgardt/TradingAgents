@@ -8,6 +8,7 @@ import { HOSTED_MONTHLY_BILLABLE_ALLOWANCE } from "@tradingagents/api-types";
 import {
   activateScaffoldSubscription,
   getBillingAccount,
+  userHasActiveSubscription,
 } from "./billing-account-service.js";
 
 describe("billing-account-service", () => {
@@ -33,5 +34,38 @@ describe("billing-account-service", () => {
     const account = await getBillingAccount({} as never, "missing-user");
     assert.equal(account.subscription.status, "none");
     assert.equal(account.usage, null);
+  });
+
+  it("userHasActiveSubscription requires an active byok or hosted plan", () => {
+    assert.equal(
+      userHasActiveSubscription({
+        planId: null,
+        interval: null,
+        status: "none",
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+      }),
+      false,
+    );
+    assert.equal(
+      userHasActiveSubscription({
+        planId: "byok",
+        interval: "monthly",
+        status: "canceled",
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+      }),
+      false,
+    );
+    assert.equal(
+      userHasActiveSubscription({
+        planId: "hosted",
+        interval: "monthly",
+        status: "active",
+        currentPeriodStart: "2026-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      }),
+      true,
+    );
   });
 });

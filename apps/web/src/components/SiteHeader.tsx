@@ -45,6 +45,7 @@ export default function SiteHeader() {
           </Link>
         </nav>
         <div className={styles.controls}>
+          <ThemePicker />
           <SiteHeaderAuth />
         </div>
       </header>
@@ -63,7 +64,6 @@ export default function SiteHeader() {
       </div>
       <SiteHeaderNav />
       <div className={styles.controls}>
-        <ThemePicker />
         <SiteHeaderAuth />
       </div>
     </header>
