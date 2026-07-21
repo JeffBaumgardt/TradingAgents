@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import type {
   AnalystType,
   BillingAccountResponse,
+  ConfigOptions,
   CreateSessionRequest,
   ProviderCostSource,
   ResearchDepth,
@@ -26,6 +27,7 @@ import {
   ApiClientError,
   createSession,
   fetchBillingAccount,
+  fetchConfigOptions,
   fetchCredentialsSchema,
   fetchProviderModels,
 } from "@/lib/api-client";
@@ -105,14 +107,24 @@ interface ProviderChoice {
   costSource: ProviderCostSource | null;
 }
 
+async function fetchBillingAccountWithRetry(): Promise<BillingAccountResponse> {
+  try {
+    return await fetchBillingAccount();
+  } catch {
+    return await fetchBillingAccount();
+  }
+}
+
 export default function Wizard() {
   const router = useRouter();
   const { resolvedConfig, providerCredentials, credentialDefinitions, setCredentialDefinitions } =
     useUserSession();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<WizardFormState>(DEFAULT_FORM);
-  const options = resolvedConfig;
+  const [fallbackOptions, setFallbackOptions] = useState<ConfigOptions | null>(null);
   const [billingAccount, setBillingAccount] = useState<BillingAccountResponse | null>(null);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [billingRetryKey, setBillingRetryKey] = useState(0);
   const [quickModels, setQuickModels] = useState<{ id: string; label: string }[]>([]);
   const [deepModels, setDeepModels] = useState<{ id: string; label: string }[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -123,35 +135,77 @@ export default function Wizard() {
   useEffect(() => {
     let cancelled = false;
     async function loadBillingAndSchema() {
+      setBillingError(null);
       try {
-        const [account, schema] = await Promise.all([
-          fetchBillingAccount().catch(() => null),
-          credentialDefinitions.length > 0
-            ? Promise.resolve(null)
-            : fetchCredentialsSchema(),
+        const needsSchema = credentialDefinitions.length === 0;
+        const needsFallbackOptions = !resolvedConfig;
+
+        const [accountResult, schemaResult, optionsResult] = await Promise.all([
+          fetchBillingAccountWithRetry()
+            .then((account) => ({ account, error: null as string | null }))
+            .catch(() => ({
+              account: null as BillingAccountResponse | null,
+              error:
+                "Could not load billing status. Hosted providers may be unavailable until this succeeds.",
+            })),
+          needsSchema ? fetchCredentialsSchema() : Promise.resolve(null),
+          needsFallbackOptions
+            ? fetchConfigOptions().catch(() => null)
+            : Promise.resolve(null),
         ]);
         if (cancelled) {
           return;
         }
-        if (account) {
-          setBillingAccount(account);
+        if (accountResult.account) {
+          setBillingAccount(accountResult.account);
+          setBillingError(null);
+        } else if (accountResult.error) {
+          setBillingError(accountResult.error);
         }
-        if (schema) {
-          setCredentialDefinitions(schema.providers);
+        if (schemaResult) {
+          setCredentialDefinitions(schemaResult.providers);
+        }
+        if (optionsResult) {
+          setFallbackOptions(optionsResult);
         }
       } catch {
-        // Wizard still works with resolvedConfig-only providers.
+        // Schema/options failures are non-fatal when resolvedConfig is present.
       }
     }
     void loadBillingAndSchema();
     return () => {
       cancelled = true;
     };
-  }, [credentialDefinitions.length, setCredentialDefinitions]);
+  }, [
+    billingRetryKey,
+    credentialDefinitions.length,
+    resolvedConfig,
+    setCredentialDefinitions,
+  ]);
 
   const isHostedPlan =
     billingAccount?.subscription.planId === "hosted" &&
     billingAccount.subscription.status === "active";
+
+  const hostedOptions = useMemo<ConfigOptions | null>(() => {
+    if (resolvedConfig || !isHostedPlan || credentialDefinitions.length === 0) {
+      return null;
+    }
+    if (!fallbackOptions) {
+      return null;
+    }
+    return {
+      ...fallbackOptions,
+      providers: credentialDefinitions.map((provider) => ({
+        id: provider.id,
+        label: provider.label,
+        backendUrl: provider.backendUrl ?? null,
+      })),
+      availableProviderIds: credentialDefinitions.map((provider) => provider.id),
+    };
+  }, [credentialDefinitions, fallbackOptions, isHostedPlan, resolvedConfig]);
+
+  const options = resolvedConfig ?? hostedOptions ?? fallbackOptions;
 
   const providerChoices = useMemo<ProviderChoice[]>(() => {
     const defs =
@@ -407,14 +461,29 @@ export default function Wizard() {
   if (!options) {
     return (
       <div className={styles.panel}>
-        <p className="error" role="alert">
-          No provider credentials configured. Add at least one API key on the API keys page first.
-        </p>
+        {billingError ? (
+          <p className="error" role="alert">
+            {billingError}{" "}
+            <button
+              type="button"
+              className={styles.buttonGhost}
+              onClick={() => setBillingRetryKey((key) => key + 1)}
+              aria-label="Retry loading billing status"
+            >
+              Retry
+            </button>
+          </p>
+        ) : (
+          <p className="error" role="alert">
+            No provider credentials configured. Add at least one API key on the API keys page first,
+            or activate a Hosted plan on Billing.
+          </p>
+        )}
       </div>
     );
   }
 
-  if (options.providers.length === 0) {
+  if (options.providers.length === 0 && !isHostedPlan) {
     return (
       <div className={styles.panel}>
         <p className="error" role="alert">
@@ -632,10 +701,17 @@ export default function Wizard() {
                 Providers with a saved key, or Hosted-plan providers, appear as selectable.
               </p>
             )}
-            {selectedProviderChoice?.costSource === "hosted" ? (
-              <p className={styles.hint}>
-                Hosted inference wiring is still rolling out — if a run fails, add your own key for
-                this provider or check Billing for plan status.
+            {billingError ? (
+              <p className="error" role="alert">
+                {billingError}{" "}
+                <button
+                  type="button"
+                  className={styles.buttonGhost}
+                  onClick={() => setBillingRetryKey((key) => key + 1)}
+                  aria-label="Retry loading billing status"
+                >
+                  Retry
+                </button>
               </p>
             ) : null}
             {lockedProviders.length > 0 ? (

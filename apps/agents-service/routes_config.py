@@ -58,6 +58,7 @@ def read_provider_models_with_credentials(provider: str, body: ProviderModelsBod
 @router.get("/providers/{provider}/models")
 def read_provider_models(provider: str, mode: str = Query(..., pattern="^(quick|deep)$")):
     try:
-        return get_provider_models(provider, mode)
+        # Public catalog used by the hosted wizard when the user has no personal key.
+        return get_provider_models(provider, mode, require_credentials=False)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}") from exc

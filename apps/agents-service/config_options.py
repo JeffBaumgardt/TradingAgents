@@ -121,12 +121,16 @@ def get_provider_models(
     provider: str,
     mode: str,
     provider_credentials: dict[str, dict[str, str]] | None = None,
+    *,
+    require_credentials: bool = True,
 ) -> dict[str, Any]:
     provider_key = provider.lower()
     if provider_key not in MODEL_OPTIONS and provider_key not in ("openrouter", "azure"):
         raise KeyError(provider)
 
-    if not is_provider_available(provider_key, provider_credentials or {}):
+    if require_credentials and not is_provider_available(
+        provider_key, provider_credentials or {}
+    ):
         raise PermissionError(f"No credentials provided for provider: {provider}")
 
     if mode not in ("quick", "deep"):

@@ -26,6 +26,7 @@ import {
 } from "@tradingagents/utils";
 import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
 import * as agentsClient from "./agents-client.js";
+import { getBillingAccount } from "./billing-account-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 
 function rowToSession(row: SessionRow): Session {
@@ -99,9 +100,16 @@ function sectionsToMarkdown(sections: Record<string, string | null>): string {
   return parts.join("\n\n");
 }
 
+export interface ValidateCreateOptions {
+  /** When true, hosted-catalog providers may run without a user-stored API key. */
+  allowHostedProvider?: boolean;
+  hostedProviderIds?: readonly string[];
+}
+
 export function validateCreateRequest(
   body: CreateSessionRequest,
   providerCredentials: ProviderCredentials,
+  options: ValidateCreateOptions = {},
 ): string | null {
   if (!validateTicker(body.ticker)) {
     return "Invalid ticker symbol";
@@ -118,15 +126,22 @@ export function validateCreateRequest(
   if (!body.llmProvider || !body.quickThinkLlm || !body.deepThinkLlm) {
     return "LLM provider and model selections are required";
   }
-  if (Object.keys(providerCredentials).length === 0) {
+  const providerKey = body.llmProvider.toLowerCase();
+  const hostedAllowed =
+    Boolean(options.allowHostedProvider) &&
+    (options.hostedProviderIds ?? [])
+      .map((id) => id.toLowerCase())
+      .includes(providerKey);
+  const creds = providerCredentials[providerKey];
+  const hasApiKey = Boolean(creds?.apiKey?.trim());
+
+  if (Object.keys(providerCredentials).length === 0 && !hostedAllowed) {
     return "At least one provider credential is required";
   }
-  const providerKey = body.llmProvider.toLowerCase();
-  const creds = providerCredentials[providerKey];
-  if (!creds) {
-    return `No credentials provided for selected provider: ${body.llmProvider}`;
-  }
-  if (!creds.apiKey?.trim()) {
+  if (!hasApiKey && !hostedAllowed) {
+    if (!creds) {
+      return `No credentials provided for selected provider: ${body.llmProvider}`;
+    }
     return `API key required for provider: ${body.llmProvider}`;
   }
   const userContextError = validateUserContext(body.userContext);
@@ -142,7 +157,14 @@ export async function createSession(
   userId: string,
 ): Promise<Session> {
   const storedCredentials = await getUserCredentialsRaw(client, userId);
-  const validationError = validateCreateRequest(body, storedCredentials);
+  const billing = await getBillingAccount(client, userId);
+  const isHostedPlan =
+    billing.subscription.planId === "hosted" &&
+    billing.subscription.status === "active";
+  const validationError = validateCreateRequest(body, storedCredentials, {
+    allowHostedProvider: isHostedPlan,
+    hostedProviderIds: billing.hostedProviderIds,
+  });
   if (validationError) {
     throw new Error(validationError);
   }
