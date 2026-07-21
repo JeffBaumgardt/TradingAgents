@@ -49,3 +49,17 @@ export interface UserCredentialRow {
   field_value: string;
   updated_at: string;
 }
+
+export interface UserSubscriptionRow {
+  user_id: string;
+  plan_id: string;
+  interval: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_checkout_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}

@@ -15,6 +15,7 @@ tags:
   - name: users
   - name: sessions
   - name: feedback
+  - name: billing
 paths:
   /health:
     get:
@@ -101,6 +102,85 @@ paths:
                 $ref: "#/components/schemas/StoredCredentialsResponse"
         "401":
           description: Missing user id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /billing/plans:
+    get:
+      tags: [billing]
+      summary: List subscription plans
+      description: |
+        Public pricing catalog for marketing and checkout scaffolding.
+        Annual billing is 20% off the monthly list price.
+      operationId: listBillingPlans
+      responses:
+        "200":
+          description: Billing plan catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPlansResponse"
+  /billing/account:
+    get:
+      tags: [billing]
+      summary: Get subscription and usage
+      description: |
+        Returns the signed-in user's plan and hosted allowance usage breakdown.
+        Usage may be sample data while metering is scaffolded.
+      operationId: getBillingAccount
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Billing account snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingAccountResponse"
+        "401":
+          description: Missing or invalid auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /billing/checkout:
+    post:
+      tags: [billing]
+      summary: Start Managed Payments Checkout
+      description: |
+        Validates plan selection and creates a Stripe Checkout Session with
+        Managed Payments enabled when Stripe is configured. Otherwise returns
+        a not_configured payload (and may activate a scaffold subscription when
+        authenticated for local UI review).
+      operationId: createCheckoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "200":
+          description: Stripe Checkout Session created; redirect to checkoutUrl
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "501":
+          description: Stripe is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "401":
+          description: Authentication required when Stripe is configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid checkout payload
           content:
             application/json:
               schema:
@@ -641,6 +721,83 @@ components:
         ok:
           type: boolean
           enum: [true]
+    BillingPlanId:
+      type: string
+      enum: [byok, hosted]
+    BillingInterval:
+      type: string
+      enum: [monthly, annual]
+    BillingPlan:
+      type: object
+      required:
+        [id, name, monthlyPriceCents, priceProvisional, annualDiscountPercent]
+      properties:
+        id:
+          $ref: "#/components/schemas/BillingPlanId"
+        name:
+          type: string
+        monthlyPriceCents:
+          type: integer
+          minimum: 0
+        priceProvisional:
+          type: boolean
+        annualDiscountPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+    BillingPlansResponse:
+      type: object
+      required: [plans]
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingPlan"
+    CheckoutRequest:
+      type: object
+      required: [planId, interval]
+      properties:
+        planId:
+          $ref: "#/components/schemas/BillingPlanId"
+        interval:
+          $ref: "#/components/schemas/BillingInterval"
+      description: |
+        Redirect URLs are intentionally omitted until an origin allowlist is
+        implemented for the payment provider integration.
+    CheckoutResponse:
+      type: object
+      required: [status, planId, interval, checkoutUrl, message]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_configured]
+        planId:
+          $ref: "#/components/schemas/BillingPlanId"
+        interval:
+          $ref: "#/components/schemas/BillingInterval"
+        checkoutUrl:
+          type: string
+          nullable: true
+          description: Stripe Checkout URL when status is ready; null when not configured.
+        message:
+          type: string
+        subscriptionActivated:
+          type: boolean
+    BillingAccountResponse:
+      type: object
+      required: [subscription, usage, hostedProviderIds]
+      properties:
+        subscription:
+          type: object
+          additionalProperties: true
+        usage:
+          type: object
+          nullable: true
+          additionalProperties: true
+        hostedProviderIds:
+          type: array
+          items:
+            type: string
     AnalystType:
       type: string
       enum: [market, social, news, fundamentals]

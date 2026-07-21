@@ -12,6 +12,7 @@ import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { securityHeadersMiddleware } from "./middleware/security-headers.js";
 import { withSupabaseContext } from "./middleware/with-supabase.js";
+import { billingRoutes } from "./routes/billing.js";
 import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
 import { credentialsRoutes } from "./routes/credentials.js";
@@ -54,6 +55,7 @@ export function createApp() {
   // Public share-by-link session reads must be mounted before sub-apps that
   // historically used use("*", requireUserId()) when mounted at "/".
   app.route("/", sessionRoutes);
+  app.route("/", billingRoutes);
   app.route("/", credentialsRoutes);
   app.route("/", userRoutes);
   app.route("/", feedbackRoutes);

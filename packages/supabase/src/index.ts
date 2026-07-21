@@ -4,5 +4,6 @@ export type {
   SessionRow,
   UserCredentialRow,
   UserRow,
+  UserSubscriptionRow,
 } from "./database.js";
 export { getSupabaseAdmin, getSupabaseUser } from "./client.js";

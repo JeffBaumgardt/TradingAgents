@@ -71,8 +71,15 @@ export function buildThemeBootstrapScript(): string {
   return `
 (function () {
   try {
-    var landingPaths = ["/", "/privacy", "/license"];
-    if (landingPaths.indexOf(window.location.pathname) !== -1) {
+    var path = window.location.pathname;
+    var landingExact = ["/", "/privacy", "/license"];
+    var landingPrefixes = ["/pricing", "/checkout", "/billing-preview"];
+    var isLanding =
+      landingExact.indexOf(path) !== -1 ||
+      landingPrefixes.some(function (prefix) {
+        return path === prefix || path.indexOf(prefix + "/") === 0;
+      });
+    if (isLanding) {
       document.documentElement.dataset.theme = ${JSON.stringify(DEFAULT_THEME_ID)};
       document.documentElement.style.colorScheme = "light";
       return;

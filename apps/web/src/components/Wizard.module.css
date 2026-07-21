@@ -90,6 +90,22 @@
   flex-wrap: wrap;
 }
 
+.providerStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.lockedProviders {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
 .field label {
   font-weight: 600;
 }

@@ -1,0 +1,299 @@
+.page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.planCard,
+.usageCard,
+.breakdownCard,
+.helpCard {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 1rem;
+  background: var(--color-bg-surface);
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 12px 32px rgba(28, 25, 23, 0.04);
+}
+
+.planHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--color-link);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.planTitle,
+.sectionTitle {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.planMeta,
+.periodNote,
+.breakdownIntro,
+.usageFoot,
+.sampleNote,
+.modelStats {
+  margin: 0.45rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.periodNote strong {
+  color: var(--color-text);
+}
+
+.planActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  text-decoration: none;
+}
+
+.primaryButton {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+.usageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.periodChip {
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  padding: 0.25rem 0.65rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.sampleNote {
+  border-left: 3px solid var(--color-link);
+  padding-left: 0.75rem;
+}
+
+.progressMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: var(--color-text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.progressTrack,
+.barTrack {
+  margin-top: 0.55rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg-page) 80%, var(--color-border-subtle));
+  overflow: hidden;
+}
+
+.progressFill,
+.barHosted,
+.barSelf {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.progressFill,
+.barHosted {
+  background: linear-gradient(
+    90deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-primary) 70%, var(--color-accent))
+  );
+}
+
+.barSelf {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-border-strong),
+    var(--color-border-strong) 4px,
+    color-mix(in srgb, var(--color-border-strong) 40%, transparent) 4px,
+    color-mix(in srgb, var(--color-border-strong) 40%, transparent) 8px
+  );
+}
+
+.splitLegend {
+  display: flex;
+  gap: 1rem;
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.legendHosted::before,
+.legendSelf::before {
+  content: "";
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.35rem;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.legendHosted::before {
+  background: var(--color-accent);
+}
+
+.legendSelf::before {
+  background: var(--color-border-strong);
+}
+
+.modelTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.providerTree {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.providerTreeItem {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--color-bg-page) 55%, var(--color-bg-surface));
+  overflow: hidden;
+}
+
+.providerToggle {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  padding: 0.75rem 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background-color 0.15s ease;
+}
+
+.providerToggle:hover {
+  background: color-mix(in srgb, var(--color-bg-page) 35%, var(--color-bg-surface));
+}
+
+.providerToggle:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.providerTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.providerChevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  color: var(--color-text-muted);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.providerName {
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+
+.providerAggregate {
+  display: grid;
+  gap: 0.15rem;
+  margin-left: 1.8rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.providerSplit {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.modelTree {
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0.85rem 0.75rem 2.65rem;
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.modelTreeRow {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.modelId {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.multiplierChip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.12rem 0.45rem;
+}
+
+.error {
+  color: #7f1d1d;
+}

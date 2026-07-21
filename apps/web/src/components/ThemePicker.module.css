@@ -4,6 +4,48 @@
   gap: 0.4rem;
 }
 
+.panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.25rem 0.15rem 0.75rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.panelCopy {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.panelControl {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 18rem;
+}
+
+.panelSelect {
+  width: 100%;
+  max-width: none;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-input);
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.panelSelect:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .label {
   font-size: 0.78rem;
   color: var(--color-text-subtle);
@@ -26,7 +68,7 @@
 }
 
 @media (max-width: 720px) {
-  .label {
+  .wrapper .label {
     position: absolute;
     width: 1px;
     height: 1px;

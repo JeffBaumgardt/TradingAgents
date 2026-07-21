@@ -40,6 +40,9 @@ importers:
       resend:
         specifier: ^6.17.2
         version: 6.17.2
+      stripe:
+        specifier: ^22.3.2
+        version: 22.3.2(@types/node@22.20.0)
       uuid:
         specifier: ^11.1.0
         version: 11.1.1
@@ -1516,6 +1519,15 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@22.3.2:
+    resolution: {integrity: sha512-O13QOvgEIQvDlTy6Ubb5kB980wpbhmoZNsgCXKILjCMZS67f+bW+6w99k3gnSi/N1lkryoj1WYdpGT5Wc5edjg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   style-to-js@1.1.21:
     resolution: {integrity: sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==}
@@ -3108,6 +3120,10 @@ snapshots:
       character-entities-legacy: 3.0.0
 
   strip-json-comments@3.1.1: {}
+
+  stripe@22.3.2(@types/node@22.20.0):
+    optionalDependencies:
+      '@types/node': 22.20.0
 
   style-to-js@1.1.21:
     dependencies:

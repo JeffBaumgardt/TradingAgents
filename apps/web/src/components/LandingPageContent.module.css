@@ -222,6 +222,11 @@
   line-height: 1.6;
 }
 
+.finalCtaInner .heroActions {
+  justify-content: center;
+  margin-bottom: 0;
+}
+
 .disclaimer {
   margin: 0 0 1rem;
   color: var(--color-text-faint);

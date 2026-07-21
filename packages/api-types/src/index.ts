@@ -360,6 +360,192 @@ export interface FeedbackResponse {
   ok: true;
 }
 
+export type BillingPlanId = "byok" | "hosted";
+
+export type BillingInterval = "monthly" | "annual";
+
+export interface BillingPlan {
+  id: BillingPlanId;
+  name: string;
+  monthlyPriceCents: number;
+  priceProvisional: boolean;
+  annualDiscountPercent: number;
+}
+
+/** Shared annual discount applied to monthly list prices when billed yearly. */
+export const BILLING_ANNUAL_DISCOUNT_PERCENT = 20;
+
+/**
+ * Canonical subscription catalog — consumed by the API and marketing UI so
+ * plan cents cannot drift between surfaces.
+ */
+export const BILLING_CATALOG: readonly BillingPlan[] = [
+  {
+    id: "byok",
+    name: "Bring your own key",
+    monthlyPriceCents: 300,
+    priceProvisional: false,
+    annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
+  },
+  {
+    id: "hosted",
+    name: "Hosted models",
+    monthlyPriceCents: 1900,
+    priceProvisional: false,
+    annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
+  },
+];
+
+export interface BillingPlansResponse {
+  plans: BillingPlan[];
+}
+
+export interface CheckoutRequest {
+  planId: BillingPlanId;
+  interval: BillingInterval;
+}
+
+/**
+ * Checkout start response.
+ * - `ready` — Stripe Checkout Session created; redirect to `checkoutUrl` (HTTP 200).
+ * - `not_configured` — Stripe env not set; optional scaffold activation (HTTP 501).
+ */
+export interface CheckoutResponse {
+  status: "ready" | "not_configured";
+  planId: BillingPlanId;
+  interval: BillingInterval;
+  checkoutUrl: string | null;
+  message: string;
+  /** True when a scaffold subscription was activated for the signed-in user. */
+  subscriptionActivated?: boolean;
+}
+
+export function isBillingPlanId(value: string | null | undefined): value is BillingPlanId {
+  return value === "byok" || value === "hosted";
+}
+
+export function isBillingInterval(
+  value: string | null | undefined,
+): value is BillingInterval {
+  return value === "monthly" || value === "annual";
+}
+
+export function getBillingPlan(planId: BillingPlanId): BillingPlan {
+  const plan = BILLING_CATALOG.find((entry) => entry.id === planId);
+  if (!plan) {
+    throw new Error(`Unknown billing plan: ${planId}`);
+  }
+  return plan;
+}
+
+/** Annual total in cents after the catalog discount (billed once per year). */
+export function billingAnnualTotalCents(monthlyPriceCents: number): number {
+  return Math.round(
+    monthlyPriceCents * 12 * (1 - BILLING_ANNUAL_DISCOUNT_PERCENT / 100),
+  );
+}
+
+/** Effective monthly rate when paying annually. */
+export function billingAnnualMonthlyEquivalentCents(
+  monthlyPriceCents: number,
+): number {
+  return Math.round(billingAnnualTotalCents(monthlyPriceCents) / 12);
+}
+
+/**
+ * Monthly hosted allowance in compute credits.
+ * One credit ≈ one token on the cheapest curated model (DeepSeek V4 Flash output rate).
+ * Sized for ~15% of net revenue at the $19 hosted list price after Stripe fees.
+ */
+export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
+
+/** @deprecated Use {@link HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE}. */
+export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
+
+export type SubscriptionStatus = "none" | "active" | "canceled" | "past_due";
+
+/** Who pays for model inference for a provider on a given run. */
+export type ProviderCostSource = "hosted" | "self_pay";
+
+export interface UserSubscription {
+  planId: BillingPlanId | null;
+  interval: BillingInterval | null;
+  status: SubscriptionStatus;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+}
+
+export interface UsageModelBreakdown {
+  providerId: string;
+  providerLabel: string;
+  modelId: string;
+  /** Raw prompt + completion tokens observed. */
+  tokensTotal: number;
+  /**
+   * Normalized compute credits that count toward the hosted allowance.
+   * Self-pay traffic is tracked in tokensTotal but contributes 0 here.
+   */
+  computeCredits: number;
+  /**
+   * Output-cost multiplier vs the reference model (DeepSeek V4 Flash = 1×).
+   * Applied as: credits ≈ tokens × creditMultiplier.
+   */
+  creditMultiplier: number;
+  costSource: ProviderCostSource;
+  /** Share of hosted compute credits in the period (0–1). */
+  shareOfCredits: number;
+}
+
+export interface UsageProviderBreakdown {
+  providerId: string;
+  providerLabel: string;
+  tokensTotal: number;
+  computeCredits: number;
+  selfPayTokens: number;
+  hostedTokens: number;
+  shareOfCredits: number;
+}
+
+export interface BillingUsageSummary {
+  /** True when rows are illustrative scaffold data (metering not live yet). */
+  isSample: boolean;
+  periodStart: string;
+  periodEnd: string;
+  allowanceComputeCredits: number;
+  usedComputeCredits: number;
+  remainingComputeCredits: number;
+  /** 0–1 clamped for account-level progress UI. */
+  usedRatio: number;
+  tokensTotal: number;
+  selfPayTokens: number;
+  hostedTokens: number;
+  byProvider: UsageProviderBreakdown[];
+  byModel: UsageModelBreakdown[];
+}
+
+export type {
+  HostedModelCostEntry,
+  HostedModelProviderId,
+} from "./hosted-model-catalog.js";
+
+export {
+  COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
+  HOSTED_MODEL_CATALOG,
+  HOSTED_MODEL_CATALOG_PRICED_AS_OF,
+  creditMultiplierFromOutputUsdPer1M,
+  getHostedModelCostEntry,
+  getModelCreditMultiplier,
+  listHostedModelCatalog,
+  roundCreditMultiplier,
+} from "./hosted-model-catalog.js";
+
+export interface BillingAccountResponse {
+  subscription: UserSubscription;
+  usage: BillingUsageSummary | null;
+  /** Providers the user can run via platform keys when on hosted. */
+  hostedProviderIds: string[];
+}
+
 export interface AgentStatusEvent {
   agent: string;
   status: AgentStatusValue;

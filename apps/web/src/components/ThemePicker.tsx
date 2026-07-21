@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/ThemePicker.tsx
- * Header control for switching visual themes.
+ * Control for switching visual themes (header inline or Clerk settings panel).
  */
 
 "use client";
@@ -10,7 +10,12 @@ import { useTheme } from "@/context/ThemeContext";
 import { THEMES } from "@/lib/themes";
 import styles from "./ThemePicker.module.css";
 
-export default function ThemePicker() {
+interface ThemePickerProps {
+  /** `inline` for compact chrome; `panel` for Clerk account settings. */
+  variant?: "inline" | "panel";
+}
+
+export default function ThemePicker({ variant = "inline" }: ThemePickerProps) {
   const { themeId, setThemeId } = useTheme();
   const selectId = useId();
 
@@ -19,15 +24,16 @@ export default function ThemePicker() {
   }
 
   return (
-    <div className={styles.wrapper}>
+    <div className={variant === "panel" ? styles.panelControl : styles.wrapper}>
       <label className={styles.label} htmlFor={selectId}>
         Theme
       </label>
       <select
         id={selectId}
-        className={styles.select}
+        className={variant === "panel" ? styles.panelSelect : styles.select}
         value={themeId}
         onChange={handleChange}
+        aria-label="Color theme"
         suppressHydrationWarning
       >
         {THEMES.map((theme) => (

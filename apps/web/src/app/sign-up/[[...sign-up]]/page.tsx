@@ -6,15 +6,28 @@
 import { SignUp } from "@clerk/nextjs";
 import AuthPageShell from "@/components/AuthPageShell";
 import { clerkAppearance } from "@/lib/clerk-appearance";
+import { sanitizeAppRedirectPath } from "@/lib/checkout-redirect";
 import { LOGGED_IN_HOME_PATH } from "@/lib/landing-redirect";
 
-export default function SignUpPage() {
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const rawRedirect = typeof params.redirect_url === "string" ? params.redirect_url : null;
+  const redirectUrl = sanitizeAppRedirectPath(rawRedirect, LOGGED_IN_HOME_PATH);
+
   return (
     <AuthPageShell
       title="Create your TradingAgents account"
-      subtitle="Start configuring multi-agent stock and ETF analysis runs in minutes."
+      subtitle="Create your account first — you’ll finish plan payment on the next step."
     >
-      <SignUp appearance={clerkAppearance} fallbackRedirectUrl={LOGGED_IN_HOME_PATH} />
+      <SignUp
+        appearance={clerkAppearance}
+        forceRedirectUrl={redirectUrl}
+        fallbackRedirectUrl={redirectUrl}
+      />
     </AuthPageShell>
   );
 }

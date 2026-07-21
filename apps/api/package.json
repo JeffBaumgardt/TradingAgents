@@ -20,6 +20,7 @@
     "@tradingagents/utils": "workspace:*",
     "hono": "^4.7.11",
     "resend": "^6.17.2",
+    "stripe": "^22.3.2",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

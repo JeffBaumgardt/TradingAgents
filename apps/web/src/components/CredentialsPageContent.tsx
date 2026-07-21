@@ -37,8 +37,12 @@ export default function CredentialsPageContent({
       <h1 className="pageTitle">Provider API keys</h1>
       <p className="muted pageIntro">
         TradingAgents calls your chosen LLM provider on your behalf. Keys are encrypted on the
-        server and are never shown again in the browser after you save them. You need at least one
-        provider before starting an analysis.
+        server and are never shown again in the browser after you save them. On the Hosted plan,
+        providers without your key run on platform keys; providers with your key stay on your bill
+        and do not use the hosted allowance.{" "}
+        <Link href="/settings/billing">View billing & usage</Link>
+        {" · "}
+        <Link href="/checkout?plan=hosted&interval=monthly">Upgrade to Hosted</Link>
       </p>
       <CredentialsSetup
         initialSchema={initialSchema}

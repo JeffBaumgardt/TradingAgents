@@ -29,9 +29,17 @@ describe("Clerk public route matcher", () => {
   it("treats marketing, auth, and webhook routes as public", () => {
     assert.equal(isPublicRoute(createRequest("/privacy")), true);
     assert.equal(isPublicRoute(createRequest("/license")), true);
+    assert.equal(isPublicRoute(createRequest("/pricing")), true);
+    assert.equal(isPublicRoute(createRequest("/billing-preview")), true);
+    assert.equal(isPublicRoute(createRequest("/checkout")), true);
     assert.equal(isPublicRoute(createRequest("/sign-in")), true);
     assert.equal(isPublicRoute(createRequest("/sign-in/factor-one")), true);
     assert.equal(isPublicRoute(createRequest("/sign-up")), true);
     assert.equal(isPublicRoute(createRequest("/api/webhooks/clerk")), true);
+  });
+
+  it("does not treat sibling pricing/checkout paths as public", () => {
+    assert.equal(isPublicRoute(createRequest("/pricing-settings")), false);
+    assert.equal(isPublicRoute(createRequest("/checkoutfoo")), false);
   });
 });

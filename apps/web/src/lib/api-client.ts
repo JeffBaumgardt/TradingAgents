@@ -4,6 +4,9 @@
  */
 
 import type {
+  BillingAccountResponse,
+  CheckoutRequest,
+  CheckoutResponse,
   ConfigOptions,
   CreateSessionRequest,
   CredentialsSchemaResponse,
@@ -169,6 +172,17 @@ export async function fetchProviderModels(
       cache: "no-store",
     },
   );
+
+  // Hosted providers without a personal key may 403 on the credentialed POST;
+  // fall back to the public catalog so the wizard can still list models.
+  if (response.status === 403) {
+    const publicResponse = await fetch(
+      `${API_BASE}/config/providers/${encodeURIComponent(provider)}/models?mode=${encodeURIComponent(mode)}`,
+      { cache: "no-store" },
+    );
+    return parseJson<ProviderModelsResponse>(publicResponse);
+  }
+
   return parseJson<ProviderModelsResponse>(response);
 }
 
@@ -225,6 +239,71 @@ export async function submitFeedback(
     cache: "no-store",
   });
   return parseJson<FeedbackResponse>(response);
+}
+
+/** Load the signed-in user's subscription + usage summary. */
+export async function fetchBillingAccount(): Promise<BillingAccountResponse> {
+  const response = await fetch(`${API_BASE}/billing/account`, {
+    headers: await buildUserHeaders(),
+    cache: "no-store",
+  });
+  return parseJson<BillingAccountResponse>(response);
+}
+
+/**
+ * Start checkout. When Stripe is configured, returns status "ready" with a
+ * checkoutUrl (HTTP 200). When not configured, returns status "not_configured"
+ * (HTTP 501) and may activate a scaffold subscription.
+ */
+export async function createCheckoutSession(
+  body: CheckoutRequest,
+): Promise<CheckoutResponse> {
+  const response = await fetch(`${API_BASE}/billing/checkout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await buildUserHeaders()),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ApiClientError(response.statusText || "Invalid checkout response", response.status);
+  }
+
+  if (
+    response.status === 501 &&
+    payload &&
+    typeof payload === "object" &&
+    "status" in payload &&
+    (payload as CheckoutResponse).status === "not_configured"
+  ) {
+    return payload as CheckoutResponse;
+  }
+
+  if (
+    response.status === 200 &&
+    payload &&
+    typeof payload === "object" &&
+    "status" in payload &&
+    (payload as CheckoutResponse).status === "ready"
+  ) {
+    return payload as CheckoutResponse;
+  }
+
+  if (!response.ok) {
+    const errorBody = payload as { error?: string; message?: string };
+    throw new ApiClientError(
+      errorBody.error ?? errorBody.message ?? response.statusText,
+      response.status,
+    );
+  }
+
+  return payload as CheckoutResponse;
 }
 
 /** Permanently delete a session and its stored events. */
