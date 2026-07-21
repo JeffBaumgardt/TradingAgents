@@ -5,8 +5,23 @@
  * Never enable in production — use BILLING_SCAFFOLD=true locally instead.
  */
 
-export function isBillingScaffoldEnabled(): boolean {
+function isProductionRuntime(): boolean {
   if (process.env.NODE_ENV === "production") {
+    return true;
+  }
+  const vercelEnv = process.env.VERCEL_ENV?.trim();
+  if (vercelEnv === "production") {
+    return true;
+  }
+  const railwayEnv = process.env.RAILWAY_ENVIRONMENT?.trim().toLowerCase();
+  if (railwayEnv === "production") {
+    return true;
+  }
+  return false;
+}
+
+export function isBillingScaffoldEnabled(): boolean {
+  if (isProductionRuntime()) {
     return false;
   }
   return process.env.BILLING_SCAFFOLD?.trim() === "true";

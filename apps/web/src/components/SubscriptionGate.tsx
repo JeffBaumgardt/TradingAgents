@@ -29,17 +29,24 @@ function wait(ms: number): Promise<void> {
 export default function SubscriptionGate({ children }: SubscriptionGateProps) {
   const router = useRouter();
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
     async function checkSubscription() {
+      setLoadFailed(false);
+      setAllowed(null);
+      let sawSuccessfulResponse = false;
+
       for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
         try {
           const account = await fetchBillingAccount();
           if (cancelled) {
             return;
           }
+          sawSuccessfulResponse = true;
           if (hasActiveSubscription(account.subscription)) {
             setAllowed(true);
             return;
@@ -54,22 +61,44 @@ export default function SubscriptionGate({ children }: SubscriptionGateProps) {
         }
       }
 
-      if (!cancelled) {
-        setAllowed(false);
+      if (cancelled) {
+        return;
       }
+
+      if (!sawSuccessfulResponse) {
+        setLoadFailed(true);
+        return;
+      }
+
+      setAllowed(false);
     }
 
     void checkSubscription();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryToken]);
 
   useEffect(() => {
     if (allowed === false) {
       router.replace("/pricing");
     }
   }, [allowed, router]);
+
+  function handleRetry() {
+    setRetryToken((token) => token + 1);
+  }
+
+  if (loadFailed) {
+    return (
+      <div role="alert" aria-live="polite" style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Could not verify your subscription. Check your connection and try again.</p>
+        <button type="button" onClick={handleRetry} aria-label="Retry subscription check">
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (allowed === null) {
     return <HomePageSkeleton />;

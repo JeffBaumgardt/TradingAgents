@@ -79,6 +79,22 @@ webhookRoutes.post("/webhooks/stripe", async (c) => {
   const client = getSupabaseAdmin(c);
   try {
     const result = await processStripeEvent(client, event);
+    // Retry when Checkout completed but entitlement was not written for a
+    // potentially transient reason (e.g. subscription not active yet).
+    // Permanent skips (wrong mode, unpaid yet, missing metadata) stay 200.
+    const retryableCheckoutSkip =
+      (event.type === "checkout.session.completed" ||
+        event.type === "checkout.session.async_payment_succeeded") &&
+      !result.handled &&
+      result.detail === "subscription_not_active";
+
+    if (retryableCheckoutSkip) {
+      return c.json(
+        { error: "Checkout activation deferred", ...result },
+        500,
+      );
+    }
+
     return c.json({ ok: true, ...result });
   } catch (error) {
     console.error("Stripe webhook handler failed:", error);
