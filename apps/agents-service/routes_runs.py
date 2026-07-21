@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from run_manager import run_manager
@@ -92,7 +92,19 @@ def get_run_report(run_id: str) -> dict[str, Any]:
 
 
 @router.delete("/{run_id}")
-def cancel_run(run_id: str) -> dict[str, bool]:
-    if not run_manager.cancel_run(run_id):
+async def cancel_run(run_id: str, request: Request) -> dict[str, bool]:
+    message = "Run cancelled"
+    hint = "You cancelled this analysis."
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            if body.get("message"):
+                message = str(body["message"])
+            if body.get("hint"):
+                hint = str(body["hint"])
+    except Exception:
+        pass
+
+    if not run_manager.cancel_run(run_id, message=message, hint=hint):
         raise HTTPException(status_code=404, detail="Run not found")
     return {"ok": True}

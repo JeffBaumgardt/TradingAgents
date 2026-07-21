@@ -99,9 +99,21 @@ export default function BillingAccountView({
             </div>
             {usage.isSample ? (
               <p className={styles.sampleNote} role="note">
-                Sample usage for review — live metering will use the curated cost catalog. Hosted
-                plans include {formatComputeCredits(usage.allowanceComputeCredits)} compute credits
-                per month.
+                Sample usage for review — live metering uses the curated cost catalog. Hosted
+                plans include {formatComputeCredits(usage.baseAllowanceComputeCredits)} compute
+                credits per month
+                {usage.rolloverComputeCredits > 0
+                  ? ` plus ${formatComputeCredits(usage.rolloverComputeCredits)} rolled over from last period`
+                  : ""}
+                .
+              </p>
+            ) : null}
+            {usage.blockedLowBalance ? (
+              <p className={styles.sampleNote} role="alert">
+                Hosted runs are blocked for the rest of this billing period because your remaining
+                credits fell below the low-balance threshold (about 3% of your allowance). Allowance
+                resets {formatPeriodEnd(usage.periodEnd)}; unused base credits from this period may
+                roll over once into the next month.
               </p>
             ) : null}
             <div className={styles.progressMeta}>
@@ -111,6 +123,14 @@ export default function BillingAccountView({
               </span>
               <span>{Math.round(usage.usedRatio * 100)}% used</span>
             </div>
+            {usage.rolloverComputeCredits > 0 || usage.baseAllowanceComputeCredits > 0 ? (
+              <p className={styles.breakdownIntro}>
+                Base allowance {formatComputeCredits(usage.baseAllowanceComputeCredits)}
+                {usage.rolloverComputeCredits > 0
+                  ? ` · Rollover from prior period ${formatComputeCredits(usage.rolloverComputeCredits)} (prior-month unused base only)`
+                  : " · No rollover this period"}
+              </p>
+            ) : null}
             <div
               className={styles.progressTrack}
               role="progressbar"

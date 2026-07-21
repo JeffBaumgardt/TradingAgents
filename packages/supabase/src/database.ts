@@ -63,3 +63,81 @@ export interface UserSubscriptionRow {
   created_at: string;
   updated_at: string;
 }
+
+export interface PlanCreditConfigRow {
+  plan_id: string;
+  monthly_credit_allowance: number;
+  low_balance_block_ratio: number;
+  low_balance_warn_ratio: number;
+  max_rollover_periods: number;
+  estimated_tokens_by_depth: Record<string, number>;
+  reference_output_usd_per_1m: number;
+  updated_at: string;
+}
+
+export interface ModelCreditMultiplierRow {
+  provider_id: string;
+  model_id: string;
+  display_name: string;
+  provider_label: string;
+  input_usd_per_1m: number;
+  output_usd_per_1m: number;
+  credit_multiplier: number;
+  modes: string[];
+  notes: string | null;
+  is_active: boolean;
+  updated_at: string;
+}
+
+/** Hosted provider keys — never expose ciphertext or plaintext via public APIs. */
+export interface PlatformApiKeyRow {
+  provider_id: string;
+  encrypted_api_key: string;
+  label: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserCreditPeriodRow {
+  id: number;
+  user_id: string;
+  period_start: string;
+  period_end: string;
+  base_allowance: number;
+  rollover_credits: number;
+  used_credits: number;
+  blocked_low_balance: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UsageEventRow {
+  id: number;
+  user_id: string;
+  session_id: string | null;
+  provider_id: string;
+  model_id: string;
+  tokens_in: number;
+  tokens_out: number;
+  billable_units: number;
+  cost_source: string;
+  credit_period_id: number | null;
+  created_at: string;
+}
+
+export interface SessionUsageCursorRow {
+  session_id: string;
+  user_id: string;
+  provider_id: string;
+  quick_model_id: string;
+  deep_model_id: string;
+  cost_source: string;
+  last_tokens_in: number;
+  last_tokens_out: number;
+  credits_charged: number;
+  low_credit_warned: boolean;
+  created_at: string;
+  updated_at: string;
+}

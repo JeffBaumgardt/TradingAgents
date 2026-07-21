@@ -18,6 +18,7 @@ import type {
   AgentStatusEvent,
   AgentStatusValue,
   AnalystType,
+  CreditWarningEvent,
   ReportSectionKey,
   RunErrorEvent,
   RunHeartbeatEvent,
@@ -74,6 +75,8 @@ interface RunStats {
   toolCalls: number;
   tokensIn: number;
   tokensOut: number;
+  computeCredits: number | null;
+  remainingComputeCredits: number | null;
   elapsedSeconds: number;
 }
 
@@ -230,8 +233,11 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
     toolCalls: 0,
     tokensIn: 0,
     tokensOut: 0,
+    computeCredits: null,
+    remainingComputeCredits: null,
     elapsedSeconds: 0,
   });
+  const [creditWarning, setCreditWarning] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   /** Owner-only sections (pipeline, messages, stats, feedback) after events load. */
   const [hasPrivateAccess, setHasPrivateAccess] = useState(false);
@@ -519,7 +525,25 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           toolCalls: payload.tool_calls,
           tokensIn: payload.tokens_in,
           tokensOut: payload.tokens_out,
+          computeCredits:
+            typeof payload.compute_credits === "number"
+              ? payload.compute_credits
+              : prev.computeCredits,
+          remainingComputeCredits:
+            typeof payload.remaining_compute_credits === "number"
+              ? payload.remaining_compute_credits
+              : prev.remainingComputeCredits,
         }));
+        return;
+      }
+      if (event === "credit.warning") {
+        const payload = data as CreditWarningEvent;
+        setCreditWarning(payload.message);
+        return;
+      }
+      if (event === "credit.exhausted") {
+        const payload = data as { message?: string; hint?: string };
+        setCreditWarning(payload.message ?? "Compute credits exhausted.");
         return;
       }
       if (event === "run.completed") {
@@ -1141,6 +1165,13 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         onToggle={() => setSettingsExpanded((prev) => !prev)}
       />
 
+      {creditWarning && !runError ? (
+        <div className={styles.bannerInfo} role="status" aria-live="polite">
+          <strong>Compute credits</strong>
+          <p>{creditWarning}</p>
+        </div>
+      ) : null}
+
       {runError && (
         <div className={styles.bannerError} role="alert">
           <strong>Analysis stopped</strong>
@@ -1369,6 +1400,12 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           <span>Tool calls: {stats.toolCalls}</span>
           <span>Tokens in: {formatTokens(stats.tokensIn)}</span>
           <span>Tokens out: {formatTokens(stats.tokensOut)}</span>
+          {stats.computeCredits != null ? (
+            <span>Credits used: {formatTokens(stats.computeCredits)}</span>
+          ) : null}
+          {stats.remainingComputeCredits != null ? (
+            <span>Credits left: {formatTokens(stats.remainingComputeCredits)}</span>
+          ) : null}
           <span>Elapsed: {formatElapsed(stats.elapsedSeconds)}</span>
         </footer>
       ) : null}

@@ -825,6 +825,8 @@ components:
         - tool.call
         - report.section
         - stats
+        - credit.warning
+        - credit.exhausted
         - run.completed
         - run.error
     ConfigOption:

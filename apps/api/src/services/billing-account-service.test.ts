@@ -26,6 +26,9 @@ describe("billing-account-service", () => {
     assert.ok(account.usage);
     assert.equal(account.usage?.isSample, true);
     assert.equal(account.usage?.allowanceComputeCredits, HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE);
+    assert.equal(account.usage?.baseAllowanceComputeCredits, HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE);
+    assert.equal(account.usage?.rolloverComputeCredits, 0);
+    assert.equal(account.usage?.blockedLowBalance, false);
     assert.ok((account.usage?.byModel.length ?? 0) > 0);
     assert.ok((account.usage?.selfPayTokens ?? 0) > 0);
     assert.ok((account.usage?.usedComputeCredits ?? 0) > 0);

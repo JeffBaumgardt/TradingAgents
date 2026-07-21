@@ -27,7 +27,24 @@ import {
 import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
 import * as agentsClient from "./agents-client.js";
 import { getBillingAccount } from "./billing-account-service.js";
+import {
+  assertHostedCreditsForNewRun,
+  initSessionUsageCursor,
+} from "./credit-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
+import { resolveRunProviderCredentials } from "./platform-keys-service.js";
+
+export class SessionServiceError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status: number, code: string) {
+    super(message);
+    this.name = "SessionServiceError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 function rowToSession(row: SessionRow): Session {
   return {
@@ -169,11 +186,38 @@ export async function createSession(
     throw new Error(validationError);
   }
 
+  const resolved = await resolveRunProviderCredentials(client, storedCredentials, {
+    isHostedPlan,
+    hostedProviderIds: billing.hostedProviderIds,
+    selectedProviderId: body.llmProvider,
+  });
+
+  if (isHostedPlan && billing.subscription.currentPeriodStart && billing.subscription.currentPeriodEnd) {
+    const gate = await assertHostedCreditsForNewRun(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: billing.subscription.currentPeriodStart,
+        current_period_end: billing.subscription.currentPeriodEnd,
+      },
+      body,
+      resolved.costSource,
+    );
+    if (!gate.allowed) {
+      throw new SessionServiceError(
+        gate.message ?? "Insufficient compute credits for this run.",
+        402,
+        gate.code ?? "credits_insufficient",
+      );
+    }
+  }
+
   const normalized: CreateSessionRequest = {
     ...body,
     ticker: normalizeTicker(body.ticker),
     userContext: sanitizeUserContext(body.userContext),
-    providerCredentials: storedCredentials,
+    providerCredentials: resolved.credentials,
   };
 
   const { providerCredentials: _providerCredentials, ...persistedConfig } = normalized;
@@ -195,6 +239,15 @@ export async function createSession(
   if (insertError) {
     throw new Error(insertError.message);
   }
+
+  await initSessionUsageCursor(client, {
+    sessionId: id,
+    userId,
+    providerId: body.llmProvider,
+    quickModelId: body.quickThinkLlm,
+    deepModelId: body.deepThinkLlm,
+    costSource: resolved.costSource,
+  });
 
   const { runId } = await agentsClient.startRun(id, normalized);
 

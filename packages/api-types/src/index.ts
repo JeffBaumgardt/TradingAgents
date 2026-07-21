@@ -43,6 +43,8 @@ export type SseEventType =
   | "tool.call"
   | "report.section"
   | "stats"
+  | "credit.warning"
+  | "credit.exhausted"
   | "trade.check"
   | "run.completed"
   | "run.error";
@@ -511,11 +513,21 @@ export interface BillingUsageSummary {
   isSample: boolean;
   periodStart: string;
   periodEnd: string;
+  /** Base monthly allowance from plan_credit_configs (excludes rollover). */
+  baseAllowanceComputeCredits: number;
+  /** Unused base credits rolled from the immediately previous period only. */
+  rolloverComputeCredits: number;
+  /** base + rollover. */
   allowanceComputeCredits: number;
   usedComputeCredits: number;
   remainingComputeCredits: number;
   /** 0–1 clamped for account-level progress UI. */
   usedRatio: number;
+  /**
+   * True when remaining credits fell below the plan low-balance block ratio
+   * (default 3%) — new hosted runs are refused for the rest of the period.
+   */
+  blockedLowBalance: boolean;
   tokensTotal: number;
   selfPayTokens: number;
   hostedTokens: number;
@@ -573,6 +585,25 @@ export interface StreamStatsEvent {
   tool_calls: number;
   tokens_in: number;
   tokens_out: number;
+  /** Hosted compute credits charged for this run so far (0 when self-pay). */
+  compute_credits?: number;
+  /** Remaining hosted credits in the current billing period (hosted only). */
+  remaining_compute_credits?: number;
+}
+
+/** Live warning when hosted credit balance is getting low mid-run. */
+export interface CreditWarningEvent {
+  remainingComputeCredits: number;
+  totalAllowanceComputeCredits: number;
+  usedRatio: number;
+  message: string;
+}
+
+/** Run stopped because hosted credits were exhausted. */
+export interface CreditExhaustedEvent {
+  remainingComputeCredits: number;
+  message: string;
+  hint?: string;
 }
 
 export interface RunStartedEvent {
@@ -612,6 +643,8 @@ export interface SseEventMap {
   "tool.call": StreamToolCallEvent;
   "report.section": StreamReportSectionEvent;
   stats: StreamStatsEvent;
+  "credit.warning": CreditWarningEvent;
+  "credit.exhausted": CreditExhaustedEvent;
   "trade.check": TradeCheckEvent;
   "run.completed": RunCompletedEvent;
   "run.error": RunErrorEvent;
