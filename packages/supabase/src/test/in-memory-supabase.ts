@@ -8,6 +8,7 @@ import type {
   SessionRow,
   UserCredentialRow,
   UserRow,
+  UserSubscriptionRow,
 } from "../database.js";
 
 function credentialKey(userId: string, providerId: string, fieldName: string): string {
@@ -22,6 +23,7 @@ export function createInMemorySupabase(): AppSupabaseClient {
   const users = new Map<string, UserRow>();
   const credentials = new Map<string, UserCredentialRow>();
   const sessions = new Map<string, SessionRow>();
+  const subscriptions = new Map<string, UserSubscriptionRow>();
   const events: EventRow[] = [];
   let nextEventId = 1;
 
@@ -29,7 +31,9 @@ export function createInMemorySupabase(): AppSupabaseClient {
     return { data, error: null as null, count };
   }
 
-  function buildQuery<T>(table: "users" | "user_credentials" | "sessions" | "events") {
+  function buildQuery<T>(
+    table: "users" | "user_credentials" | "sessions" | "events" | "user_subscriptions",
+  ) {
     let filters: Array<(row: Record<string, unknown>) => boolean> = [];
     let selectedColumns = "*";
     let orderBy: Array<{ column: string; ascending: boolean }> = [];
@@ -48,6 +52,8 @@ export function createInMemorySupabase(): AppSupabaseClient {
           return [...credentials.values()] as unknown as Record<string, unknown>[];
         case "sessions":
           return [...sessions.values()] as unknown as Record<string, unknown>[];
+        case "user_subscriptions":
+          return [...subscriptions.values()] as unknown as Record<string, unknown>[];
         case "events":
           return [...events] as unknown as Record<string, unknown>[];
         default:
@@ -162,7 +168,7 @@ export function createInMemorySupabase(): AppSupabaseClient {
   }
 
   return {
-    from(table: "users" | "user_credentials" | "sessions" | "events") {
+    from(table: "users" | "user_credentials" | "sessions" | "events" | "user_subscriptions") {
       return {
         select(columns?: string, options?: { count?: "exact"; head?: boolean }) {
           return buildQuery(table).select(columns, options);
@@ -188,22 +194,41 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 ),
                 row as unknown as UserCredentialRow,
               );
+            } else if (table === "user_subscriptions") {
+              subscriptions.set(
+                String(row.user_id),
+                row as unknown as UserSubscriptionRow,
+              );
             }
           }
           return Promise.resolve(ok(null));
         },
         upsert(values: Record<string, unknown>, _options?: { onConflict?: string }) {
-          if (table !== "user_credentials") {
+          if (table === "user_credentials") {
+            credentials.set(
+              credentialKey(
+                String(values.user_id),
+                String(values.provider_id),
+                String(values.field_name),
+              ),
+              values as unknown as UserCredentialRow,
+            );
             return Promise.resolve(ok(null));
           }
-          credentials.set(
-            credentialKey(
-              String(values.user_id),
-              String(values.provider_id),
-              String(values.field_name),
-            ),
-            values as unknown as UserCredentialRow,
-          );
+          if (table === "user_subscriptions") {
+            const userId = String(values.user_id);
+            const existing = subscriptions.get(userId);
+            const now = new Date().toISOString();
+            subscriptions.set(userId, {
+              ...(existing ?? {
+                created_at: now,
+              }),
+              ...(values as unknown as UserSubscriptionRow),
+              user_id: userId,
+              updated_at: now,
+            });
+            return Promise.resolve(ok(null));
+          }
           return Promise.resolve(ok(null));
         },
         update(values: Record<string, unknown>) {
@@ -218,6 +243,11 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 const existing = sessions.get(String(value));
                 if (existing) {
                   sessions.set(String(value), { ...existing, ...values });
+                }
+              } else if (table === "user_subscriptions") {
+                const existing = subscriptions.get(String(value));
+                if (existing && column === "user_id") {
+                  subscriptions.set(String(value), { ...existing, ...values });
                 }
               } else if (table === "user_credentials") {
                 for (const [key, row] of credentials.entries()) {
@@ -246,6 +276,8 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 users.delete(String(value));
               } else if (table === "sessions") {
                 sessions.delete(String(value));
+              } else if (table === "user_subscriptions" && column === "user_id") {
+                subscriptions.delete(String(value));
               } else if (table === "events") {
                 for (let index = events.length - 1; index >= 0; index -= 1) {
                   if (

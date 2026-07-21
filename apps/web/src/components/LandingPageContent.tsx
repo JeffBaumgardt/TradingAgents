@@ -18,28 +18,34 @@ interface LandingPageContentProps {
   cookieAcknowledged: boolean;
 }
 
-export default function LandingPageContent({ cookieAcknowledged }: LandingPageContentProps) {
+export default function LandingPageContent({
+  cookieAcknowledged,
+}: LandingPageContentProps) {
   return (
     <>
       <div className={styles.page}>
         <section className={styles.hero} aria-labelledby="landing-hero-heading">
           <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>TradingAgents Framework · Free to start</p>
+            <p className={styles.eyebrow}>
+              TradingAgents Framework · From $3/month
+            </p>
             <h1 id="landing-hero-heading" className={styles.heroTitle}>
               {LANDING_HERO.headline}
             </h1>
             <p className={styles.heroIntro}>{LANDING_HERO.copy}</p>
             <div className={styles.heroActions}>
-              <Link href="/sign-up" className={styles.primaryButton}>
-                Create free account
+              <Link href="/pricing" className={styles.primaryButton}>
+                Get Started
               </Link>
               <Link href="/sign-in" className={styles.secondaryButton}>
                 Sign in
               </Link>
             </div>
-            <ul className={styles.heroHighlights} aria-label="Product highlights">
-              <li>No credit card required</li>
-              <li>Bring your own AI provider key</li>
+            <ul
+              className={styles.heroHighlights}
+              aria-label="Product highlights"
+            >
+              <li>Subscription required to run research</li>
               <li>Research only — not financial advice</li>
             </ul>
           </div>
@@ -55,7 +61,11 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
           </div>
         </section>
 
-        <section id="framework" className={styles.features} aria-labelledby="framework-heading">
+        <section
+          id="framework"
+          className={styles.features}
+          aria-labelledby="framework-heading"
+        >
           <div className={styles.sectionIntro}>
             <h2 id="framework-heading" className={styles.sectionTitle}>
               Specialized agents, structured collaboration
@@ -83,7 +93,10 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
                   </div>
                 ) : null}
                 <div className={styles.featureCopy}>
-                  <h3 id={`${team.slug}-heading`} className={styles.featureTitle}>
+                  <h3
+                    id={`${team.slug}-heading`}
+                    className={styles.featureTitle}
+                  >
                     {team.title}
                   </h3>
                   <p className={styles.featureText}>{team.summary}</p>
@@ -91,8 +104,12 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
                     <ul className={styles.agentList}>
                       {team.agents.map((agent) => (
                         <li key={agent.name} className={styles.agentItem}>
-                          <strong className={styles.agentName}>{agent.name}</strong>
-                          <span className={styles.agentDescription}>{agent.description}</span>
+                          <strong className={styles.agentName}>
+                            {agent.name}
+                          </strong>
+                          <span className={styles.agentDescription}>
+                            {agent.description}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -103,22 +120,26 @@ export default function LandingPageContent({ cookieAcknowledged }: LandingPageCo
           </div>
         </section>
 
-        <section className={styles.finalCta} aria-labelledby="final-cta-heading">
+        <section
+          className={styles.finalCta}
+          aria-labelledby="final-cta-heading"
+        >
           <div className={styles.finalCtaInner}>
             <h2 id="final-cta-heading" className={styles.finalCtaTitle}>
               Launch your first multi-agent research run
             </h2>
             <p className={styles.finalCtaCopy}>
-              Create a free account, add your provider API key, and watch analyst, researcher,
-              trader, and risk agents collaborate on your next ticker. Bring-your-own-key starts at
-              $3/month to help cover infrastructure.
+              Choose a plan, add your provider API key, and watch analyst,
+              researcher, trader, and risk agents collaborate on your next
+              ticker. Bring-your-own-key starts at $3/month to help cover
+              infrastructure.
             </p>
             <div className={styles.heroActions}>
-              <Link href="/sign-up" className={styles.primaryButton}>
-                Get started free
+              <Link href="/pricing" className={styles.primaryButton}>
+                Get Started
               </Link>
-              <Link href="/pricing" className={styles.secondaryButton}>
-                View pricing
+              <Link href="/sign-up" className={styles.secondaryButton}>
+                Create account
               </Link>
             </div>
           </div>

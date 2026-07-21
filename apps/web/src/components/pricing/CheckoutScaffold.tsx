@@ -1,12 +1,12 @@
 /**
  * @file apps/web/src/components/pricing/CheckoutScaffold.tsx
- * Single checkout path: Clerk account first, then payment setup.
+ * Clerk account first, then Stripe Managed Payments Checkout.
  */
 
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useState } from "react";
 import { createCheckoutSession, ApiClientError } from "@/lib/api-client";
@@ -62,7 +62,6 @@ function resolveCheckoutSelection(
 }
 
 export default function CheckoutScaffold() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { isLoaded, isSignedIn } = useAuth();
   const [pending, setPending] = useState(false);
@@ -75,7 +74,7 @@ export default function CheckoutScaffold() {
     searchParams.get("interval"),
   );
 
-  async function handleContinueToPayment(planId: BillingPlanId, interval: BillingInterval) {
+  async function handlePayWithStripe(planId: BillingPlanId, interval: BillingInterval) {
     setPending(true);
     setError(null);
     setMessage(null);
@@ -86,28 +85,29 @@ export default function CheckoutScaffold() {
         planId,
         interval,
       });
+
+      if (result.status === "ready" && result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+
+      // Stripe env not configured on the API — surface that clearly.
       setSubscriptionActivated(Boolean(result.subscriptionActivated));
       setMessage(
-        result.message ??
-          "Checkout is scaffolded. Payment provider integration comes next.",
+        result.subscriptionActivated
+          ? "Stripe isn’t connected yet, so we activated a temporary review subscription. Connect STRIPE_SECRET_KEY on the API to take real payments."
+          : (result.message ??
+            "Stripe isn’t connected yet. Add STRIPE_SECRET_KEY and price IDs on the API, then try again."),
       );
     } catch (caught) {
       if (caught instanceof ApiClientError) {
         setError(caught.message);
       } else {
-        setError("Could not start checkout. Please try again later.");
+        setError("Could not start Stripe Checkout. Please try again later.");
       }
     } finally {
       setPending(false);
     }
-  }
-
-  function handleContinue(planId: BillingPlanId, interval: BillingInterval) {
-    if (!isSignedIn) {
-      router.push(buildCheckoutSignUpHref(planId, interval));
-      return;
-    }
-    void handleContinueToPayment(planId, interval);
   }
 
   if (!selection.ok) {
@@ -131,7 +131,7 @@ export default function CheckoutScaffold() {
         </p>
 
         <div className={styles.actions}>
-          <Link href="/pricing" className={pricingStyles.primaryButton} aria-label="View pricing">
+          <Link href="/pricing" className={styles.primaryButton} aria-label="View pricing">
             View pricing
           </Link>
         </div>
@@ -142,18 +142,17 @@ export default function CheckoutScaffold() {
   const { planId, interval } = selection;
   const plan = getPricingPlan(planId);
   const price = displayPriceCents(plan, interval);
+  const signUpHref = buildCheckoutSignUpHref(planId, interval);
+  const signInHref = buildCheckoutSignInHref(planId, interval);
+  const payLabel = pending
+    ? "Opening Stripe Checkout…"
+    : `Subscribe — ${formatUsdFromCents(price)}/mo`;
+
   const stepLabel = !isLoaded
     ? "Loading…"
     : isSignedIn
       ? "Step 2 of 2 — Payment"
       : "Step 1 of 2 — Create your account";
-  const ctaLabel = !isLoaded
-    ? "Loading…"
-    : isSignedIn
-      ? pending
-        ? "Starting payment…"
-        : "Continue to payment"
-      : "Continue to create account";
 
   return (
     <div className={styles.page}>
@@ -164,12 +163,18 @@ export default function CheckoutScaffold() {
       <header className={styles.header}>
         <p className={pricingStyles.eyebrow}>Checkout · {stepLabel}</p>
         <h1 className={styles.title}>
-          {isSignedIn ? "Set up payment" : "Create your account to continue"}
+          {!isLoaded
+            ? "Checkout"
+            : isSignedIn
+              ? "Pay with Stripe"
+              : "Create your account to continue"}
         </h1>
         <p className={styles.intro}>
-          {isSignedIn
-            ? "Your account is ready. Continue to payment setup. Stripe is not live yet — this step activates a scaffold subscription so you can use the app."
-            : "One path: create your TradingAgents account with Clerk, then you’ll return here to finish payment for the plan below."}
+          {!isLoaded
+            ? "Loading your session…"
+            : isSignedIn
+              ? "You’ll complete payment on Stripe’s secure checkout. Tax is calculated from the billing address you enter there."
+              : "Create a TradingAgents account, then you’ll return here to pay for the plan below with Stripe."}
         </p>
       </header>
 
@@ -199,34 +204,65 @@ export default function CheckoutScaffold() {
       </section>
 
       <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.primaryButton}
-          aria-label={ctaLabel}
-          disabled={!isLoaded || pending}
-          onClick={() => handleContinue(planId, interval)}
-        >
-          {ctaLabel}
-        </button>
+        {!isLoaded ? (
+          <button
+            type="button"
+            className={styles.primaryButton}
+            aria-label="Loading checkout"
+            disabled
+          >
+            Loading…
+          </button>
+        ) : isSignedIn ? (
+          <button
+            type="button"
+            className={styles.primaryButton}
+            aria-label={payLabel}
+            disabled={pending}
+            onClick={() => void handlePayWithStripe(planId, interval)}
+          >
+            {payLabel}
+          </button>
+        ) : (
+          <>
+            <Link
+              href={signUpHref}
+              className={styles.primaryButton}
+              aria-label="Create account to continue to payment"
+            >
+              Create account
+            </Link>
+            <Link
+              href={signInHref}
+              className={styles.secondaryButton}
+              aria-label="Sign in to continue to payment"
+            >
+              Sign in
+            </Link>
+          </>
+        )}
       </div>
-
-      {!isSignedIn && isLoaded ? (
-        <p className={styles.caption}>
-          Already have an account?{" "}
-          <Link href={buildCheckoutSignInHref(planId, interval)}>Sign in</Link>
-          , then you’ll continue to payment.
-        </p>
-      ) : null}
 
       {message ? (
         <div className={styles.info} role="status">
           <p>{message}</p>
           {subscriptionActivated ? (
-            <p>
-              <Link href="/dashboard">Go to dashboard →</Link>
-              {" · "}
-              <Link href="/settings/billing">Billing & usage</Link>
-            </p>
+            <div className={styles.actions}>
+              <Link
+                href="/dashboard"
+                className={styles.primaryButton}
+                aria-label="Go to dashboard"
+              >
+                Go to dashboard
+              </Link>
+              <Link
+                href="/settings/billing"
+                className={styles.secondaryButton}
+                aria-label="View billing and usage"
+              >
+                Billing & usage
+              </Link>
+            </div>
           ) : null}
         </div>
       ) : null}

@@ -23,8 +23,8 @@ export default function LandingHeader() {
           <Link href="/sign-in" className={styles.navLink}>
             Sign in
           </Link>
-          <Link href="/sign-up" className={styles.signUpButton}>
-            Get started free
+          <Link href="/pricing" className={styles.signUpButton}>
+            Get Started
           </Link>
         </nav>
       </div>

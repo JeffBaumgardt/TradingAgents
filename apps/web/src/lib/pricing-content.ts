@@ -114,7 +114,7 @@ export const PRICING_PAGE = {
     "Most AI tools either hide model costs in a high flat fee or force you to manage keys alone. We offer both: a low infrastructure fee when you bring your own key, or a hosted-models plan when you want a ready-made catalog.",
   annualNote: `Annual billing saves ${ANNUAL_DISCOUNT_PERCENT}% versus paying month to month.`,
   provisionalNote:
-    "Hosted models includes a monthly compute credit allowance for platform-operated models. Checkout is scaffolded until Stripe billing is live.",
+    "Hosted models includes a monthly compute credit allowance for platform-operated models. Payments run through Stripe Managed Payments Checkout.",
   infraFraming: `The ${BYOK_MONTHLY_LABEL} Bring your own key plan is a platform fee — it helps pay for the servers, databases, and orchestration that run TradingAgents. Model tokens still bill to your provider.`,
 } as const;
 

@@ -20,7 +20,7 @@ describe("billing-service", () => {
     assert.deepEqual(plans, [...BILLING_CATALOG]);
     assert.equal(BILLING_ANNUAL_DISCOUNT_PERCENT, 20);
     assert.equal(plans[0]?.monthlyPriceCents, 300);
-    assert.equal(plans[1]?.priceProvisional, true);
+    assert.equal(plans[1]?.priceProvisional, false);
   });
 
   it("returns a not_configured checkout scaffold for valid requests", async () => {
@@ -37,7 +37,7 @@ describe("billing-service", () => {
     assert.match(result.message, /scaffolded/i);
   });
 
-  it("rejects redirect URLs until allowlisting exists", async () => {
+  it("rejects client-supplied redirect URLs", async () => {
     await assert.rejects(
       () =>
         createCheckoutSession({

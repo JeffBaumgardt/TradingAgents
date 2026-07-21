@@ -147,11 +147,12 @@ paths:
   /billing/checkout:
     post:
       tags: [billing]
-      summary: Start checkout (scaffold)
+      summary: Start Managed Payments Checkout
       description: |
-        Validates plan selection and returns a not_configured payload until a
-        payment provider (e.g. Stripe Checkout) is integrated. When authenticated,
-        activates a scaffold subscription for billing UI review.
+        Validates plan selection and creates a Stripe Checkout Session with
+        Managed Payments enabled when Stripe is configured. Otherwise returns
+        a not_configured payload (and may activate a scaffold subscription when
+        authenticated for local UI review).
       operationId: createCheckoutSession
       requestBody:
         required: true
@@ -160,12 +161,24 @@ paths:
             schema:
               $ref: "#/components/schemas/CheckoutRequest"
       responses:
-        "501":
-          description: Checkout route exists but payment provider is not configured
+        "200":
+          description: Stripe Checkout Session created; redirect to checkoutUrl
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CheckoutResponse"
+        "501":
+          description: Stripe is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "401":
+          description: Authentication required when Stripe is configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Invalid checkout payload
           content:
@@ -757,7 +770,7 @@ components:
       properties:
         status:
           type: string
-          enum: [not_configured]
+          enum: [ready, not_configured]
         planId:
           $ref: "#/components/schemas/BillingPlanId"
         interval:
@@ -765,7 +778,7 @@ components:
         checkoutUrl:
           type: string
           nullable: true
-          description: Checkout URL when a payment provider is configured; null in scaffold mode.
+          description: Stripe Checkout URL when status is ready; null when not configured.
         message:
           type: string
         subscriptionActivated:

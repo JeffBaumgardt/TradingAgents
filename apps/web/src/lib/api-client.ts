@@ -251,9 +251,9 @@ export async function fetchBillingAccount(): Promise<BillingAccountResponse> {
 }
 
 /**
- * Start checkout. Returns the scaffold payload when the payment provider is
- * not configured yet (HTTP 501 with status "not_configured").
- * Sends auth when available so scaffold subscriptions can activate.
+ * Start checkout. When Stripe is configured, returns status "ready" with a
+ * checkoutUrl (HTTP 200). When not configured, returns status "not_configured"
+ * (HTTP 501) and may activate a scaffold subscription.
  */
 export async function createCheckoutSession(
   body: CheckoutRequest,
@@ -281,6 +281,16 @@ export async function createCheckoutSession(
     typeof payload === "object" &&
     "status" in payload &&
     (payload as CheckoutResponse).status === "not_configured"
+  ) {
+    return payload as CheckoutResponse;
+  }
+
+  if (
+    response.status === 200 &&
+    payload &&
+    typeof payload === "object" &&
+    "status" in payload &&
+    (payload as CheckoutResponse).status === "ready"
   ) {
     return payload as CheckoutResponse;
   }

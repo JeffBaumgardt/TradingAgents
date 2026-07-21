@@ -38,10 +38,10 @@ describe("pricing-content", () => {
     assert.equal(displayPriceCents(byok, "annual"), 240);
   });
 
-  it("applies a 20% annual discount to the provisional hosted plan", () => {
+  it("applies a 20% annual discount to the hosted plan", () => {
     const hosted = getPricingPlan("hosted");
     assert.equal(hosted.monthlyPriceCents, 1900);
-    assert.equal(hosted.priceProvisional, true);
+    assert.equal(hosted.priceProvisional, false);
     assert.equal(annualTotalCents(hosted.monthlyPriceCents), 18240);
     assert.equal(annualMonthlyEquivalentCents(hosted.monthlyPriceCents), 1520);
     assert.equal(formatUsdFromCents(1520), "$15.20");

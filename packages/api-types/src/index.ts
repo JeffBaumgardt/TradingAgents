@@ -391,7 +391,7 @@ export const BILLING_CATALOG: readonly BillingPlan[] = [
     id: "hosted",
     name: "Hosted models",
     monthlyPriceCents: 1900,
-    priceProvisional: true,
+    priceProvisional: false,
     annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
   },
 ];
@@ -405,9 +405,13 @@ export interface CheckoutRequest {
   interval: BillingInterval;
 }
 
-/** Returned while the payment provider is not wired (HTTP 501). */
+/**
+ * Checkout start response.
+ * - `ready` — Stripe Checkout Session created; redirect to `checkoutUrl` (HTTP 200).
+ * - `not_configured` — Stripe env not set; optional scaffold activation (HTTP 501).
+ */
 export interface CheckoutResponse {
-  status: "not_configured";
+  status: "ready" | "not_configured";
   planId: BillingPlanId;
   interval: BillingInterval;
   checkoutUrl: string | null;

@@ -1,7 +1,7 @@
 /**
  * apps/api/src/routes/billing.ts
  *
- * Public billing catalog + authenticated account/usage + checkout scaffold.
+ * Public billing catalog + authenticated account/usage + Managed Payments checkout.
  */
 
 import { Hono } from "hono";
@@ -51,10 +51,14 @@ billingRoutes.post("/billing/checkout", async (c) => {
     const userId = getOptionalRequestUserId(c) ?? null;
     const client = userId ? getSupabaseAdmin(c) : null;
     const result = await createCheckoutSession(body, { userId, client });
-    return c.json(result, 501);
+    const status = result.status === "ready" ? 200 : 501;
+    return c.json(result, status);
   } catch (error) {
     if (error instanceof BillingServiceError) {
-      return c.json({ error: error.message }, error.status as 400);
+      return c.json(
+        { error: error.message },
+        error.status as 400 | 401 | 500 | 502,
+      );
     }
     throw error;
   }

@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/app/(marketing)/checkout/page.tsx
- * Checkout entry point — scaffolds the future payment provider flow.
+ * Checkout entry — Clerk account, then Stripe Managed Payments.
  */
 
 import type { Metadata } from "next";
@@ -10,7 +10,7 @@ import CheckoutScaffold from "@/components/pricing/CheckoutScaffold";
 
 export const metadata: Metadata = {
   title: "Checkout — TradingAgents",
-  description: "Start a TradingAgents subscription checkout (payment provider coming soon).",
+  description: "Create your account and pay for a TradingAgents plan with Stripe Checkout.",
 };
 
 export default function CheckoutPage() {

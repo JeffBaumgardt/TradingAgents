@@ -9,6 +9,8 @@ import {
   BILLING_CATALOG,
   HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   getModelCreditMultiplier,
+  isBillingInterval,
+  isBillingPlanId,
   type BillingAccountResponse,
   type BillingInterval,
   type BillingPlanId,
@@ -269,6 +271,46 @@ function sampleUsageEvents(): UsageEventRow[] {
   }));
 }
 
+interface StoredSubscriptionRow {
+  plan_id: string;
+  interval: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_checkout_session_id: string | null;
+}
+
+export interface ActivatePaidSubscriptionInput {
+  userId: string;
+  planId: BillingPlanId;
+  interval: BillingInterval;
+  status?: "active" | "past_due" | "canceled";
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  stripeCheckoutSessionId: string | null;
+}
+
+function rowToUserSubscription(row: StoredSubscriptionRow): UserSubscription {
+  const planId = isBillingPlanId(row.plan_id) ? row.plan_id : null;
+  const interval = isBillingInterval(row.interval) ? row.interval : null;
+  const status =
+    row.status === "active" || row.status === "past_due" || row.status === "canceled"
+      ? row.status
+      : "none";
+
+  return {
+    planId,
+    interval,
+    status: planId ? status : "none",
+    currentPeriodStart: row.current_period_start,
+    currentPeriodEnd: row.current_period_end,
+  };
+}
+
 export async function activateScaffoldSubscription(
   _client: AppSupabaseClient,
   userId: string,
@@ -302,20 +344,118 @@ export async function activateScaffoldSubscription(
   };
 }
 
+/** Persist a paid subscription after checkout.session.completed (or equivalent). */
+export async function activatePaidSubscription(
+  client: AppSupabaseClient,
+  input: ActivatePaidSubscriptionInput,
+): Promise<UserSubscription> {
+  const status = input.status ?? "active";
+  const row = {
+    user_id: input.userId,
+    plan_id: input.planId,
+    interval: input.interval,
+    status,
+    current_period_start: input.currentPeriodStart,
+    current_period_end: input.currentPeriodEnd,
+    stripe_customer_id: input.stripeCustomerId,
+    stripe_subscription_id: input.stripeSubscriptionId,
+    stripe_checkout_session_id: input.stripeCheckoutSessionId,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await client.from("user_subscriptions").upsert(row, {
+    onConflict: "user_id",
+  });
+
+  // Keep scaffold in sync so local/dev still reflects activation if Postgres
+  // is unavailable (in-memory client) or the migration has not been applied.
+  scaffoldSubscriptions.set(input.userId, {
+    planId: input.planId,
+    interval: input.interval,
+    status: "active",
+    currentPeriodStart: input.currentPeriodStart,
+    currentPeriodEnd: input.currentPeriodEnd,
+  });
+  if (input.planId === "hosted" && !scaffoldUsage.has(input.userId)) {
+    scaffoldUsage.set(input.userId, sampleUsageEvents());
+  }
+
+  if (error) {
+    // Table may be missing in older environments; scaffold map still works.
+    console.warn("[billing] user_subscriptions upsert failed:", error.message);
+  }
+
+  return {
+    planId: input.planId,
+    interval: input.interval,
+    status,
+    currentPeriodStart: input.currentPeriodStart,
+    currentPeriodEnd: input.currentPeriodEnd,
+  };
+}
+
+export async function findStripeCustomerIdForUser(
+  client: AppSupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await client
+      .from("user_subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    const customerId = (data as { stripe_customer_id?: string | null }).stripe_customer_id;
+    return customerId?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadStoredSubscription(
+  client: AppSupabaseClient,
+  userId: string,
+): Promise<UserSubscription | null> {
+  try {
+    const { data, error } = await client
+      .from("user_subscriptions")
+      .select(
+        "plan_id, interval, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id",
+      )
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return rowToUserSubscription(data as StoredSubscriptionRow);
+  } catch {
+    return null;
+  }
+}
+
 export async function getBillingAccount(
-  _client: AppSupabaseClient,
+  client: AppSupabaseClient,
   userId: string,
 ): Promise<BillingAccountResponse> {
+  const stored = await loadStoredSubscription(client, userId);
   const scaffold = scaffoldSubscriptions.get(userId);
-  const subscription: UserSubscription = scaffold
-    ? {
-        planId: scaffold.planId,
-        interval: scaffold.interval,
-        status: scaffold.status,
-        currentPeriodStart: scaffold.currentPeriodStart,
-        currentPeriodEnd: scaffold.currentPeriodEnd,
-      }
-    : emptySubscription();
+  const subscription: UserSubscription = stored
+    ? stored
+    : scaffold
+      ? {
+          planId: scaffold.planId,
+          interval: scaffold.interval,
+          status: scaffold.status,
+          currentPeriodStart: scaffold.currentPeriodStart,
+          currentPeriodEnd: scaffold.currentPeriodEnd,
+        }
+      : emptySubscription();
 
   let usage: BillingUsageSummary | null = null;
   if (subscription.planId === "hosted" && subscription.status === "active") {
