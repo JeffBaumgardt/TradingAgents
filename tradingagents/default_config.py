@@ -9,6 +9,8 @@ _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 # their .env file.
 _ENV_OVERRIDES = {
     "TRADINGAGENTS_LLM_PROVIDER":         "llm_provider",
+    "TRADINGAGENTS_THINK_LLM":            "think_llm",
+    # Legacy dual-model env vars — still accepted; normalized to think_llm below.
     "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
     "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
@@ -64,6 +66,20 @@ def _apply_env_overrides(config: dict) -> dict:
             config[key] = _coerce(raw, config.get(key))
         except ValueError as exc:
             raise ValueError(f"Invalid value for {env_var}: {exc}") from exc
+    return _normalize_think_llm(config)
+
+
+def _normalize_think_llm(config: dict) -> dict:
+    """Collapse dual-model keys onto a single think_llm for the whole run."""
+    resolved = (
+        config.get("think_llm")
+        or config.get("deep_think_llm")
+        or config.get("quick_think_llm")
+    )
+    if resolved:
+        config["think_llm"] = resolved
+        config["deep_think_llm"] = resolved
+        config["quick_think_llm"] = resolved
     return config
 
 
@@ -76,9 +92,11 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # the oldest resolved entries are pruned once this limit is exceeded.
     # Pending entries are never pruned. None disables rotation entirely.
     "memory_log_max_entries": None,
-    # LLM settings
+    # LLM settings — one model for every agent
     "llm_provider": "openai",
-    "deep_think_llm": "gpt-5.5",
+    "think_llm": "gpt-5.4-mini",
+    # Legacy aliases kept in sync with think_llm (see _normalize_think_llm).
+    "deep_think_llm": "gpt-5.4-mini",
     "quick_think_llm": "gpt-5.4-mini",
     # When None, each provider's client falls back to its own default endpoint
     # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).

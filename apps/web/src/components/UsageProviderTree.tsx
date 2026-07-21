@@ -11,7 +11,10 @@ import ProviderCostBadge from "@/components/ProviderCostBadge";
 import {
   formatComputeCredits,
   formatCreditMultiplier,
+  formatCreditSpendDollars,
   formatTokenCount,
+  creditSpendTierFromMultiplier,
+  creditSpendTierLabel,
 } from "@/lib/billing-display";
 import styles from "./BillingPageContent.module.css";
 
@@ -76,6 +79,13 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
                   >
                     <div className={styles.modelTitleRow}>
                       <strong className={styles.modelId}>{model.modelId}</strong>
+                      <span
+                        className={styles.spendDollars}
+                        title={`${creditSpendTierLabel(creditSpendTierFromMultiplier(model.creditMultiplier))} spend`}
+                        aria-label={`${creditSpendTierLabel(creditSpendTierFromMultiplier(model.creditMultiplier))} spend`}
+                      >
+                        {formatCreditSpendDollars(model.creditMultiplier)}
+                      </span>
                       <span
                         className={styles.multiplierChip}
                         title="Compute credit multiplier from API output $/1M tokens"

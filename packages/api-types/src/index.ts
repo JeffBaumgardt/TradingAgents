@@ -10,7 +10,7 @@ export type AnalystType = "market" | "social" | "news" | "fundamentals";
 
 export type ResearchDepth = 1 | 3 | 5;
 
-export type ModelMode = "quick" | "deep";
+export type ModelMode = "all" | "quick" | "deep";
 
 export type AgentStatusValue = "pending" | "in_progress" | "completed" | "error" | "cancelled";
 
@@ -25,7 +25,13 @@ export type ReportSectionKey =
   | "trader_investment_plan"
   | "final_trade_decision";
 
-export type SessionStatus = "pending" | "running" | "completed" | "error" | "cancelled";
+export type SessionStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "error"
+  | "cancelled"
+  | "deleted";
 
 /** True when agents may still be running and the client should use live SSE. */
 export function isLiveSessionStatus(status: SessionStatus): boolean {
@@ -114,6 +120,8 @@ export interface ResolvedConfigResponse extends ConfigOptions {
 export interface ModelOption {
   id: string;
   label: string;
+  /** Hosted compute-credit multiplier (tokens × this ≈ credits). */
+  creditMultiplier?: number;
   capabilities?: {
     anthropicEffort?: boolean;
     openaiReasoningEffort?: boolean;
@@ -136,14 +144,39 @@ export interface CreateSessionRequest {
   researchDepth: ResearchDepth;
   llmProvider: string;
   backendUrl?: string | null;
-  quickThinkLlm: string;
-  deepThinkLlm: string;
+  /** Single model used for every agent in the run. */
+  thinkLlm: string;
+  /**
+   * @deprecated Legacy dual-model fields. Prefer {@link thinkLlm}.
+   * Still accepted when reading older stored session configs.
+   */
+  quickThinkLlm?: string;
+  /**
+   * @deprecated Legacy dual-model fields. Prefer {@link thinkLlm}.
+   * Still accepted when reading older stored session configs.
+   */
+  deepThinkLlm?: string;
   googleThinkingLevel?: "high" | "minimal";
   openaiReasoningEffort?: "low" | "medium" | "high";
   anthropicEffort?: "low" | "medium" | "high";
   checkpointEnabled?: boolean;
   /** Loaded server-side from stored user credentials; not accepted from clients. */
   providerCredentials?: ProviderCredentials;
+}
+
+/** Resolve the model id for a session config (new or legacy dual-model). */
+export function resolveThinkLlm(
+  config: Pick<CreateSessionRequest, "thinkLlm" | "deepThinkLlm" | "quickThinkLlm">,
+): string {
+  const think = config.thinkLlm?.trim();
+  if (think) {
+    return think;
+  }
+  const deep = config.deepThinkLlm?.trim();
+  if (deep) {
+    return deep;
+  }
+  return config.quickThinkLlm?.trim() ?? "";
 }
 
 export interface Session {

@@ -210,6 +210,14 @@ export function createInMemorySupabase(): AppSupabaseClient {
         filters.push((row) => rowValue(row, column) === value);
         return chain;
       },
+      is(column: string, value: null) {
+        filters.push((row) => rowValue(row, column) == null);
+        return chain;
+      },
+      neq(column: string, value: unknown) {
+        filters.push((row) => rowValue(row, column) !== value);
+        return chain;
+      },
       lt(column: string, value: unknown) {
         filters.push((row) => {
           const current = rowValue(row, column);

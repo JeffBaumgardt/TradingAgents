@@ -10,9 +10,10 @@ import {
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,
   getBillingPlan,
 } from "@tradingagents/api-types";
+import HostedModelCostGuide from "@/components/HostedModelCostGuide";
 import ProviderCostBadge from "@/components/ProviderCostBadge";
 import UsageProviderTree from "@/components/UsageProviderTree";
-import { formatComputeCredits, formatPeriodEnd, formatTokenCount } from "@/lib/billing-display";
+import { formatComputeCredits, formatPeriodEnd } from "@/lib/billing-display";
 import { formatUsdFromCents } from "@/lib/pricing-content";
 import styles from "./BillingPageContent.module.css";
 
@@ -159,6 +160,8 @@ export default function BillingAccountView({
             <UsageProviderTree byProvider={usage.byProvider} byModel={usage.byModel} />
           </section>
 
+          <HostedModelCostGuide />
+
           <section className={styles.helpCard} aria-labelledby="credits-help-heading">
             <h2 id="credits-help-heading" className={styles.sectionTitle}>
               What are compute credits?
@@ -166,14 +169,15 @@ export default function BillingAccountView({
             <p className={styles.breakdownIntro}>
               Hosted runs spend <strong>compute credits</strong>, not raw tokens, against your
               monthly allowance. We normalize by each model’s published{" "}
-              <strong>output price per million tokens</strong>, so a cheap model (Haiku, Flash,
+              <strong>output price per million tokens</strong>, so a cheap model (mini, Flash,
               Nano) drains the pool slowly and a frontier reasoning model drains it faster.
             </p>
             <p className={styles.breakdownIntro}>
-              {`Reference rate: $${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M}/1M output tokens = `}
+              The 💵 scale is a quick spend guide (budget → frontier). The × multiplier is the
+              exact rate used for metering.{" "}
+              {`Reference rate: $${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M.toFixed(3)}/1M output tokens = `}
               <strong>×1</strong>. Catalog prices reviewed {HOSTED_MODEL_CATALOG_PRICED_AS_OF}.
-              Hosted providers are OpenAI, Anthropic, Google, and xAI. “Your key” traffic still
-              appears in the tree but never consumes credits.
+              Hosted providers are OpenAI, Anthropic, Google, and xAI.
             </p>
           </section>
         </>

@@ -7,7 +7,7 @@
 
 import type { KeyboardEvent } from "react";
 import type { CreateSessionRequest, ResearchDepth, Session } from "@tradingagents/api-types";
-import { ANALYST_AGENT_NAMES } from "@tradingagents/api-types";
+import { ANALYST_AGENT_NAMES, resolveThinkLlm } from "@tradingagents/api-types";
 import styles from "./RunSettingsPanel.module.css";
 
 const RESEARCH_DEPTH_LABELS: Record<ResearchDepth, string> = {
@@ -34,11 +34,6 @@ function formatProviderLabel(provider: string): string {
     google: "Google",
     anthropic: "Anthropic",
     xai: "xAI",
-    deepseek: "DeepSeek",
-    qwen: "Qwen",
-    glm: "GLM",
-    openrouter: "OpenRouter",
-    azure: "Azure OpenAI",
   };
   return labels[provider.toLowerCase()] ?? provider;
 }
@@ -156,12 +151,8 @@ export default function RunSettingsPanel({
             <dd>{formatProviderLabel(config.llmProvider)}</dd>
           </div>
           <div className={styles.row}>
-            <dt>Quick-thinking model</dt>
-            <dd>{config.quickThinkLlm}</dd>
-          </div>
-          <div className={styles.row}>
-            <dt>Deep-thinking model</dt>
-            <dd>{config.deepThinkLlm}</dd>
+            <dt>Model</dt>
+            <dd>{resolveThinkLlm(config) || "—"}</dd>
           </div>
           {extraProviderRows.map((row) => (
             <div key={row.label} className={styles.row}>

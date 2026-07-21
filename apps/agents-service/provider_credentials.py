@@ -31,21 +31,12 @@ class ProviderDefinition(TypedDict):
     apiKeyUrl: str | None
 
 
-# Maps provider id -> env var names for each credential field name
+# Product-supported providers only (matches hosted catalog / HOSTED_PROVIDER_IDS).
 PROVIDER_ENV_VARS: dict[str, dict[str, str]] = {
     "openai": {"apiKey": "OPENAI_API_KEY"},
     "google": {"apiKey": "GOOGLE_API_KEY"},
     "anthropic": {"apiKey": "ANTHROPIC_API_KEY"},
     "xai": {"apiKey": "XAI_API_KEY"},
-    "deepseek": {"apiKey": "DEEPSEEK_API_KEY"},
-    "qwen": {"apiKey": "DASHSCOPE_API_KEY"},
-    "glm": {"apiKey": "ZHIPU_API_KEY"},
-    "openrouter": {"apiKey": "OPENROUTER_API_KEY"},
-    "azure": {
-        "apiKey": "AZURE_OPENAI_API_KEY",
-        "endpoint": "AZURE_OPENAI_ENDPOINT",
-        "deployment": "AZURE_OPENAI_DEPLOYMENT_NAME",
-    },
 }
 
 
@@ -54,11 +45,6 @@ PROVIDER_API_KEY_URLS: dict[str, str] = {
     "google": "https://aistudio.google.com/apikey",
     "anthropic": "https://console.anthropic.com/settings/keys",
     "xai": "https://console.x.ai/team/default/api-keys",
-    "deepseek": "https://platform.deepseek.com/api_keys",
-    "qwen": "https://dashscope.console.aliyun.com/apiKey",
-    "glm": "https://open.bigmodel.cn/usercenter/apikeys",
-    "openrouter": "https://openrouter.ai/keys",
-    "azure": "https://portal.azure.com/#create/Microsoft.CognitiveServicesOpenAI",
 }
 
 
@@ -131,105 +117,6 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
             },
         ],
     },
-    {
-        "id": "deepseek",
-        "label": "DeepSeek",
-        "backendUrl": "https://api.deepseek.com",
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["deepseek"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "DeepSeek API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": None,
-            },
-        ],
-    },
-    {
-        "id": "qwen",
-        "label": "Qwen (DashScope)",
-        "backendUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["qwen"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "DashScope API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": None,
-            },
-        ],
-    },
-    {
-        "id": "glm",
-        "label": "GLM (Zhipu)",
-        "backendUrl": "https://open.bigmodel.cn/api/paas/v4/",
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["glm"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "Zhipu API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": None,
-            },
-        ],
-    },
-    {
-        "id": "openrouter",
-        "label": "OpenRouter",
-        "backendUrl": "https://openrouter.ai/api/v1",
-        "requiresApiKey": True,
-        "modelSource": "live",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["openrouter"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "OpenRouter API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": "sk-or-...",
-            },
-        ],
-    },
-    {
-        "id": "azure",
-        "label": "Azure OpenAI",
-        "backendUrl": None,
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["azure"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "Azure OpenAI API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": None,
-            },
-            {
-                "name": "endpoint",
-                "label": "Azure Endpoint URL",
-                "secret": False,
-                "required": True,
-                "placeholder": "https://your-resource.openai.azure.com/",
-            },
-            {
-                "name": "deployment",
-                "label": "Deployment Name",
-                "secret": False,
-                "required": True,
-                "placeholder": "gpt-4o",
-            },
-        ],
-    },
 ]
 
 
@@ -238,9 +125,8 @@ def get_credentials_schema() -> dict[str, Any]:
     return {
         "providers": PROVIDER_DEFINITIONS,
         "modelCatalogNote": (
-            "Most providers use a curated static model list (model_catalog.py) "
-            "updated with releases. OpenRouter fetches live models when a key "
-            "is provided."
+            "Supported providers use a curated static model list "
+            "(model_catalog.py) updated with releases."
         ),
     }
 
@@ -321,3 +207,26 @@ def active_provider_api_key(
 ) -> str | None:
     creds = _normalize_credentials(provider_credentials)
     return creds.get(llm_provider.lower(), {}).get("apiKey")
+
+
+def resolve_provider_backend_url(
+    llm_provider: str,
+    requested_backend_url: str | None = None,
+) -> str | None:
+    """
+    Pin product providers to their catalog endpoints.
+
+    Client-supplied backend URLs are ignored for known providers so API keys
+    (user or platform) cannot be redirected to an attacker-controlled proxy.
+    Unknown / legacy providers keep the requested URL.
+    """
+    provider_key = (llm_provider or "").lower().strip()
+    definition = next(
+        (item for item in PROVIDER_DEFINITIONS if item["id"] == provider_key),
+        None,
+    )
+    if definition is not None:
+        return definition["backendUrl"]
+    if isinstance(requested_backend_url, str) and requested_backend_url.strip():
+        return requested_backend_url.strip()
+    return None

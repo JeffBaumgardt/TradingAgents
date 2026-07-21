@@ -15,6 +15,7 @@ import type {
   SessionTradeCheckResponse,
   TradeCheckReport,
 } from "@tradingagents/api-types";
+import { getHostedModelCostEntry, resolveThinkLlm } from "@tradingagents/api-types";
 import {
   normalizeTicker,
   sanitizeUserContext,
@@ -25,10 +26,12 @@ import {
   validateUserContext,
 } from "@tradingagents/utils";
 import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
+import { canonicalBackendUrlForProvider } from "../lib/provider-backend-urls.js";
 import * as agentsClient from "./agents-client.js";
 import { getBillingAccount } from "./billing-account-service.js";
 import {
   assertHostedCreditsForNewRun,
+  assertHostedInFlightWithinBalance,
   initSessionUsageCursor,
 } from "./credit-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
@@ -61,6 +64,19 @@ function rowToSession(row: SessionRow): Session {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function isSoftDeletedSession(row: SessionRow): boolean {
+  return row.status === "deleted" || row.deleted_on != null;
+}
+
+/** Drop a pending create that never reached running (releases credit reservation). */
+async function abortPendingSessionCreate(
+  client: AppSupabaseClient,
+  sessionId: string,
+): Promise<void> {
+  await client.from("session_usage_cursors").delete().eq("session_id", sessionId);
+  await client.from("sessions").delete().eq("id", sessionId);
 }
 
 /**
@@ -141,8 +157,8 @@ export function validateCreateRequest(
   if (!validateResearchDepth(body.researchDepth)) {
     return "researchDepth must be 1, 3, or 5";
   }
-  if (!body.llmProvider || !body.quickThinkLlm || !body.deepThinkLlm) {
-    return "LLM provider and model selections are required";
+  if (!body.llmProvider || !resolveThinkLlm(body)) {
+    return "LLM provider and model selection are required";
   }
   const providerKey = body.llmProvider.toLowerCase();
   const hostedAllowed =
@@ -193,6 +209,31 @@ export async function createSession(
     selectedProviderId: body.llmProvider,
   });
 
+  const providerKey = body.llmProvider.toLowerCase();
+  const hasUserKey = Boolean(storedCredentials[providerKey]?.apiKey?.trim());
+  if (!hasUserKey && !resolved.usedPlatformKey) {
+    throw new SessionServiceError(
+      "Hosted inference is not configured for this provider yet. Pick another provider or add your own API key.",
+      503,
+      "platform_key_unavailable",
+    );
+  }
+
+  const thinkLlm = resolveThinkLlm(body);
+
+  // Platform keys may only call curated catalog models (blocks custom IDs /
+  // under-priced unknowns that would drain provider spend vs credits).
+  if (resolved.usedPlatformKey) {
+    const hostedModel = getHostedModelCostEntry(body.llmProvider, thinkLlm);
+    if (!hostedModel) {
+      throw new SessionServiceError(
+        `Model "${thinkLlm}" is not available on the hosted plan for ${body.llmProvider}. Choose a listed hosted model, or add your own API key.`,
+        400,
+        "hosted_model_not_allowed",
+      );
+    }
+  }
+
   if (isHostedPlan) {
     if (!billing.subscription.currentPeriodStart || !billing.subscription.currentPeriodEnd) {
       throw new SessionServiceError(
@@ -209,7 +250,7 @@ export async function createSession(
         current_period_start: billing.subscription.currentPeriodStart,
         current_period_end: billing.subscription.currentPeriodEnd,
       },
-      body,
+      { ...body, thinkLlm },
       resolved.costSource,
     );
     if (!gate.allowed) {
@@ -221,10 +262,18 @@ export async function createSession(
     }
   }
 
+  // Pin official vendor endpoints whenever a platform key is used so a client
+  // cannot redirect Authorization headers to an attacker-controlled proxy.
+  const backendUrl = resolved.usedPlatformKey
+    ? canonicalBackendUrlForProvider(body.llmProvider)
+    : (body.backendUrl ?? null);
+
   const normalized: CreateSessionRequest = {
     ...body,
     ticker: normalizeTicker(body.ticker),
     userContext: sanitizeUserContext(body.userContext),
+    thinkLlm,
+    backendUrl,
     providerCredentials: resolved.credentials,
   };
 
@@ -252,20 +301,39 @@ export async function createSession(
     sessionId: id,
     userId,
     providerId: body.llmProvider,
-    quickModelId: body.quickThinkLlm,
-    deepModelId: body.deepThinkLlm,
+    quickModelId: thinkLlm,
+    deepModelId: thinkLlm,
     costSource: resolved.costSource,
   });
 
-  const { runId } = await agentsClient.startRun(id, normalized);
+  // Re-check after inserting pending + cursor so concurrent creates that both
+  // passed the pre-insert gate cannot all start against the same balance.
+  if (resolved.costSource === "hosted") {
+    const recheck = await assertHostedInFlightWithinBalance(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: billing.subscription.currentPeriodStart!,
+        current_period_end: billing.subscription.currentPeriodEnd!,
+      },
+    );
+    if (!recheck.allowed) {
+      await abortPendingSessionCreate(client, id);
+      throw new SessionServiceError(
+        recheck.message ?? "Insufficient compute credits for this run.",
+        402,
+        recheck.code ?? "credits_insufficient",
+      );
+    }
+  }
 
-  const { error: updateError } = await client
-    .from("sessions")
-    .update({ run_id: runId, status: "running", updated_at: new Date().toISOString() })
-    .eq("id", id);
-
-  if (updateError) {
-    throw new Error(updateError.message);
+  let runId: string;
+  try {
+    ({ runId } = await agentsClient.startRun(id, normalized));
+  } catch (error) {
+    await abortPendingSessionCreate(client, id);
+    throw error;
   }
 
   const meterSubscription =
@@ -279,14 +347,100 @@ export async function createSession(
         }
       : null;
 
-  startBackgroundRunMetering({
-    client,
-    sessionId: id,
-    runId,
-    userId,
-    subscription: meterSubscription,
-    costSource: resolved.costSource,
-  });
+  function startMeteringForRun(activeRunId: string): void {
+    startBackgroundRunMetering({
+      client,
+      sessionId: id,
+      runId: activeRunId,
+      userId,
+      subscription: meterSubscription,
+      costSource: resolved.costSource,
+    });
+  }
+
+  // User may have soft-deleted during startRun — do not promote or meter.
+  const { data: afterStart } = await client
+    .from("sessions")
+    .select("status, deleted_on")
+    .eq("id", id)
+    .maybeSingle();
+  const afterStartRow = afterStart as Pick<SessionRow, "status" | "deleted_on"> | null;
+  if (
+    !afterStartRow ||
+    afterStartRow.status === "deleted" ||
+    afterStartRow.deleted_on != null
+  ) {
+    try {
+      await agentsClient.cancelRun(runId, {
+        message: "Session was deleted before the run became active.",
+      });
+    } catch {
+      // Meter the runaway run so platform spend is still charged until cancel works.
+      startMeteringForRun(runId);
+      throw new SessionServiceError(
+        "Session was deleted while starting, but the run could not be stopped. Try deleting again.",
+        409,
+        "run_cancel_failed",
+      );
+    }
+    await abortPendingSessionCreate(client, id);
+    throw new SessionServiceError(
+      "Session was deleted before the run could start.",
+      409,
+      "session_deleted",
+    );
+  }
+
+  const { error: updateError } = await client
+    .from("sessions")
+    .update({ run_id: runId, status: "running", updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (updateError) {
+    try {
+      await agentsClient.cancelRun(runId, {
+        message: "Session failed to enter running state.",
+      });
+    } catch {
+      startMeteringForRun(runId);
+      throw new SessionServiceError(
+        "Session failed to enter running state and the run could not be stopped. Try deleting it.",
+        409,
+        "run_cancel_failed",
+      );
+    }
+    await abortPendingSessionCreate(client, id);
+    throw new Error(updateError.message);
+  }
+
+  // Update may have matched 0 rows if soft-deleted between select and update.
+  const { data: runningRow } = await client
+    .from("sessions")
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
+  if ((runningRow as { status?: string } | null)?.status !== "running") {
+    try {
+      await agentsClient.cancelRun(runId, {
+        message: "Session was deleted before the run became active.",
+      });
+    } catch {
+      startMeteringForRun(runId);
+      throw new SessionServiceError(
+        "Session was deleted while starting, but the run could not be stopped. Try deleting again.",
+        409,
+        "run_cancel_failed",
+      );
+    }
+    await abortPendingSessionCreate(client, id);
+    throw new SessionServiceError(
+      "Session was deleted before the run could start.",
+      409,
+      "session_deleted",
+    );
+  }
+
+  startMeteringForRun(runId);
 
   const session = await getSession(client, id, userId);
   if (!session) {
@@ -320,6 +474,9 @@ export async function getSession(
   }
 
   const row = data as SessionRow;
+  if (isSoftDeletedSession(row)) {
+    return null;
+  }
   if (userId && !isSessionOwnedByUser(row, userId)) {
     return null;
   }
@@ -337,6 +494,7 @@ export async function listSessions(
     .from("sessions")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
+    .is("deleted_on", null)
     .order("analysis_date", { ascending: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -373,6 +531,9 @@ export async function cancelSession(
 
   const sessionRow = row as SessionRow;
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
+    return null;
+  }
+  if (isSoftDeletedSession(sessionRow)) {
     return null;
   }
 
@@ -416,31 +577,52 @@ export async function deleteSession(
     return false;
   }
 
-  if (sessionRow.run_id && sessionRow.status === "running") {
+  if (isSoftDeletedSession(sessionRow)) {
+    return true;
+  }
+
+  // Cancel first. Soft-delete for UI, but keep metering + the usage cursor until
+  // the agents stream ends so late tokens stay billed and in-flight reservations hold.
+  if (
+    sessionRow.run_id &&
+    (sessionRow.status === "running" || sessionRow.status === "pending")
+  ) {
     try {
-      stopBackgroundRunMetering(id);
-      await agentsClient.cancelRun(sessionRow.run_id);
+      await agentsClient.cancelRun(sessionRow.run_id, {
+        message: "Session deleted by user.",
+      });
     } catch {
-      // Best-effort cancel before removing persisted data.
+      throw new SessionServiceError(
+        "Could not stop the analysis run before deleting. Wait a moment and try again.",
+        409,
+        "run_cancel_failed",
+      );
     }
+  } else if (sessionRow.status === "pending" && !sessionRow.run_id) {
+    // Create may still be inside startRun with platform credentials already sent.
+    throw new SessionServiceError(
+      "This analysis is still starting. Wait a moment, then delete it again.",
+      409,
+      "session_starting",
+    );
+  } else {
+    // Terminal / idle sessions: drop any leftover cursor so it cannot inflate
+    // in-flight credit reservations after soft-delete.
+    await client.from("session_usage_cursors").delete().eq("session_id", id);
   }
 
-  const { error: deleteEventsError } = await client
-    .from("events")
-    .delete()
-    .eq("session_id", id);
-
-  if (deleteEventsError) {
-    throw new Error(deleteEventsError.message);
-  }
-
-  const { error: deleteSessionError } = await client
+  const now = new Date().toISOString();
+  const { error: softDeleteError } = await client
     .from("sessions")
-    .delete()
+    .update({
+      status: "deleted",
+      deleted_on: now,
+      updated_at: now,
+    })
     .eq("id", id);
 
-  if (deleteSessionError) {
-    throw new Error(deleteSessionError.message);
+  if (softDeleteError) {
+    throw new Error(softDeleteError.message);
   }
 
   return true;
@@ -573,6 +755,9 @@ export async function getSessionReport(
   }
 
   const sessionRow = row as SessionRow;
+  if (isSoftDeletedSession(sessionRow)) {
+    return "not_found";
+  }
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
     return "not_found";
   }
@@ -755,6 +940,9 @@ export async function getSessionTradeCheck(
   }
 
   const sessionRow = row as SessionRow;
+  if (isSoftDeletedSession(sessionRow)) {
+    return "not_found";
+  }
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
     return "not_found";
   }

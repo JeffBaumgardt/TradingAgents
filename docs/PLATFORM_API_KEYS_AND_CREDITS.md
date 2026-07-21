@@ -7,6 +7,8 @@ Apply migrations in order:
 3. `packages/supabase/supabase/migrations/20260722120000_expand_hosted_model_catalog.sql` (if present)
 4. `packages/supabase/supabase/migrations/20260722130000_credit_margin_5_percent.sql` (if present)
 5. `packages/supabase/supabase/migrations/20260722140000_meter_atomic_and_hardening.sql`
+6. `packages/supabase/supabase/migrations/20260722150000_sessions_soft_delete.sql` (if present)
+7. `packages/supabase/supabase/migrations/20260722160000_meter_period_user_check.sql`
 
 Do **not** paste plaintext provider keys into SQL. Keys must be stored as `enc:v1:` AES-GCM ciphertext using the same `CREDENTIALS_ENCRYPTION_KEY` as user credentials.
 
@@ -35,6 +37,10 @@ Repeat for each hosted provider you support:
 | `xai` | `XAI_API_KEY` |
 
 Hosted providers are limited to OpenAI, Anthropic, Google, and xAI.
+
+Each hosted run uses a **single model** (`thinkLlm`) for every agent. Compute
+credits are `tokens × that model’s credit_multiplier` — there is no quick/deep
+blend.
 
 Verify (ciphertext only — never select expecting plaintext):
 
@@ -90,9 +96,13 @@ Real-world AI apps get drained by bots and “power users” reselling inference
 1. **Meter on the server for every hosted run**, not only when a browser is watching the SSE stream — session-only / UI-only checks amortize across thousands of LLM calls.
 2. **Hard stop mid-run** when credits hit zero; keep partial output but mark the run failed. Metering errors fail closed (cancel the run).
 3. **Block the rest of the credit period** when remaining credits fall under ~3% of allowance. Rejecting a single oversized estimate does **not** latch the period.
-4. **Platform keys never leave the service role path** — RLS with no client policies; revoked from `anon`/`authenticated`; encrypted at rest; no public list API.
+4. **Platform keys never leave the service role path** — RLS with no client policies; revoked from `anon`/`authenticated`; encrypted at rest; no public list API. Config resolve and model catalogs do **not** decrypt or forward platform keys (hosted providers are marked available from billing state; catalogs use the public static list).
 5. **BYOK does not grant hosted credits** — user keys are `self_pay` (tokens tracked, credits = 0).
 6. **Provider-side spend caps** are still required (OpenAI/Anthropic/Google/xAI dashboards). App metering contains abuse through your product; provider caps contain a leaked key used directly against the vendor.
+7. **Client `backendUrl` is ignored for platform-key runs** — the API pins the official vendor endpoint so a malicious proxy cannot siphon `Authorization` headers (sidecar / “jack the prompts”).
+8. **Hosted runs may only use curated catalog models** — custom / unknown model IDs are rejected so under-priced unknowns cannot drain provider spend against a cheap credit multiplier.
+9. **Preflight subtracts in-flight hosted estimates** — concurrent session creates cannot each clear the same remaining balance.
+10. **Metering refuses to charge another user’s credit period** (`user_id` must match on `user_credit_periods`).
 
 ## Rollover rule
 

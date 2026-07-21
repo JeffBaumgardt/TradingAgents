@@ -14,8 +14,9 @@ import cli.main as m
 # Minimal selections dict shaped like get_user_selections()'s return value.
 SELECTIONS = {
     "research_depth": 5,
+    "thinker": "gpt-5.4-mini",
     "shallow_thinker": "gpt-5.4-mini",
-    "deep_thinker": "gpt-5.5",
+    "deep_thinker": "gpt-5.4-mini",
     "backend_url": None,
     "llm_provider": "openai",
     "google_thinking_level": None,
@@ -31,6 +32,9 @@ def test_research_depth_sets_both_rounds_without_env(monkeypatch):
     cfg = m._build_run_config(SELECTIONS, checkpoint=None)
     assert cfg["max_debate_rounds"] == 5
     assert cfg["max_risk_discuss_rounds"] == 5
+    assert cfg["think_llm"] == "gpt-5.4-mini"
+    assert cfg["quick_think_llm"] == "gpt-5.4-mini"
+    assert cfg["deep_think_llm"] == "gpt-5.4-mini"
 
 
 def test_env_round_counts_win_over_selection(monkeypatch):

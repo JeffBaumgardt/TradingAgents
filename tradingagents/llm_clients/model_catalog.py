@@ -216,8 +216,23 @@ MODEL_OPTIONS: ProviderModeOptions = {
 
 
 def get_model_options(provider: str, mode: str) -> list[ModelOption]:
-    """Return shared model options for a provider and selection mode."""
-    return MODEL_OPTIONS[provider.lower()][mode]
+    """Return shared model options for a provider and selection mode.
+
+    ``mode="all"`` returns the de-duplicated union of quick + deep catalogs.
+    """
+    provider_key = provider.lower()
+    modes = MODEL_OPTIONS[provider_key]
+    if mode == "all":
+        seen: set[str] = set()
+        merged: list[ModelOption] = []
+        for bucket in ("quick", "deep"):
+            for display, value in modes.get(bucket, []):
+                if value in seen:
+                    continue
+                seen.add(value)
+                merged.append((display, value))
+        return merged
+    return modes[mode]
 
 
 def get_known_models() -> dict[str, list[str]]:

@@ -165,6 +165,16 @@ async function consumeRunStreamForMetering(
         } catch {
           // Ignore.
         }
+        // Release any remaining in-flight reservation once the run is terminal
+        // (especially after soft-delete, which keeps the cursor until here).
+        try {
+          await input.client
+            .from("session_usage_cursors")
+            .delete()
+            .eq("session_id", input.sessionId);
+        } catch {
+          // Best-effort; metering already recorded usage_events.
+        }
         return;
       }
     }

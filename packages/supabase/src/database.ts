@@ -20,6 +20,8 @@ export interface SessionRow {
   decision: string | null;
   error: string | null;
   trade_check_json?: Record<string, unknown> | null;
+  /** Set when soft-deleted; null means the session is visible. */
+  deleted_on?: string | null;
   created_at: string;
   updated_at: string;
 }

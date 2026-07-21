@@ -119,7 +119,12 @@ def build_trade_check(
         user_context=user_context,
     )
 
-    if llm_enhance and payload.get("llmProvider") and payload.get("quickThinkLlm"):
+    think_llm = (
+        payload.get("thinkLlm")
+        or payload.get("deepThinkLlm")
+        or payload.get("quickThinkLlm")
+    )
+    if llm_enhance and payload.get("llmProvider") and think_llm:
         try:
             llm_kwargs: dict[str, Any] = {}
             if payload.get("openaiReasoningEffort"):
@@ -131,7 +136,7 @@ def build_trade_check(
 
             llm = create_llm_client(
                 provider=payload["llmProvider"],
-                model=payload["quickThinkLlm"],
+                model=think_llm,
                 base_url=payload.get("backendUrl"),
                 **llm_kwargs,
             ).get_llm()

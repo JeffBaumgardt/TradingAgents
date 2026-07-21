@@ -8,6 +8,7 @@
 import {
   HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   getModelCreditMultiplier,
+  resolveThinkLlm,
   type CreateSessionRequest,
   type ProviderCostSource,
 } from "@tradingagents/api-types";
@@ -376,12 +377,123 @@ export async function estimateRunCredits(
   const baseTokens = asNumber(tokensByDepth[depthKey], DEFAULT_ESTIMATED_TOKENS[depthKey] ?? 250_000);
   const analystFactor = Math.max(1, (body.analysts?.length ?? 4) / 4);
 
-  const quickMult = await loadMultiplier(client, body.llmProvider, body.quickThinkLlm);
-  const deepMult = await loadMultiplier(client, body.llmProvider, body.deepThinkLlm);
-  // Weight deep models higher — research/risk rounds dominate cost.
-  const blended = quickMult * 0.35 + deepMult * 0.65;
+  const thinkLlm = resolveThinkLlm(body);
+  const thinkMult = await loadMultiplier(client, body.llmProvider, thinkLlm);
 
-  return Math.round(baseTokens * analystFactor * blended);
+  return Math.round(baseTokens * analystFactor * thinkMult);
+}
+
+/**
+ * Remaining estimate still committed to in-flight hosted runs for this user.
+ * Prevents concurrent session creates from each passing the same balance gate.
+ * Counts both `pending` and `running` so the window before startRun is covered.
+ */
+async function sumInFlightHostedCreditReservations(
+  client: AppSupabaseClient,
+  userId: string,
+  options: { excludeSessionId?: string } = {},
+): Promise<number> {
+  const { data: activeSessions, error: sessionError } = await client
+    .from("sessions")
+    .select("id, config, status, run_id")
+    .eq("user_id", userId);
+
+  if (sessionError) {
+    throw new Error(`sessions in-flight read failed: ${sessionError.message}`);
+  }
+
+  const sessions = ((activeSessions ?? []) as Array<{
+    id: string;
+    config: CreateSessionRequest;
+    status: string;
+    run_id?: string | null;
+  }>).filter((session) => {
+    if (session.id === options.excludeSessionId) {
+      return false;
+    }
+    if (session.status === "pending" || session.status === "running") {
+      return true;
+    }
+    // Soft-deleted but still being metered after cancel (cursor retained until
+    // the agents stream ends). Terminal deletes clear the cursor separately.
+    return session.status === "deleted" && Boolean(session.run_id);
+  });
+  if (sessions.length === 0) {
+    return 0;
+  }
+
+  const sessionIds = new Set(sessions.map((session) => session.id));
+  const { data: cursors, error: cursorError } = await client
+    .from("session_usage_cursors")
+    .select("session_id, cost_source, credits_charged")
+    .eq("user_id", userId)
+    .eq("cost_source", "hosted");
+
+  if (cursorError) {
+    throw new Error(`session_usage_cursors in-flight read failed: ${cursorError.message}`);
+  }
+
+  const hostedBySession = new Map(
+    ((cursors ?? []) as Array<{
+      session_id: string;
+      cost_source: string;
+      credits_charged: number;
+    }>)
+      .filter((row) => sessionIds.has(row.session_id))
+      .map((row) => [row.session_id, asNumber(row.credits_charged)]),
+  );
+
+  let reserved = 0;
+  for (const session of sessions) {
+    const charged = hostedBySession.get(session.id);
+    if (charged == null) {
+      continue;
+    }
+    const estimated = await estimateRunCredits(client, session.config, "hosted");
+    reserved += Math.max(0, estimated - charged);
+  }
+  return reserved;
+}
+
+/**
+ * After inserting a pending hosted session, ensure the full in-flight set
+ * (including this session) still fits in the remaining balance.
+ */
+export async function assertHostedInFlightWithinBalance(
+  client: AppSupabaseClient,
+  userId: string,
+  subscription: Pick<
+    UserSubscriptionRow,
+    "plan_id" | "current_period_start" | "current_period_end"
+  >,
+): Promise<CreditGateResult> {
+  if (subscription.plan_id !== "hosted") {
+    return { allowed: true, code: "not_hosted" };
+  }
+
+  const balance = await getCreditBalance(client, userId, subscription);
+  const inFlightReserved = await sumInFlightHostedCreditReservations(client, userId);
+  const { remaining, totalAllowance, blockRatio, period } = balance;
+
+  if (period.blocked_low_balance || remaining < Math.ceil(totalAllowance * blockRatio)) {
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `You have less than ${Math.round(blockRatio * 100)}% of your compute credit allowance remaining. New hosted runs are blocked for the rest of this credit period.`,
+      balance,
+    };
+  }
+
+  if (inFlightReserved > remaining) {
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `Concurrent hosted runs would use about ${inFlightReserved.toLocaleString()} compute credits, but you only have ${remaining.toLocaleString()} remaining. Wait for an in-progress run to finish, or try a cheaper model.`,
+      balance,
+    };
+  }
+
+  return { allowed: true, balance };
 }
 
 export async function assertHostedCreditsForNewRun(
@@ -400,7 +512,9 @@ export async function assertHostedCreditsForNewRun(
 
   const balance = await getCreditBalance(client, userId, subscription);
   const estimatedCredits = await estimateRunCredits(client, body, costSource);
+  const inFlightReserved = await sumInFlightHostedCreditReservations(client, userId);
   const { period, remaining, totalAllowance, blockRatio } = balance;
+  const available = Math.max(0, remaining - inFlightReserved);
 
   if (period.blocked_low_balance) {
     return {
@@ -426,12 +540,16 @@ export async function assertHostedCreditsForNewRun(
     };
   }
 
-  if (remaining < estimatedCredits) {
+  if (available < estimatedCredits) {
     // Reject this run only — do not latch the period closed.
+    const busyHint =
+      inFlightReserved > 0
+        ? ` About ${inFlightReserved.toLocaleString()} credits are already reserved by runs still in progress.`
+        : "";
     return {
       allowed: false,
       code: "credits_insufficient",
-      message: `This run is estimated to use about ${estimatedCredits.toLocaleString()} compute credits, but you only have ${remaining.toLocaleString()} remaining. Try a cheaper model or lower research depth, or wait until your allowance resets.`,
+      message: `This run is estimated to use about ${estimatedCredits.toLocaleString()} compute credits, but you only have ${available.toLocaleString()} available after in-flight usage (${remaining.toLocaleString()} remaining).${busyHint} Try a cheaper model or lower research depth, or wait until a run finishes or your allowance resets.`,
       balance,
       estimatedCredits,
     };
@@ -650,6 +768,9 @@ export async function meterSessionStats(
       throw new Error("hosted metering requires an active subscription period");
     }
     const balance = await getCreditBalance(client, input.userId, input.subscription);
+    if (balance.period.user_id !== input.userId) {
+      throw new Error("credit period user mismatch");
+    }
     periodId = balance.period.id;
     warnRatio = balance.warnRatio;
   }

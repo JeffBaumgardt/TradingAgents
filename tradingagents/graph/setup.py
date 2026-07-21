@@ -31,14 +31,20 @@ class GraphSetup:
 
     def __init__(
         self,
-        quick_thinking_llm: Any,
-        deep_thinking_llm: Any,
+        llm: Any,
         tool_nodes: dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
+        # Legacy dual-LLM kwargs kept for callers that still pass both.
+        quick_thinking_llm: Any = None,
+        deep_thinking_llm: Any = None,
     ):
-        """Initialize with required components."""
-        self.quick_thinking_llm = quick_thinking_llm
-        self.deep_thinking_llm = deep_thinking_llm
+        """Initialize with a single LLM used by every agent."""
+        self.llm = llm or quick_thinking_llm or deep_thinking_llm
+        if self.llm is None:
+            raise ValueError("GraphSetup requires an llm")
+        # Aliases for any code still reading the dual attributes.
+        self.quick_thinking_llm = self.llm
+        self.deep_thinking_llm = self.llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
 
@@ -57,23 +63,23 @@ class GraphSetup:
         plan = build_analyst_execution_plan(selected_analysts)
 
         analyst_factories = {
-            "market": lambda: create_market_analyst(self.quick_thinking_llm),
-            "social": lambda: create_sentiment_analyst(self.quick_thinking_llm),
-            "news": lambda: create_news_analyst(self.quick_thinking_llm),
-            "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
+            "market": lambda: create_market_analyst(self.llm),
+            "social": lambda: create_sentiment_analyst(self.llm),
+            "news": lambda: create_news_analyst(self.llm),
+            "fundamentals": lambda: create_fundamentals_analyst(self.llm),
         }
 
         # Create researcher and manager nodes
-        bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
-        bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
-        research_manager_node = create_research_manager(self.deep_thinking_llm)
-        trader_node = create_trader(self.quick_thinking_llm)
+        bull_researcher_node = create_bull_researcher(self.llm)
+        bear_researcher_node = create_bear_researcher(self.llm)
+        research_manager_node = create_research_manager(self.llm)
+        trader_node = create_trader(self.llm)
 
         # Create risk analysis nodes
-        aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
-        neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
-        conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
-        portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        aggressive_analyst = create_aggressive_debator(self.llm)
+        neutral_analyst = create_neutral_debator(self.llm)
+        conservative_analyst = create_conservative_debator(self.llm)
+        portfolio_manager_node = create_portfolio_manager(self.llm)
 
         # Create workflow
         workflow = StateGraph(AgentState)

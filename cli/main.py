@@ -36,10 +36,9 @@ from cli.utils import (
     prompt_openai_compatible_url,
     resolve_backend_url,
     select_analysts,
-    select_deep_thinking_agent,
     select_llm_provider,
     select_research_depth,
-    select_shallow_thinking_agent,
+    select_thinking_agent,
 )
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.analyst_execution import (
@@ -673,22 +672,24 @@ def get_user_selections():
         # doesn't fail later at the first API call.
         ensure_api_key(selected_llm_provider)
 
-    # Step 8: Thinking agents (skipped when either model is set via environment)
-    if os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM") or os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM"):
-        selected_shallow_thinker = DEFAULT_CONFIG["quick_think_llm"]
-        selected_deep_thinker = DEFAULT_CONFIG["deep_think_llm"]
+    # Step 8: Thinking model (skipped when set via environment)
+    if (
+        os.environ.get("TRADINGAGENTS_THINK_LLM")
+        or os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM")
+        or os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM")
+    ):
+        selected_thinker = DEFAULT_CONFIG["think_llm"]
         console.print(
-            f"[green]✓ Thinking agents from environment:[/green] "
-            f"quick={selected_shallow_thinker}, deep={selected_deep_thinker}"
+            f"[green]✓ Thinking model from environment:[/green] {selected_thinker}"
         )
     else:
         console.print(
             create_question_box(
-                "Step 8: Thinking Agents", "Select your thinking agents for analysis"
+                "Step 8: Thinking Model",
+                "Select one model used by every agent in the run",
             )
         )
-        selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
-        selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
+        selected_thinker = select_thinking_agent(selected_llm_provider)
 
     # Step 9: Provider-specific reasoning/thinking configuration. Each knob is
     # settable via its TRADINGAGENTS_* env var; when that var is set (or the
@@ -715,9 +716,7 @@ def get_user_selections():
             supports_openai_reasoning_effort,
         )
 
-        if supports_openai_reasoning_effort(selected_shallow_thinker) or supports_openai_reasoning_effort(
-            selected_deep_thinker
-        ):
+        if supports_openai_reasoning_effort(selected_thinker):
             reasoning_effort = thinking_value_or_prompt(
                 "TRADINGAGENTS_OPENAI_REASONING_EFFORT", "openai_reasoning_effort",
                 "Reasoning effort", "Step 9: Reasoning Effort",
@@ -726,9 +725,7 @@ def get_user_selections():
     elif provider_lower == "anthropic":
         from tradingagents.llm_clients.model_capabilities import supports_anthropic_effort
 
-        if supports_anthropic_effort(selected_shallow_thinker) or supports_anthropic_effort(
-            selected_deep_thinker
-        ):
+        if supports_anthropic_effort(selected_thinker):
             anthropic_effort = thinking_value_or_prompt(
                 "TRADINGAGENTS_ANTHROPIC_EFFORT", "anthropic_effort",
                 "Claude effort", "Step 9: Effort Level",
@@ -744,8 +741,9 @@ def get_user_selections():
         "research_depth": selected_research_depth,
         "llm_provider": selected_llm_provider.lower(),
         "backend_url": backend_url,
-        "shallow_thinker": selected_shallow_thinker,
-        "deep_thinker": selected_deep_thinker,
+        "thinker": selected_thinker,
+        "shallow_thinker": selected_thinker,
+        "deep_thinker": selected_thinker,
         "google_thinking_level": thinking_level,
         "openai_reasoning_effort": reasoning_effort,
         "anthropic_effort": anthropic_effort,
@@ -997,8 +995,9 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
         config["max_debate_rounds"] = selections["research_depth"]
     if not os.environ.get("TRADINGAGENTS_MAX_RISK_ROUNDS"):
         config["max_risk_discuss_rounds"] = selections["research_depth"]
-    config["quick_think_llm"] = selections["shallow_thinker"]
-    config["deep_think_llm"] = selections["deep_thinker"]
+    config["think_llm"] = selections.get("thinker") or selections["shallow_thinker"]
+    config["quick_think_llm"] = config["think_llm"]
+    config["deep_think_llm"] = config["think_llm"]
     config["backend_url"] = selections["backend_url"]
     config["llm_provider"] = selections["llm_provider"].lower()
     # Provider-specific thinking configuration

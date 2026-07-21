@@ -27,6 +27,7 @@ load_dotenv(find_dotenv(".env.enterprise", usecwd=True), override=False)
 from provider_credentials import (
     active_provider_api_key,
     credentials_to_env_updates,
+    resolve_provider_backend_url,
 )
 from stream_processor import StreamProcessor, format_sse
 
@@ -252,9 +253,19 @@ class RunManager:
             config = DEFAULT_CONFIG.copy()
             config["max_debate_rounds"] = payload["researchDepth"]
             config["max_risk_discuss_rounds"] = payload["researchDepth"]
-            config["quick_think_llm"] = payload["quickThinkLlm"]
-            config["deep_think_llm"] = payload["deepThinkLlm"]
-            config["backend_url"] = payload.get("backendUrl")
+            think_llm = (
+                payload.get("thinkLlm")
+                or payload.get("deepThinkLlm")
+                or payload.get("quickThinkLlm")
+            )
+            config["think_llm"] = think_llm
+            # Legacy keys kept in sync for any leftover dual-model readers.
+            config["quick_think_llm"] = think_llm
+            config["deep_think_llm"] = think_llm
+            config["backend_url"] = resolve_provider_backend_url(
+                payload["llmProvider"],
+                payload.get("backendUrl"),
+            )
             config["llm_provider"] = payload["llmProvider"].lower()
             config["google_thinking_level"] = payload.get("googleThinkingLevel")
             config["openai_reasoning_effort"] = payload.get("openaiReasoningEffort")

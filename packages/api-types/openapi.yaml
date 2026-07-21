@@ -476,17 +476,17 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
       tags: [sessions]
-      summary: Cancel session
-      operationId: cancelSession
+      summary: Soft-delete session
+      description: >
+        Marks the session as deleted (status=deleted, deleted_on set). The row and
+        related events are retained for audit and billing; it no longer appears in
+        lists or share links.
+      operationId: deleteSession
       parameters:
         - $ref: "#/components/parameters/SessionId"
       responses:
-        "200":
-          description: Session cancelled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Session"
+        "204":
+          description: Session soft-deleted
         "404":
           description: Session not found
           content:
@@ -806,7 +806,7 @@ components:
       enum: [1, 3, 5]
     ModelMode:
       type: string
-      enum: [quick, deep]
+      enum: [all, quick, deep]
     GoogleThinkingLevel:
       type: string
       enum: [high, minimal]
@@ -815,7 +815,7 @@ components:
       enum: [low, medium, high]
     SessionStatus:
       type: string
-      enum: [pending, running, completed, error, cancelled]
+      enum: [pending, running, completed, error, cancelled, deleted]
     SseEventType:
       type: string
       enum:
@@ -845,6 +845,9 @@ components:
           type: string
         label:
           type: string
+        creditMultiplier:
+          type: number
+          description: Hosted compute-credit multiplier (tokens × this ≈ credits).
         capabilities:
           type: object
           additionalProperties:
@@ -908,8 +911,7 @@ components:
         - analysts
         - researchDepth
         - llmProvider
-        - quickThinkLlm
-        - deepThinkLlm
+        - thinkLlm
       properties:
         ticker:
           type: string
@@ -938,10 +940,17 @@ components:
         backendUrl:
           type: string
           nullable: true
+        thinkLlm:
+          type: string
+          description: Single model used for every agent in the run.
         quickThinkLlm:
           type: string
+          deprecated: true
+          description: Legacy dual-model field; prefer thinkLlm.
         deepThinkLlm:
           type: string
+          deprecated: true
+          description: Legacy dual-model field; prefer thinkLlm.
         googleThinkingLevel:
           $ref: "#/components/schemas/GoogleThinkingLevel"
         openaiReasoningEffort:

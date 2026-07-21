@@ -173,9 +173,9 @@ export async function fetchProviderModels(
     },
   );
 
-  // Hosted providers without a personal key may 403 on the credentialed POST;
+  // Hosted providers without a personal key may fail the credentialed POST;
   // fall back to the public catalog so the wizard can still list models.
-  if (response.status === 403) {
+  if (response.status === 403 || response.status === 400) {
     const publicResponse = await fetch(
       `${API_BASE}/config/providers/${encodeURIComponent(provider)}/models?mode=${encodeURIComponent(mode)}`,
       { cache: "no-store" },

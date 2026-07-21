@@ -44,18 +44,15 @@ describe("resolveProviderApiKeyLink", () => {
 });
 
 describe("getProviderApiKeyLinkLabel", () => {
-  it("uses Azure-specific setup copy", () => {
-    assert.equal(getProviderApiKeyLinkLabel("azure"), "Set up in Azure portal");
+  it("returns the standard API key label", () => {
     assert.equal(getProviderApiKeyLinkLabel("xai"), "Get an API key");
+    assert.equal(getProviderApiKeyLinkLabel("openai"), "Get an API key");
   });
 });
 
 describe("getProviderApiKeyLinkHint", () => {
-  it("explains Azure endpoint and deployment requirements", () => {
-    assert.match(
-      getProviderApiKeyLinkHint("azure") ?? "",
-      /endpoint/i,
-    );
+  it("has no provider-specific hints for supported providers", () => {
     assert.equal(getProviderApiKeyLinkHint("xai"), null);
+    assert.equal(getProviderApiKeyLinkHint("openai"), null);
   });
 });

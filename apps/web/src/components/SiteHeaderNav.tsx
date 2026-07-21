@@ -40,11 +40,6 @@ export default function SiteHeaderNav() {
 
   return (
     <nav className={styles.nav} aria-label="Main">
-      {credentialsReady ? (
-        <Link href="/dashboard" className={styles.navLink}>
-          Start analysis
-        </Link>
-      ) : null}
       {showPricing ? (
         <Link href="/pricing" className={styles.navLink}>
           Pricing

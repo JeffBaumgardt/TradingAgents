@@ -27,13 +27,15 @@ class StartRunRequest(BaseModel):
     researchDepth: int
     llmProvider: str
     backendUrl: str | None = None
-    quickThinkLlm: str
-    deepThinkLlm: str
+    thinkLlm: str
     googleThinkingLevel: str | None = None
     openaiReasoningEffort: str | None = None
     anthropicEffort: str | None = None
     checkpointEnabled: bool = False
     providerCredentials: dict[str, dict[str, str]] | None = None
+    # Legacy dual-model fields (optional; prefer thinkLlm).
+    quickThinkLlm: str | None = None
+    deepThinkLlm: str | None = None
 
     @field_validator("userContext")
     @classmethod
