@@ -67,6 +67,18 @@ set credit_multiplier = 107.1, updated_at = now()
 where provider_id = 'openai' and model_id = 'gpt-5.5';
 ```
 
+Refresh list prices + multipliers from LiteLLM (writes a migration under
+`packages/supabase/supabase/migrations/` and prints SQL to stdout):
+
+```bash
+pnpm --filter @tradingagents/api sync-model-prices
+pnpm --filter @tradingagents/api sync-model-prices -- --dry-run
+```
+
+Review the generated SQL against provider pricing pages (LiteLLM can lag), then apply
+it in the Supabase SQL editor (or your usual migration path). Models LiteLLM cannot
+resolve are left unchanged and logged.
+
 ## Security notes (abuse / inference theft)
 
 Real-world AI apps get drained by bots and “power users” reselling inference ([Vercel on token theft](https://vercel.com/blog/protecting-against-token-theft), [WorkOS on LLM token theft](https://workos.com/blog/llm-token-theft)). Takeaways we encode here:

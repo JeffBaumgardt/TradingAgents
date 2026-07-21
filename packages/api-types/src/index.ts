@@ -456,7 +456,8 @@ export function billingAnnualMonthlyEquivalentCents(
 
 /**
  * Monthly hosted allowance in compute credits.
- * One credit ≈ one token at the $0.28/1M output reference rate.
+ * One credit ≈ one token at the margin-adjusted reference rate
+ * (~$0.2667/1M output = $0.28/1.05).
  * Sized for ~15% of net revenue at the $19 hosted list price after Stripe fees.
  */
 export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
@@ -489,8 +490,8 @@ export interface UsageModelBreakdown {
    */
   computeCredits: number;
   /**
-   * Output-cost multiplier vs the $0.28/1M credit reference rate.
-   * Applied as: credits ≈ tokens × creditMultiplier.
+   * Output-cost multiplier vs the margin-adjusted credit reference rate
+   * (~$0.2667/1M output). Applied as: credits ≈ tokens × creditMultiplier.
    */
   creditMultiplier: number;
   costSource: ProviderCostSource;
@@ -541,6 +542,8 @@ export type {
 } from "./hosted-model-catalog.js";
 
 export {
+  COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M,
+  COMPUTE_CREDIT_MARGIN,
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   HOSTED_MODEL_CATALOG,
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,

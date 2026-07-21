@@ -36,10 +36,10 @@ describe("billing routes", () => {
       }>;
     };
     assert.ok(body.models.length >= 20);
-    assert.equal(body.referenceOutputUsdPer1M, 0.28);
+    assert.equal(body.referenceOutputUsdPer1M, 0.28 / 1.05);
     const mini = body.models.find((model) => model.modelId === "gpt-4o-mini");
     assert.ok(mini);
-    assert.equal(mini?.creditMultiplier, 2.1);
+    assert.equal(mini?.creditMultiplier, 2.3);
     assert.ok(
       body.models.every((model) =>
         ["openai", "anthropic", "google", "xai"].includes(model.providerId),

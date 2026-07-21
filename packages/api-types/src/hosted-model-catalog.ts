@@ -2,10 +2,14 @@
  * @file packages/api-types/src/hosted-model-catalog.ts
  * Curated text/agent models for TradingAgents hosted inference + API list prices.
  *
- * Excludes image/video/audio/embeddings (e.g. Sora) and ultra-premium Pro SKUs that
- * are a poor fit for multi-agent analysis swarms. Prices are USD per 1M tokens
- * (standard/paid tier, short-context rates). Verify against provider docs before
- * production metering.
+ * Excludes image/video/audio/embeddings (e.g. Sora, Imagen, Grok Imagine) and
+ * ultra-premium BYOK-only SKUs (e.g. gpt-5.5-pro, claude-fable-5) that are a poor
+ * fit for multi-agent analysis swarms. Prices are USD per 1M tokens (standard/paid
+ * tier, short-context rates). Verify against provider docs before production metering.
+ *
+ * Keep in sync with:
+ * - tradingagents/llm_clients/model_catalog.py (OpenAI / Anthropic / Google / xAI)
+ * - public.model_credit_multipliers (Supabase migrations)
  */
 
 export type HostedModelProviderId =
@@ -31,14 +35,25 @@ export interface HostedModelCostEntry {
 }
 
 /**
- * Credit unit: $0.28 output USD per 1M tokens.
- * One compute credit ≈ one token at this rate (kept stable so allowance math
- * does not jump when the cheapest hosted SKU changes).
+ * Operator margin baked into credit metering. Multipliers = list output price
+ * ÷ (base reference ÷ margin), so the same 10M credit allowance covers ~5% less
+ * provider spend and leaves room for personal/platform costs.
  */
-export const COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M = 0.28;
+export const COMPUTE_CREDIT_MARGIN = 1.05;
+
+/** Pass-through output reference before margin ($/1M tokens). */
+export const COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M = 0.28;
+
+/**
+ * Credit unit after margin: base ÷ margin (≈ $0.2667/1M output tokens).
+ * One compute credit ≈ one token at this rate. Kept stable so allowance math
+ * does not jump when the cheapest hosted SKU changes.
+ */
+export const COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M =
+  COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M / COMPUTE_CREDIT_MARGIN;
 
 /** ISO date the catalog prices were last reviewed against provider docs. */
-export const HOSTED_MODEL_CATALOG_PRICED_AS_OF = "2026-07-20";
+export const HOSTED_MODEL_CATALOG_PRICED_AS_OF = "2026-07-21";
 
 /**
  * Curated hosted catalog for TradingAgents.
@@ -142,7 +157,7 @@ export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
     providerLabel: "OpenAI",
     modelId: "gpt-5.5",
     displayName: "GPT-5.5",
-    modes: ["deep"],
+    modes: ["quick", "deep"],
     inputUsdPer1M: 5,
     outputUsdPer1M: 30,
     notes: "Short-context (<272K) standard tier.",
@@ -166,7 +181,7 @@ export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
     outputUsdPer1M: 8,
   },
 
-  // Anthropic — https://www.anthropic.com/pricing
+  // Anthropic — https://platform.claude.com/docs/en/about-claude/pricing
   {
     providerId: "anthropic",
     providerLabel: "Anthropic",
@@ -179,11 +194,39 @@ export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
   {
     providerId: "anthropic",
     providerLabel: "Anthropic",
+    modelId: "claude-sonnet-4-5",
+    displayName: "Claude Sonnet 4.5",
+    modes: ["quick", "deep"],
+    inputUsdPer1M: 3,
+    outputUsdPer1M: 15,
+  },
+  {
+    providerId: "anthropic",
+    providerLabel: "Anthropic",
     modelId: "claude-sonnet-4-6",
     displayName: "Claude Sonnet 4.6",
     modes: ["quick", "deep"],
     inputUsdPer1M: 3,
     outputUsdPer1M: 15,
+  },
+  {
+    providerId: "anthropic",
+    providerLabel: "Anthropic",
+    modelId: "claude-sonnet-5",
+    displayName: "Claude Sonnet 5",
+    modes: ["quick", "deep"],
+    inputUsdPer1M: 2,
+    outputUsdPer1M: 10,
+    notes: "Introductory pricing through 2026-08-31; then $3/$15.",
+  },
+  {
+    providerId: "anthropic",
+    providerLabel: "Anthropic",
+    modelId: "claude-opus-4-5",
+    displayName: "Claude Opus 4.5",
+    modes: ["deep"],
+    inputUsdPer1M: 5,
+    outputUsdPer1M: 25,
   },
   {
     providerId: "anthropic",
@@ -222,6 +265,24 @@ export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
     modes: ["quick"],
     inputUsdPer1M: 0.25,
     outputUsdPer1M: 1.5,
+  },
+  {
+    providerId: "google",
+    providerLabel: "Google",
+    modelId: "gemini-3.5-flash-lite",
+    displayName: "Gemini 3.5 Flash-Lite",
+    modes: ["quick"],
+    inputUsdPer1M: 0.3,
+    outputUsdPer1M: 2.5,
+  },
+  {
+    providerId: "google",
+    providerLabel: "Google",
+    modelId: "gemini-3-flash-preview",
+    displayName: "Gemini 3 Flash",
+    modes: ["quick", "deep"],
+    inputUsdPer1M: 0.5,
+    outputUsdPer1M: 3,
   },
   {
     providerId: "google",
@@ -350,7 +411,7 @@ export function getModelCreditMultiplier(providerId: string, modelId: string): n
   if (model.includes("haiku") || model.includes("mini") || model.includes("flash")) {
     return creditMultiplierFromOutputUsdPer1M(5);
   }
-  if (model.includes("opus") || model.includes("pro") || model.includes("o1")) {
+  if (model.includes("opus") || model.includes("pro") || model.includes("o1") || model.includes("fable")) {
     return creditMultiplierFromOutputUsdPer1M(25);
   }
   if (model.includes("sonnet") || model.includes("gpt-5.5") || model.includes("gpt-4")) {

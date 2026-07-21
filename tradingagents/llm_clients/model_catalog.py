@@ -78,50 +78,74 @@ _MINIMAX_MODELS: dict[str, list[ModelOption]] = {
 }
 
 
+# Hosted providers (OpenAI / Anthropic / Google / xAI) stay aligned with
+# packages/api-types HOSTED_MODEL_CATALOG + model_credit_multipliers. BYOK-only
+# ultra-premium SKUs (e.g. gpt-5.5-pro, claude-fable-5) appear here but are not
+# seeded into the hosted credit matrix.
 MODEL_OPTIONS: ProviderModeOptions = {
     "openai": {
         "quick": [
             ("GPT-5.4 Mini - Fast, strong coding and tool use", "gpt-5.4-mini"),
-            ("GPT-5.4 Nano - Cheapest, high-volume tasks", "gpt-5.4-nano"),
+            ("GPT-5.4 Nano - Cheapest GPT-5.4 tier, high-volume tasks", "gpt-5.4-nano"),
+            ("GPT-5 Mini - Lightweight GPT-5, strong value", "gpt-5-mini"),
+            ("GPT-4.1 Mini - Fast GPT-4.1, cost-efficient", "gpt-4.1-mini"),
+            ("GPT-4o Mini - Cheapest OpenAI chat model", "gpt-4o-mini"),
+            ("GPT-5 - Solid general-purpose, 1M context", "gpt-5"),
+            ("GPT-4.1 - Strong tool use and instruction following", "gpt-4.1"),
+            ("GPT-4o - Previous-gen multimodal workhorse", "gpt-4o"),
             ("GPT-5.5 - Latest frontier, 1M context", "gpt-5.5"),
         ],
         "deep": [
             ("GPT-5.5 - Latest frontier, 1M context", "gpt-5.5"),
+            ("GPT-5.5 Pro - Maximum capability (BYOK; very expensive)", "gpt-5.5-pro"),
             ("GPT-5.4 - Previous-gen frontier, 1M context, cost-effective", "gpt-5.4"),
             ("GPT-5.2 - Strong reasoning, cost-effective", "gpt-5.2"),
-            ("GPT-5.5 Pro - Most capable, expensive ($30/$180 per 1M tokens)", "gpt-5.5-pro"),
+            ("GPT-5 - Solid general-purpose, 1M context", "gpt-5"),
+            ("GPT-4.1 - Strong tool use and instruction following", "gpt-4.1"),
+            ("GPT-4o - Previous-gen multimodal workhorse", "gpt-4o"),
+            ("o3 - Advanced multi-step reasoning", "o3"),
+            ("o4-mini - Budget reasoning / math / logic", "o4-mini"),
         ],
     },
     "anthropic": {
         "quick": [
-            ("Claude Sonnet 4.6 - Best speed and intelligence balance", "claude-sonnet-4-6"),
+            ("Claude Sonnet 5 - Latest speed/intelligence balance", "claude-sonnet-5"),
+            ("Claude Sonnet 4.6 - Previous mid-tier workhorse", "claude-sonnet-4-6"),
             ("Claude Haiku 4.5 - Fastest with near-frontier intelligence", "claude-haiku-4-5"),
+            ("Claude Sonnet 4.5 - Legacy mid-tier", "claude-sonnet-4-5"),
         ],
         "deep": [
             ("Claude Opus 4.8 - Latest frontier, agentic coding and reasoning", "claude-opus-4-8"),
             ("Claude Opus 4.7 - Previous frontier, long-running agents", "claude-opus-4-7"),
             ("Claude Opus 4.6 - Frontier intelligence, agents and coding", "claude-opus-4-6"),
-            ("Claude Sonnet 4.6 - Best speed and intelligence balance", "claude-sonnet-4-6"),
+            ("Claude Opus 4.5 - Earlier Opus generation", "claude-opus-4-5"),
+            ("Claude Fable 5 - Highest capability (BYOK; ultra-premium)", "claude-fable-5"),
+            ("Claude Sonnet 5 - Latest mid-tier for complex agent loops", "claude-sonnet-5"),
+            ("Claude Sonnet 4.6 - Best previous speed/intelligence balance", "claude-sonnet-4-6"),
         ],
     },
     "google": {
         "quick": [
             ("Gemini 3.5 Flash - Latest, frontier agentic + coding (GA)", "gemini-3.5-flash"),
-            ("Gemini 3.1 Flash Lite - Most cost-efficient", "gemini-3.1-flash-lite"),
+            ("Gemini 3.5 Flash-Lite - Cost-efficient GA for high-volume agents", "gemini-3.5-flash-lite"),
+            ("Gemini 3.1 Flash Lite - Most cost-efficient 3.1 tier", "gemini-3.1-flash-lite"),
+            ("Gemini 3 Flash - Fast frontier preview, strong value", "gemini-3-flash-preview"),
         ],
         "deep": [
             ("Gemini 3.1 Pro - Reasoning-first, complex workflows (preview)", "gemini-3.1-pro-preview"),
             ("Gemini 3.5 Flash - Latest GA, strong agentic + coding", "gemini-3.5-flash"),
+            ("Gemini 3 Flash - Fast frontier preview", "gemini-3-flash-preview"),
         ],
     },
     "xai": {
         "quick": [
-            ("Grok 4.3 - Latest flagship, fast with built-in reasoning", "grok-4.3"),
+            ("Grok 4.3 - Flagship, fast with built-in reasoning, 1M ctx", "grok-4.3"),
             ("Grok 4.20 (Non-Reasoning) - Speed-optimized", "grok-4.20-0309-non-reasoning"),
             ("Grok Build 0.1 - Coding-specialized, 256K ctx", "grok-build-0.1"),
         ],
         "deep": [
-            ("Grok 4.3 - Latest flagship, built-in reasoning, 1M ctx", "grok-4.3"),
+            ("Grok 4.5 - Newest flagship, agentic coding (500K ctx)", "grok-4.5"),
+            ("Grok 4.3 - Flagship with built-in reasoning, 1M ctx", "grok-4.3"),
             ("Grok 4.20 (Reasoning) - Previous-gen reasoning", "grok-4.20-0309-reasoning"),
             ("Grok 4.20 Multi-Agent - Multi-agent reasoning", "grok-4.20-multi-agent-0309"),
         ],

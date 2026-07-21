@@ -101,7 +101,7 @@ export async function getPlanCreditConfig(
       low_balance_block_ratio: asNumber(row.low_balance_block_ratio, 0.03),
       low_balance_warn_ratio: asNumber(row.low_balance_warn_ratio, 0.1),
       max_rollover_periods: asNumber(row.max_rollover_periods, 1),
-      reference_output_usd_per_1m: asNumber(row.reference_output_usd_per_1m, 0.28),
+      reference_output_usd_per_1m: asNumber(row.reference_output_usd_per_1m, 0.266667),
       estimated_tokens_by_depth:
         row.estimated_tokens_by_depth && typeof row.estimated_tokens_by_depth === "object"
           ? row.estimated_tokens_by_depth
@@ -118,7 +118,7 @@ export async function getPlanCreditConfig(
     low_balance_warn_ratio: 0.1,
     max_rollover_periods: planId === "hosted" ? 1 : 0,
     estimated_tokens_by_depth: DEFAULT_ESTIMATED_TOKENS,
-    reference_output_usd_per_1m: 0.28,
+    reference_output_usd_per_1m: 0.266667,
     updated_at: new Date().toISOString(),
   };
 }

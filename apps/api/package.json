@@ -9,7 +9,8 @@
     "start": "node --env-file=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "sync-model-prices": "tsx --env-file=.env src/scripts/sync-model-prices.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.9.0",
