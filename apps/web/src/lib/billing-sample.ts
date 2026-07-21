@@ -15,22 +15,22 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
 
   const byModel = [
     {
-      providerId: "anthropic",
-      providerLabel: "Anthropic",
-      modelId: "claude-opus-4",
-      tokensTotal: 20_000,
-      billableUnits: 160_000,
-      costSource: "hosted" as const,
-      shareOfBillable: 0.42,
-    },
-    {
       providerId: "openai",
       providerLabel: "OpenAI",
       modelId: "gpt-4o",
       tokensTotal: 58_000,
       billableUnits: 174_000,
       costSource: "hosted" as const,
-      shareOfBillable: 0.45,
+      shareOfBillable: 0,
+    },
+    {
+      providerId: "anthropic",
+      providerLabel: "Anthropic",
+      modelId: "claude-opus-4",
+      tokensTotal: 20_000,
+      billableUnits: 160_000,
+      costSource: "hosted" as const,
+      shareOfBillable: 0,
     },
     {
       providerId: "google",
@@ -39,7 +39,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       tokensTotal: 130_000,
       billableUnits: 130_000,
       costSource: "hosted" as const,
-      shareOfBillable: 0.13,
+      shareOfBillable: 0,
     },
     {
       providerId: "anthropic",
@@ -53,6 +53,10 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
   ];
 
   const usedBillableUnits = byModel.reduce((sum, row) => sum + row.billableUnits, 0);
+  for (const row of byModel) {
+    row.shareOfBillable =
+      usedBillableUnits > 0 ? row.billableUnits / usedBillableUnits : 0;
+  }
 
   return {
     subscription: {
