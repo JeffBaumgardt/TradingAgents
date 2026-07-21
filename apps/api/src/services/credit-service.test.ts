@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import {
   assertHostedCreditsForNewRun,
@@ -249,11 +250,11 @@ describe("credit-service", () => {
       new Date("2026-07-15T12:00:00.000Z"),
     );
 
-    const runBody = {
+    const runBody: CreateSessionRequest = {
       ticker: "AAPL",
       analysisDate: "2026-07-01",
       analysts: ["market", "news", "social", "fundamentals"],
-      researchDepth: 5 as const,
+      researchDepth: 5,
       llmProvider: "openai",
       thinkLlm: "gpt-5.5",
       outputLanguage: "English",
@@ -329,11 +330,11 @@ describe("credit-service", () => {
       new Date("2026-07-15T12:00:00.000Z"),
     );
 
-    const runBody = {
+    const runBody: CreateSessionRequest = {
       ticker: "AAPL",
       analysisDate: "2026-07-01",
       analysts: ["market", "news", "social", "fundamentals"],
-      researchDepth: 5 as const,
+      researchDepth: 5,
       llmProvider: "openai",
       thinkLlm: "gpt-5.5",
       outputLanguage: "English",
