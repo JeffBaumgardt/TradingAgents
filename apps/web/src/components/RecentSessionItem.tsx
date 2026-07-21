@@ -29,7 +29,7 @@ export default function RecentSessionItem({ session }: RecentSessionItemProps) {
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      `Delete the ${session.ticker} analysis from ${formatSessionDate(session.analysisDate)}? This cannot be undone.`,
+      `Remove the ${session.ticker} analysis from ${formatSessionDate(session.analysisDate)}? It will no longer appear in your recent analyses.`,
     );
     if (!confirmed) {
       return;

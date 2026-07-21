@@ -27,6 +27,8 @@ export function sessionStatusLabel(status: Session["status"]): string {
       return "Failed";
     case "cancelled":
       return "Cancelled";
+    case "deleted":
+      return "Deleted";
     default:
       return "Pending";
   }

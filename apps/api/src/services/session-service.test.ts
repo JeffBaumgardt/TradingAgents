@@ -90,7 +90,7 @@ describe("session-service ownership", () => {
     assert.equal(session.config.userContext, "private thesis notes");
   });
 
-  it("prevents deleting another user's session", async () => {
+  it("soft-deletes a session and hides it from reads and lists", async () => {
     const client = createInMemorySupabase();
     await insertSession(client, "session-a-2", USER_A, "QQQ");
 
@@ -99,6 +99,22 @@ describe("session-service ownership", () => {
 
     assert.equal(await deleteSession(client, "session-a-2", USER_A), true);
     assert.equal(await getSession(client, "session-a-2", USER_A), null);
+    assert.equal(await getSession(client, "session-a-2"), null);
+
+    const ownerList = await listSessions(client, USER_A, 20, 0);
+    assert.equal(ownerList.total, 0);
+
+    const { data: retained } = await client
+      .from("sessions")
+      .select("*")
+      .eq("id", "session-a-2")
+      .maybeSingle();
+    assert.ok(retained);
+    assert.equal(retained.status, "deleted");
+    assert.ok(retained.deleted_on);
+
+    // Idempotent for the owner after soft-delete.
+    assert.equal(await deleteSession(client, "session-a-2", USER_A), true);
   });
 });
 

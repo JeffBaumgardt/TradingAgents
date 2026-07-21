@@ -25,7 +25,13 @@ export type ReportSectionKey =
   | "trader_investment_plan"
   | "final_trade_decision";
 
-export type SessionStatus = "pending" | "running" | "completed" | "error" | "cancelled";
+export type SessionStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "error"
+  | "cancelled"
+  | "deleted";
 
 /** True when agents may still be running and the client should use live SSE. */
 export function isLiveSessionStatus(status: SessionStatus): boolean {

@@ -18,5 +18,6 @@ describe("isLiveSessionStatus", () => {
     assert.equal(isLiveSessionStatus("completed"), false);
     assert.equal(isLiveSessionStatus("error"), false);
     assert.equal(isLiveSessionStatus("cancelled"), false);
+    assert.equal(isLiveSessionStatus("deleted"), false);
   });
 });

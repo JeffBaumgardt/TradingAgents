@@ -63,6 +63,10 @@ function rowToSession(row: SessionRow): Session {
   };
 }
 
+function isSoftDeletedSession(row: SessionRow): boolean {
+  return row.status === "deleted" || row.deleted_on != null;
+}
+
 /**
  * Redact owner-scoped fields for anonymous share-by-link responses.
  * Session UUID remains the capability; Clerk ids / run ids / private notes stay private.
@@ -320,6 +324,9 @@ export async function getSession(
   }
 
   const row = data as SessionRow;
+  if (isSoftDeletedSession(row)) {
+    return null;
+  }
   if (userId && !isSessionOwnedByUser(row, userId)) {
     return null;
   }
@@ -337,6 +344,7 @@ export async function listSessions(
     .from("sessions")
     .select("*", { count: "exact" })
     .eq("user_id", userId)
+    .is("deleted_on", null)
     .order("analysis_date", { ascending: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -373,6 +381,9 @@ export async function cancelSession(
 
   const sessionRow = row as SessionRow;
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
+    return null;
+  }
+  if (isSoftDeletedSession(sessionRow)) {
     return null;
   }
 
@@ -416,31 +427,31 @@ export async function deleteSession(
     return false;
   }
 
+  if (isSoftDeletedSession(sessionRow)) {
+    return true;
+  }
+
   if (sessionRow.run_id && sessionRow.status === "running") {
     try {
       stopBackgroundRunMetering(id);
       await agentsClient.cancelRun(sessionRow.run_id);
     } catch {
-      // Best-effort cancel before removing persisted data.
+      // Best-effort cancel before soft-deleting.
     }
   }
 
-  const { error: deleteEventsError } = await client
-    .from("events")
-    .delete()
-    .eq("session_id", id);
-
-  if (deleteEventsError) {
-    throw new Error(deleteEventsError.message);
-  }
-
-  const { error: deleteSessionError } = await client
+  const now = new Date().toISOString();
+  const { error: softDeleteError } = await client
     .from("sessions")
-    .delete()
+    .update({
+      status: "deleted",
+      deleted_on: now,
+      updated_at: now,
+    })
     .eq("id", id);
 
-  if (deleteSessionError) {
-    throw new Error(deleteSessionError.message);
+  if (softDeleteError) {
+    throw new Error(softDeleteError.message);
   }
 
   return true;
@@ -573,6 +584,9 @@ export async function getSessionReport(
   }
 
   const sessionRow = row as SessionRow;
+  if (isSoftDeletedSession(sessionRow)) {
+    return "not_found";
+  }
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
     return "not_found";
   }
@@ -755,6 +769,9 @@ export async function getSessionTradeCheck(
   }
 
   const sessionRow = row as SessionRow;
+  if (isSoftDeletedSession(sessionRow)) {
+    return "not_found";
+  }
   if (userId && !isSessionOwnedByUser(sessionRow, userId)) {
     return "not_found";
   }
