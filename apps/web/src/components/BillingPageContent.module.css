@@ -199,38 +199,46 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: 0.85rem;
   background: color-mix(in srgb, var(--color-bg-page) 55%, var(--color-bg-surface));
-  padding: 0.75rem 0.85rem;
-}
-
-.providerTreeHeader {
-  display: grid;
-  gap: 0.35rem;
+  overflow: hidden;
 }
 
 .providerToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
   border: 0;
   background: transparent;
   color: var(--color-text);
-  padding: 0;
+  padding: 0.75rem 0.85rem;
   cursor: pointer;
   text-align: left;
   font: inherit;
+  transition: background-color 0.15s ease;
+}
+
+.providerToggle:hover {
+  background: color-mix(in srgb, var(--color-bg-page) 35%, var(--color-bg-surface));
 }
 
 .providerToggle:focus-visible {
   outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline-offset: -2px;
+}
+
+.providerTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .providerChevron {
   display: inline-flex;
-  width: 1rem;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: 1.35rem;
+  line-height: 1;
 }
 
 .providerName {
@@ -241,7 +249,7 @@
 .providerAggregate {
   display: grid;
   gap: 0.15rem;
-  margin-left: 1.45rem;
+  margin-left: 1.8rem;
   color: var(--color-text);
   font-size: 0.9rem;
   font-weight: 600;
@@ -255,8 +263,8 @@
 
 .modelTree {
   list-style: none;
-  margin: 0.7rem 0 0 1.45rem;
-  padding: 0.55rem 0 0;
+  margin: 0;
+  padding: 0.55rem 0.85rem 0.75rem 2.65rem;
   border-top: 1px solid var(--color-border-subtle);
   display: grid;
   gap: 0.65rem;

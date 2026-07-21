@@ -24,7 +24,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/pricing-content";
-import shared from "./pricing-shared.module.css";
+import pricingStyles from "./PricingLayout.module.css";
 import styles from "./CheckoutScaffold.module.css";
 
 function resolveCheckoutSelection(
@@ -118,7 +118,7 @@ export default function CheckoutScaffold() {
         </Link>
 
         <header className={styles.header}>
-          <p className={shared.eyebrow}>Checkout</p>
+          <p className={pricingStyles.eyebrow}>Checkout</p>
           <h1 className={styles.title}>Invalid checkout link</h1>
           <p className={styles.intro}>
             This checkout URL has an invalid plan or billing interval. Return to pricing and
@@ -131,7 +131,7 @@ export default function CheckoutScaffold() {
         </p>
 
         <div className={styles.actions}>
-          <Link href="/pricing" className={shared.primaryButton} aria-label="View pricing">
+          <Link href="/pricing" className={pricingStyles.primaryButton} aria-label="View pricing">
             View pricing
           </Link>
         </div>
@@ -162,7 +162,7 @@ export default function CheckoutScaffold() {
       </Link>
 
       <header className={styles.header}>
-        <p className={shared.eyebrow}>Checkout · {stepLabel}</p>
+        <p className={pricingStyles.eyebrow}>Checkout · {stepLabel}</p>
         <h1 className={styles.title}>
           {isSignedIn ? "Set up payment" : "Create your account to continue"}
         </h1>
@@ -177,7 +177,7 @@ export default function CheckoutScaffold() {
         <h2 id="checkout-summary-heading" className={styles.summaryTitle}>
           {plan.name}
           {plan.priceProvisional ? (
-            <span className={shared.provisional}>Provisional</span>
+            <span className={pricingStyles.provisional}>Provisional</span>
           ) : null}
         </h2>
         <p className={styles.summaryTagline}>{plan.tagline}</p>

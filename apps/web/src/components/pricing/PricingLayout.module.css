@@ -15,6 +15,15 @@
   justify-items: center;
 }
 
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--color-link);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .title {
   margin: 0;
   font-size: clamp(1.9rem, 4vw, 2.8rem);
@@ -109,6 +118,80 @@
   line-height: 1.45;
 }
 
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.75rem 1.25rem;
+  text-decoration: none;
+}
+
+.primaryButton {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.primaryButton:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary-border);
+  color: var(--color-primary-text);
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+.secondaryButton:hover {
+  border-color: var(--color-link);
+  color: var(--color-link);
+}
+
+.provisional {
+  display: inline-block;
+  margin-left: 0.4rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.45rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.featureList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.featureList li {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.featureList li::before {
+  content: "";
+  position: absolute;
+  top: 0.75rem;
+  left: 0;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
 .sharedBand {
   border: 1px solid var(--color-border-subtle);
   border-radius: 1rem;
@@ -147,6 +230,13 @@
   color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 @media (max-width: 800px) {

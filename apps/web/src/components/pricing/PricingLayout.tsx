@@ -1,6 +1,6 @@
 /**
- * @file apps/web/src/components/pricing/PricingLayoutA.tsx
- * Layout A — classic dual pricing cards with billing toggle.
+ * @file apps/web/src/components/pricing/PricingLayout.tsx
+ * Dual pricing cards with monthly / annual billing toggle.
  */
 
 "use client";
@@ -18,10 +18,9 @@ import {
   PRICING_SHARED_FEATURES,
   type BillingInterval,
 } from "@/lib/pricing-content";
-import shared from "./pricing-shared.module.css";
-import styles from "./PricingLayoutA.module.css";
+import styles from "./PricingLayout.module.css";
 
-export default function PricingLayoutA() {
+export default function PricingLayout() {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
 
   function handleIntervalChange(next: BillingInterval) {
@@ -31,7 +30,7 @@ export default function PricingLayoutA() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <p className={shared.eyebrow}>{PRICING_PAGE.eyebrow}</p>
+        <p className={styles.eyebrow}>{PRICING_PAGE.eyebrow}</p>
         <h1 className={styles.title}>{PRICING_PAGE.title}</h1>
         <p className={styles.intro}>{PRICING_PAGE.intro}</p>
         <PricingBillingToggle
@@ -45,7 +44,7 @@ export default function PricingLayoutA() {
       <section className={styles.cards} aria-label="Pricing plans">
         {PRICING_PLANS.map((plan) => {
           const price = displayPriceCents(plan, interval);
-          const featured = plan.id === "byok";
+          const featured = plan.id === "hosted";
 
           return (
             <article
@@ -53,11 +52,11 @@ export default function PricingLayoutA() {
               className={featured ? styles.cardFeatured : styles.card}
               aria-labelledby={`plan-${plan.id}-title`}
             >
-              {featured ? <p className={styles.cardBadge}>Most approachable</p> : null}
+              {featured ? <p className={styles.cardBadge}>Recommended</p> : null}
               <h2 id={`plan-${plan.id}-title`} className={styles.cardTitle}>
                 {plan.name}
                 {plan.priceProvisional ? (
-                  <span className={shared.provisional}>Provisional</span>
+                  <span className={styles.provisional}>Provisional</span>
                 ) : null}
               </h2>
               <p className={styles.cardTagline}>{plan.tagline}</p>
@@ -67,14 +66,14 @@ export default function PricingLayoutA() {
               </p>
               <p className={styles.priceCaption}>{displayPriceCaption(plan, interval)}</p>
               <p className={styles.bestFor}>{plan.bestFor}</p>
-              <ul className={shared.featureList}>
+              <ul className={styles.featureList}>
                 {plan.highlights.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
               <Link
                 href={buildCheckoutHref(plan.id, interval)}
-                className={featured ? shared.primaryButton : shared.secondaryButton}
+                className={featured ? styles.primaryButton : styles.secondaryButton}
                 aria-label={`${plan.ctaLabel} — ${plan.name}`}
               >
                 {plan.ctaLabel}
@@ -98,8 +97,8 @@ export default function PricingLayoutA() {
         </ul>
       </section>
 
-      <p className={shared.note}>{PRICING_PAGE.infraFraming}</p>
-      <p className={shared.note}>{PRICING_PAGE.provisionalNote}</p>
+      <p className={styles.note}>{PRICING_PAGE.infraFraming}</p>
+      <p className={styles.note}>{PRICING_PAGE.provisionalNote}</p>
     </div>
   );
 }

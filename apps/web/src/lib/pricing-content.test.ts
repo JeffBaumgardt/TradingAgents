@@ -40,10 +40,14 @@ describe("pricing-content", () => {
 
   it("applies a 20% annual discount to the provisional hosted plan", () => {
     const hosted = getPricingPlan("hosted");
+    assert.equal(hosted.monthlyPriceCents, 1900);
     assert.equal(hosted.priceProvisional, true);
-    assert.equal(annualTotalCents(hosted.monthlyPriceCents), 27840);
-    assert.equal(annualMonthlyEquivalentCents(hosted.monthlyPriceCents), 2320);
-    assert.equal(formatUsdFromCents(2320), "$23.20");
+    assert.equal(annualTotalCents(hosted.monthlyPriceCents), 18240);
+    assert.equal(annualMonthlyEquivalentCents(hosted.monthlyPriceCents), 1520);
+    assert.equal(formatUsdFromCents(1520), "$15.20");
+    assert.ok(
+      hosted.highlights.some((item) => /10M compute credits per month/i.test(item)),
+    );
   });
 
   it("formats currency and checkout hrefs", () => {

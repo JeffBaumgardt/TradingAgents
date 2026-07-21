@@ -99,8 +99,9 @@ export default function BillingAccountView({
             </div>
             {usage.isSample ? (
               <p className={styles.sampleNote} role="note">
-                Sample usage for review — live metering will use the curated cost catalog. Allowance
-                is provisional and intentionally open.
+                Sample usage for review — live metering will use the curated cost catalog. Hosted
+                plans include {formatComputeCredits(usage.allowanceComputeCredits)} compute credits
+                per month.
               </p>
             ) : null}
             <div className={styles.progressMeta}>
@@ -123,10 +124,6 @@ export default function BillingAccountView({
                 style={{ width: `${Math.max(2, usage.usedRatio * 100)}%` }}
               />
             </div>
-            <p className={styles.usageFoot}>
-              {formatTokenCount(usage.hostedTokens)} hosted tokens counted ·{" "}
-              {formatTokenCount(usage.selfPayTokens)} tokens on your keys (excluded from allowance)
-            </p>
           </section>
 
           <section className={styles.breakdownCard} aria-labelledby="breakdown-heading">
@@ -136,7 +133,7 @@ export default function BillingAccountView({
             <p className={styles.breakdownIntro}>
               Expand a provider to see models. Each model shows its{" "}
               <strong>credit multiplier</strong> (from API output $/1M tokens) plus raw tokens and
-              compute credits. Progress bars stay at the account level only.
+              compute credits.
             </p>
 
             <UsageProviderTree byProvider={usage.byProvider} byModel={usage.byModel} />

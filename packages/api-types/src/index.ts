@@ -390,7 +390,7 @@ export const BILLING_CATALOG: readonly BillingPlan[] = [
   {
     id: "hosted",
     name: "Hosted models",
-    monthlyPriceCents: 2900,
+    monthlyPriceCents: 1900,
     priceProvisional: true,
     annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
   },
@@ -449,11 +449,11 @@ export function billingAnnualMonthlyEquivalentCents(
 }
 
 /**
- * Provisional monthly hosted allowance in compute credits.
+ * Monthly hosted allowance in compute credits.
  * One credit ≈ one token on the cheapest curated model (DeepSeek V4 Flash output rate).
- * Quite open for normal use; abuse protection until live metering lands.
+ * Sized for ~15% of net revenue at the $19 hosted list price after Stripe fees.
  */
-export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 5_000_000;
+export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
 
 /** @deprecated Use {@link HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE}. */
 export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;

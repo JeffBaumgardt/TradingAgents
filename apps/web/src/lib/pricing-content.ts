@@ -17,11 +17,13 @@ import {
   billingAnnualMonthlyEquivalentCents,
   billingAnnualTotalCents,
   getBillingPlan,
+  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   isBillingInterval,
   isBillingPlanId,
   type BillingInterval,
   type BillingPlanId,
 } from "@tradingagents/api-types";
+import { formatComputeCredits } from "@/lib/billing-display";
 
 export type { BillingInterval, BillingPlanId };
 
@@ -64,6 +66,9 @@ export const PRICING_SHARED_FEATURES = [
 ] as const;
 
 const BYOK_MONTHLY_LABEL = formatUsdFromCents(getBillingPlan("byok").monthlyPriceCents);
+const HOSTED_CREDIT_ALLOWANCE_LABEL = formatComputeCredits(
+  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+);
 
 const PLAN_MARKETING: Record<
   BillingPlanId,
@@ -85,6 +90,7 @@ const PLAN_MARKETING: Record<
     ctaLabel: "Start with hosted models",
     bestFor: "Anyone who wants model choice without managing API keys.",
     highlights: [
+      `${HOSTED_CREDIT_ALLOWANCE_LABEL} compute credits per month for hosted model runs`,
       "Wide array of models to choose from — no provider keys required",
       "We handle routing, quotas, and provider credentials",
       "Full multi-agent research pipeline",
@@ -108,7 +114,7 @@ export const PRICING_PAGE = {
     "Most AI tools either hide model costs in a high flat fee or force you to manage keys alone. We offer both: a low infrastructure fee when you bring your own key, or a hosted-models plan when you want a ready-made catalog.",
   annualNote: `Annual billing saves ${ANNUAL_DISCOUNT_PERCENT}% versus paying month to month.`,
   provisionalNote:
-    "Hosted models pricing is provisional while we finalize a market rate. The checkout flow is scaffolded and not charged yet.",
+    "Hosted models includes a monthly compute credit allowance for platform-operated models. Checkout is scaffolded until Stripe billing is live.",
   infraFraming: `The ${BYOK_MONTHLY_LABEL} Bring your own key plan is a platform fee — it helps pay for the servers, databases, and orchestration that run TradingAgents. Model tokens still bill to your provider.`,
 } as const;
 

@@ -21,25 +21,13 @@ interface UsageProviderTreeProps {
 }
 
 export default function UsageProviderTree({ byProvider, byModel }: UsageProviderTreeProps) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(byProvider.map((row) => [row.providerId, true])),
-  );
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function handleToggle(providerId: string) {
     setExpanded((current) => ({
       ...current,
       [providerId]: !current[providerId],
     }));
-  }
-
-  function handleToggleKeyDown(
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    providerId: string,
-  ) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      handleToggle(providerId);
-    }
   }
 
   return (
@@ -51,22 +39,21 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
 
         return (
           <li key={provider.providerId} className={styles.providerTreeItem}>
-            <div className={styles.providerTreeHeader}>
-              <button
-                type="button"
-                className={styles.providerToggle}
-                aria-expanded={isOpen}
-                aria-controls={panelId}
-                aria-label={`${isOpen ? "Collapse" : "Expand"} ${provider.providerLabel} models`}
-                onClick={() => handleToggle(provider.providerId)}
-                onKeyDown={(event) => handleToggleKeyDown(event, provider.providerId)}
-              >
+            <button
+              type="button"
+              className={styles.providerToggle}
+              aria-expanded={isOpen}
+              aria-controls={panelId}
+              aria-label={`${isOpen ? "Collapse" : "Expand"} ${provider.providerLabel} models`}
+              onClick={() => handleToggle(provider.providerId)}
+            >
+              <span className={styles.providerTitleRow}>
                 <span className={styles.providerChevron} aria-hidden="true">
                   {isOpen ? "▾" : "▸"}
                 </span>
                 <span className={styles.providerName}>{provider.providerLabel}</span>
-              </button>
-              <div className={styles.providerAggregate}>
+              </span>
+              <span className={styles.providerAggregate}>
                 <span>
                   {formatTokenCount(provider.tokensTotal)} tokens ·{" "}
                   {formatComputeCredits(provider.computeCredits)} credits
@@ -77,8 +64,8 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
                     ? ` · Your key ${formatTokenCount(provider.selfPayTokens)}`
                     : ""}
                 </span>
-              </div>
-            </div>
+              </span>
+            </button>
 
             {isOpen ? (
               <ul id={panelId} className={styles.modelTree}>

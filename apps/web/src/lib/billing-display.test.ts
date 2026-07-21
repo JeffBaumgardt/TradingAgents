@@ -16,6 +16,7 @@ describe("billing-display", () => {
   it("formats counts and period end", () => {
     assert.equal(formatTokenCount(12500), "12,500");
     assert.equal(formatComputeCredits(5_000_000), "5M");
+    assert.equal(formatComputeCredits(10_000_000), "10M");
     assert.equal(formatComputeCredits(2500), "2.5k");
     assert.equal(formatCreditMultiplier(17.9), "×17.9");
     assert.equal(formatCreditMultiplier(1), "×1");

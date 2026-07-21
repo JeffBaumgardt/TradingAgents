@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from "next";
-import PricingLayoutA from "@/components/pricing/PricingLayoutA";
+import PricingLayout from "@/components/pricing/PricingLayout";
 
 export const metadata: Metadata = {
   title: "Pricing — TradingAgents",
@@ -13,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
-  return <PricingLayoutA />;
+  return <PricingLayout />;
 }

@@ -35,25 +35,25 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
   const periodEnd = new Date(periodStart);
   periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
-  // Token volumes sized so weighted compute credits land ~40–60% of allowance.
+  // Token volumes sized so weighted compute credits land ~40–60% of the 10M allowance.
   const byModel: UsageModelBreakdown[] = [
-    hostedModelRow("openai", "OpenAI", "gpt-5.4-mini", 22_000),
-    hostedModelRow("openai", "OpenAI", "gpt-5.5", 4_000),
-    hostedModelRow("anthropic", "Anthropic", "claude-opus-4-8", 6_000),
-    hostedModelRow("anthropic", "Anthropic", "claude-haiku-4-5", 18_000),
+    hostedModelRow("openai", "OpenAI", "gpt-5.4-mini", 44_000),
+    hostedModelRow("openai", "OpenAI", "gpt-5.5", 8_000),
+    hostedModelRow("anthropic", "Anthropic", "claude-opus-4-8", 12_000),
+    hostedModelRow("anthropic", "Anthropic", "claude-haiku-4-5", 36_000),
     {
       providerId: "anthropic",
       providerLabel: "Anthropic",
       modelId: "claude-sonnet-4-6",
-      tokensTotal: 28_000,
+      tokensTotal: 56_000,
       computeCredits: 0,
       creditMultiplier: getModelCreditMultiplier("anthropic", "claude-sonnet-4-6"),
       costSource: "self_pay",
       shareOfCredits: 0,
     },
-    hostedModelRow("google", "Google", "gemini-3.5-flash", 18_000),
-    hostedModelRow("xai", "xAI", "grok-4.3", 14_000),
-    hostedModelRow("deepseek", "DeepSeek", "deepseek-v4-flash", 45_000),
+    hostedModelRow("google", "Google", "gemini-3.5-flash", 36_000),
+    hostedModelRow("xai", "xAI", "grok-4.3", 28_000),
+    hostedModelRow("deepseek", "DeepSeek", "deepseek-v4-flash", 90_000),
   ];
 
   const usedComputeCredits = byModel.reduce((sum, row) => sum + row.computeCredits, 0);
