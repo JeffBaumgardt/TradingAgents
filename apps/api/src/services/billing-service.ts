@@ -13,6 +13,8 @@ import {
   isBillingInterval,
   isBillingPlanId,
 } from "@tradingagents/api-types";
+import type { AppSupabaseClient } from "@tradingagents/supabase";
+import { activateScaffoldSubscription } from "./billing-account-service.js";
 
 export type { BillingInterval, BillingPlan, BillingPlanId };
 
@@ -30,12 +32,19 @@ export function listBillingPlans(): { plans: BillingPlan[] } {
   return { plans: [...BILLING_CATALOG] };
 }
 
+export interface CheckoutResult extends CheckoutResponse {
+  subscriptionActivated: boolean;
+}
+
 /**
  * Validates checkout intent and returns a scaffold response.
- * Replace the body with a real Stripe Checkout Session create call later.
- * successUrl/cancelUrl are intentionally omitted until an origin allowlist exists.
+ * When a userId is present, activates an in-process subscription so profile UI works
+ * before Stripe is wired.
  */
-export function createCheckoutSession(body: unknown): CheckoutResponse {
+export async function createCheckoutSession(
+  body: unknown,
+  options: { userId?: string | null; client?: AppSupabaseClient | null } = {},
+): Promise<CheckoutResult> {
   if (!body || typeof body !== "object") {
     throw new BillingServiceError("Invalid checkout payload", 400);
   }
@@ -57,12 +66,25 @@ export function createCheckoutSession(body: unknown): CheckoutResponse {
     );
   }
 
+  let subscriptionActivated = false;
+  if (options.userId && options.client) {
+    await activateScaffoldSubscription(
+      options.client,
+      options.userId,
+      payload.planId,
+      payload.interval,
+    );
+    subscriptionActivated = true;
+  }
+
   return {
     status: "not_configured",
     planId: payload.planId,
     interval: payload.interval,
     checkoutUrl: null,
-    message:
-      "Checkout is scaffolded. Connect a payment provider (e.g. Stripe) to create a live session.",
+    subscriptionActivated,
+    message: subscriptionActivated
+      ? "Payment provider is not live yet, but your plan was activated in scaffold mode so you can review the billing page."
+      : "Checkout is scaffolded. Sign in and continue to activate a reviewable scaffold subscription, or connect Stripe later.",
   };
 }

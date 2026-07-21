@@ -11,7 +11,7 @@ describe("buildThemeBootstrapScript", () => {
     const script = buildThemeBootstrapScript();
 
     assert.match(script, /landingExact = \[\"\/\", \"\/privacy\", \"\/license\"\]/);
-    assert.match(script, /landingPrefixes = \[\"\/pricing\", \"\/checkout\"\]/);
+    assert.match(script, /landingPrefixes = \[\"\/pricing\", \"\/checkout\", \"\/billing-preview\"\]/);
     assert.match(script, new RegExp(`document.documentElement.dataset.theme = "${DEFAULT_THEME_ID}"`));
     assert.match(script, /return;/);
   });

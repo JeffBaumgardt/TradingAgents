@@ -22,6 +22,9 @@ export default function SiteHeaderNav() {
       <Link href="/settings/credentials" className={styles.navLink}>
         API keys
       </Link>
+      <Link href="/settings/billing" className={styles.navLink}>
+        Billing
+      </Link>
     </nav>
   );
 }

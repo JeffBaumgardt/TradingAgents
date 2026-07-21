@@ -32,9 +32,16 @@ describe("billing routes", () => {
     const body = (await response.json()) as {
       status: string;
       checkoutUrl: string | null;
+      subscriptionActivated?: boolean;
     };
     assert.equal(body.status, "not_configured");
     assert.equal(body.checkoutUrl, null);
+    assert.equal(body.subscriptionActivated, false);
+  });
+
+  it("requires auth for billing account", async () => {
+    const response = await app.request("/billing/account");
+    assert.equal(response.status, 401);
   });
 
   it("returns 400 for invalid checkout JSON body", async () => {

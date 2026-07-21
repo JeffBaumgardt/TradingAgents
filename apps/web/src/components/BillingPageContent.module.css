@@ -1,0 +1,225 @@
+.page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.planCard,
+.usageCard,
+.breakdownCard,
+.helpCard {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 1rem;
+  background: var(--color-bg-surface);
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 12px 32px rgba(28, 25, 23, 0.04);
+}
+
+.planHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--color-link);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.planTitle,
+.sectionTitle {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.planMeta,
+.periodNote,
+.breakdownIntro,
+.usageFoot,
+.sampleNote,
+.modelStats {
+  margin: 0.45rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.periodNote strong {
+  color: var(--color-text);
+}
+
+.planActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  text-decoration: none;
+}
+
+.primaryButton {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+.usageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.periodChip {
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  padding: 0.25rem 0.65rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.sampleNote {
+  border-left: 3px solid var(--color-link);
+  padding-left: 0.75rem;
+}
+
+.progressMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: var(--color-text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.progressTrack,
+.barTrack {
+  margin-top: 0.55rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg-page) 80%, var(--color-border-subtle));
+  overflow: hidden;
+}
+
+.progressFill,
+.barHosted,
+.barSelf {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.progressFill,
+.barHosted {
+  background: linear-gradient(
+    90deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-primary) 70%, var(--color-accent))
+  );
+}
+
+.barSelf {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-border-strong),
+    var(--color-border-strong) 4px,
+    color-mix(in srgb, var(--color-border-strong) 40%, transparent) 4px,
+    color-mix(in srgb, var(--color-border-strong) 40%, transparent) 8px
+  );
+}
+
+.splitLegend {
+  display: flex;
+  gap: 1rem;
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.legendHosted::before,
+.legendSelf::before {
+  content: "";
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.35rem;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.legendHosted::before {
+  background: var(--color-accent);
+}
+
+.legendSelf::before {
+  background: var(--color-border-strong);
+}
+
+.modelList,
+.providerList {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.modelRow,
+.providerRow {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.providerRow {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.modelTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.subheading {
+  margin: 1.4rem 0 0;
+  font-size: 1rem;
+}
+
+.providerBillable {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.error {
+  color: #7f1d1d;
+}

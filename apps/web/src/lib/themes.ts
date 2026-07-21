@@ -73,7 +73,7 @@ export function buildThemeBootstrapScript(): string {
   try {
     var path = window.location.pathname;
     var landingExact = ["/", "/privacy", "/license"];
-    var landingPrefixes = ["/pricing", "/checkout"];
+    var landingPrefixes = ["/pricing", "/checkout", "/billing-preview"];
     var isLanding =
       landingExact.indexOf(path) !== -1 ||
       landingPrefixes.some(function (prefix) {

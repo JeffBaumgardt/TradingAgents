@@ -112,27 +112,6 @@ export const PRICING_PAGE = {
   infraFraming: `The ${BYOK_MONTHLY_LABEL} Bring your own key plan is a platform fee — it helps pay for the servers, databases, and orchestration that run TradingAgents. Model tokens still bill to your provider.`,
 } as const;
 
-export const PRICING_LAYOUT_OPTIONS = [
-  {
-    id: "a",
-    href: "/pricing/a",
-    name: "Layout A — Dual cards",
-    summary: "Classic SaaS twin cards with a monthly / annual toggle and equal visual weight.",
-  },
-  {
-    id: "b",
-    href: "/pricing/b",
-    name: "Layout B — Comparison matrix",
-    summary: "Feature table with plan columns — strong for side-by-side capability scanning.",
-  },
-  {
-    id: "c",
-    href: "/pricing/c",
-    name: "Layout C — Choose your path",
-    summary: "Editorial split paths with marketing imagery — more story, fewer cards.",
-  },
-] as const;
-
 export function getPricingPlan(planId: BillingPlanId): PricingPlan {
   const catalog = getBillingPlan(planId);
   return {

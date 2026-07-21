@@ -23,8 +23,8 @@ describe("billing-service", () => {
     assert.equal(plans[1]?.priceProvisional, true);
   });
 
-  it("returns a not_configured checkout scaffold for valid requests", () => {
-    const result = createCheckoutSession({
+  it("returns a not_configured checkout scaffold for valid requests", async () => {
+    const result = await createCheckoutSession({
       planId: "byok",
       interval: "annual",
     });
@@ -33,11 +33,12 @@ describe("billing-service", () => {
     assert.equal(result.planId, "byok");
     assert.equal(result.interval, "annual");
     assert.equal(result.checkoutUrl, null);
+    assert.equal(result.subscriptionActivated, false);
     assert.match(result.message, /scaffolded/i);
   });
 
-  it("rejects redirect URLs until allowlisting exists", () => {
-    assert.throws(
+  it("rejects redirect URLs until allowlisting exists", async () => {
+    await assert.rejects(
       () =>
         createCheckoutSession({
           planId: "byok",
@@ -49,18 +50,18 @@ describe("billing-service", () => {
     );
   });
 
-  it("rejects invalid checkout payloads", () => {
-    assert.throws(
+  it("rejects invalid checkout payloads", async () => {
+    await assert.rejects(
       () => createCheckoutSession({ planId: "enterprise", interval: "monthly" }),
       (error: unknown) =>
         error instanceof BillingServiceError && error.status === 400,
     );
-    assert.throws(
+    await assert.rejects(
       () => createCheckoutSession({ planId: "byok", interval: "weekly" }),
       (error: unknown) =>
         error instanceof BillingServiceError && error.status === 400,
     );
-    assert.throws(
+    await assert.rejects(
       () => createCheckoutSession(null),
       (error: unknown) =>
         error instanceof BillingServiceError && error.status === 400,

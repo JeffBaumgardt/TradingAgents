@@ -21,11 +21,7 @@ import {
 import shared from "./pricing-shared.module.css";
 import styles from "./PricingLayoutA.module.css";
 
-interface PricingLayoutAProps {
-  showLayoutLabel?: boolean;
-}
-
-export default function PricingLayoutA({ showLayoutLabel = false }: PricingLayoutAProps) {
+export default function PricingLayoutA() {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
 
   function handleIntervalChange(next: BillingInterval) {
@@ -35,9 +31,7 @@ export default function PricingLayoutA({ showLayoutLabel = false }: PricingLayou
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <p className={shared.eyebrow}>
-          {showLayoutLabel ? `${PRICING_PAGE.eyebrow} · Layout A` : PRICING_PAGE.eyebrow}
-        </p>
+        <p className={shared.eyebrow}>{PRICING_PAGE.eyebrow}</p>
         <h1 className={styles.title}>{PRICING_PAGE.title}</h1>
         <p className={styles.intro}>{PRICING_PAGE.intro}</p>
         <PricingBillingToggle

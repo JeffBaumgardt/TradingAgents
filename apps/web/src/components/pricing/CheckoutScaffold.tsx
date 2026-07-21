@@ -60,6 +60,7 @@ export default function CheckoutScaffold() {
   const searchParams = useSearchParams();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [subscriptionActivated, setSubscriptionActivated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selection = resolveCheckoutSelection(
@@ -71,12 +72,14 @@ export default function CheckoutScaffold() {
     setPending(true);
     setError(null);
     setMessage(null);
+    setSubscriptionActivated(false);
 
     try {
       const result = await createCheckoutSession({
         planId,
         interval,
       });
+      setSubscriptionActivated(Boolean(result.subscriptionActivated));
       setMessage(
         result.message ??
           "Checkout is scaffolded. Payment provider integration comes next.",
@@ -181,9 +184,18 @@ export default function CheckoutScaffold() {
       </div>
 
       {message ? (
-        <p className={styles.info} role="status">
-          {message}
-        </p>
+        <div className={styles.info} role="status">
+          <p>{message}</p>
+          {subscriptionActivated ? (
+            <p>
+              <Link href="/settings/billing">Open billing & usage →</Link>
+            </p>
+          ) : (
+            <p>
+              Sign in before continuing if you want the scaffold plan applied to your account.
+            </p>
+          )}
+        </div>
       ) : null}
       {error ? (
         <p className={styles.error} role="alert">

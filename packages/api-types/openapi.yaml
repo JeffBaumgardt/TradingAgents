@@ -121,13 +121,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BillingPlansResponse"
+  /billing/account:
+    get:
+      tags: [billing]
+      summary: Get subscription and usage
+      description: |
+        Returns the signed-in user's plan and hosted allowance usage breakdown.
+        Usage may be sample data while metering is scaffolded.
+      operationId: getBillingAccount
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Billing account snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingAccountResponse"
+        "401":
+          description: Missing or invalid auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /billing/checkout:
     post:
       tags: [billing]
       summary: Start checkout (scaffold)
       description: |
         Validates plan selection and returns a not_configured payload until a
-        payment provider (e.g. Stripe Checkout) is integrated.
+        payment provider (e.g. Stripe Checkout) is integrated. When authenticated,
+        activates a scaffold subscription for billing UI review.
       operationId: createCheckoutSession
       requestBody:
         required: true
@@ -744,6 +768,23 @@ components:
           description: Checkout URL when a payment provider is configured; null in scaffold mode.
         message:
           type: string
+        subscriptionActivated:
+          type: boolean
+    BillingAccountResponse:
+      type: object
+      required: [subscription, usage, hostedProviderIds]
+      properties:
+        subscription:
+          type: object
+          additionalProperties: true
+        usage:
+          type: object
+          nullable: true
+          additionalProperties: true
+        hostedProviderIds:
+          type: array
+          items:
+            type: string
     AnalystType:
       type: string
       enum: [market, social, news, fundamentals]

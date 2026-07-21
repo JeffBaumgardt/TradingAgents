@@ -9,7 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   AnalystType,
+  BillingAccountResponse,
   CreateSessionRequest,
+  ProviderCostSource,
   ResearchDepth,
 } from "@tradingagents/api-types";
 import {
@@ -18,9 +20,13 @@ import {
   todayIsoDate,
   validateAnalysisDateForWizard,
 } from "@tradingagents/utils";
+import ProviderCostBadge from "@/components/ProviderCostBadge";
+import UpgradePlanNudge from "@/components/UpgradePlanNudge";
 import {
   ApiClientError,
   createSession,
+  fetchBillingAccount,
+  fetchCredentialsSchema,
   fetchProviderModels,
 } from "@/lib/api-client";
 import { useUserSession } from "@/context/UserSessionContext";
@@ -45,8 +51,8 @@ const STEP_DESCRIPTIONS: Record<number, string> = {
   3: "Agents will use market data available on or before this date.",
   4: "Each analyst focuses on a different angle — market trends, news, sentiment, or fundamentals.",
   5: "Higher depth runs more debate rounds between agents. Deeper runs take longer and use more tokens.",
-  6: "Pick the provider whose API key you saved on the API keys page.",
-  7: "Quick models handle routine steps; deep models power the final investment debate.",
+  6: "Pick a provider. Your key stays on your bill; Hosted providers use platform keys and count toward your allowance.",
+  7: "Quick models handle routine steps; deep models power the final investment debate. Expensive models consume more billable units on Hosted.",
   8: "Optional provider-specific settings that affect reasoning quality and speed.",
 };
 
@@ -91,18 +97,103 @@ function resolveModelId(selected: string, custom: string): string {
   return selected;
 }
 
+interface ProviderChoice {
+  id: string;
+  label: string;
+  backendUrl?: string | null;
+  selectable: boolean;
+  costSource: ProviderCostSource | null;
+}
+
 export default function Wizard() {
   const router = useRouter();
-  const { resolvedConfig } = useUserSession();
+  const { resolvedConfig, providerCredentials, credentialDefinitions, setCredentialDefinitions } =
+    useUserSession();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<WizardFormState>(DEFAULT_FORM);
   const options = resolvedConfig;
+  const [billingAccount, setBillingAccount] = useState<BillingAccountResponse | null>(null);
   const [quickModels, setQuickModels] = useState<{ id: string; label: string }[]>([]);
   const [deepModels, setDeepModels] = useState<{ id: string; label: string }[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBillingAndSchema() {
+      try {
+        const [account, schema] = await Promise.all([
+          fetchBillingAccount().catch(() => null),
+          credentialDefinitions.length > 0
+            ? Promise.resolve(null)
+            : fetchCredentialsSchema(),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        if (account) {
+          setBillingAccount(account);
+        }
+        if (schema) {
+          setCredentialDefinitions(schema.providers);
+        }
+      } catch {
+        // Wizard still works with resolvedConfig-only providers.
+      }
+    }
+    void loadBillingAndSchema();
+    return () => {
+      cancelled = true;
+    };
+  }, [credentialDefinitions.length, setCredentialDefinitions]);
+
+  const isHostedPlan =
+    billingAccount?.subscription.planId === "hosted" &&
+    billingAccount.subscription.status === "active";
+
+  const providerChoices = useMemo<ProviderChoice[]>(() => {
+    const defs =
+      credentialDefinitions.length > 0
+        ? credentialDefinitions
+        : (options?.providers ?? []).map((provider) => ({
+            id: provider.id,
+            label: provider.label,
+            backendUrl: provider.backendUrl,
+          }));
+
+    return defs.map((provider) => {
+      const hasKey = Boolean(providerCredentials[provider.id]?.apiKey?.trim());
+      const hostedAvailable =
+        isHostedPlan &&
+        (billingAccount?.hostedProviderIds.includes(provider.id) ?? false);
+      const selectable = hasKey || hostedAvailable;
+      const costSource: ProviderCostSource | null = hasKey
+        ? "self_pay"
+        : hostedAvailable
+          ? "hosted"
+          : null;
+      return {
+        id: provider.id,
+        label: provider.label,
+        backendUrl: "backendUrl" in provider ? provider.backendUrl : null,
+        selectable,
+        costSource,
+      };
+    });
+  }, [
+    billingAccount?.hostedProviderIds,
+    credentialDefinitions,
+    isHostedPlan,
+    options?.providers,
+    providerCredentials,
+  ]);
+
+  const selectedProviderChoice = providerChoices.find(
+    (provider) => provider.id === form.llmProvider,
+  );
+  const lockedProviders = providerChoices.filter((provider) => !provider.selectable);
 
   useEffect(() => {
     if (!options) {
@@ -116,6 +207,25 @@ export default function Wizard() {
       backendUrl: options.providers[0]?.backendUrl ?? null,
     }));
   }, [options]);
+
+  useEffect(() => {
+    if (providerChoices.length === 0) {
+      return;
+    }
+    const current = providerChoices.find((provider) => provider.id === form.llmProvider);
+    if (current?.selectable) {
+      return;
+    }
+    const fallback = providerChoices.find((provider) => provider.selectable);
+    if (!fallback) {
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      llmProvider: fallback.id,
+      backendUrl: fallback.backendUrl ?? null,
+    }));
+  }, [form.llmProvider, providerChoices]);
 
   const loadModels = useCallback(
     async (provider: string) => {
@@ -473,23 +583,78 @@ export default function Wizard() {
               id="llmProvider"
               value={form.llmProvider}
               onChange={(e) => {
-                const provider = options.providers.find((p) => p.id === e.target.value);
+                const provider = providerChoices.find((p) => p.id === e.target.value);
+                if (!provider?.selectable) {
+                  return;
+                }
                 patchForm({
                   llmProvider: e.target.value,
-                  backendUrl: provider?.backendUrl ?? null,
+                  backendUrl: provider.backendUrl ?? null,
                 });
               }}
               aria-describedby="llm-provider-hint"
             >
-              {options.providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
+              {(providerChoices.length > 0
+                ? providerChoices
+                : (options.providers ?? []).map((provider) => ({
+                    id: provider.id,
+                    label: provider.label,
+                    backendUrl: provider.backendUrl,
+                    selectable: true,
+                    costSource: "self_pay" as const,
+                  }))
+              ).map((provider) => (
+                <option
+                  key={provider.id}
+                  value={provider.id}
+                  disabled={!provider.selectable}
+                >
                   {provider.label}
+                  {provider.costSource === "self_pay"
+                    ? " — Your key"
+                    : provider.costSource === "hosted"
+                      ? " — Hosted"
+                      : " — Upgrade required"}
                 </option>
               ))}
             </select>
-            <p id="llm-provider-hint" className={styles.hint}>
-              Only providers with saved API keys appear here.
-            </p>
+            {selectedProviderChoice?.costSource ? (
+              <p className={styles.providerStatus} id="llm-provider-hint">
+                <ProviderCostBadge source={selectedProviderChoice.costSource} />
+                <span>
+                  {selectedProviderChoice.costSource === "self_pay"
+                    ? "This provider uses your API key and does not consume hosted allowance."
+                    : "This provider uses platform keys and counts toward your hosted allowance."}
+                </span>
+              </p>
+            ) : (
+              <p id="llm-provider-hint" className={styles.hint}>
+                Providers with a saved key, or Hosted-plan providers, appear as selectable.
+              </p>
+            )}
+            {selectedProviderChoice?.costSource === "hosted" ? (
+              <p className={styles.hint}>
+                Hosted inference wiring is still rolling out — if a run fails, add your own key for
+                this provider or check Billing for plan status.
+              </p>
+            ) : null}
+            {lockedProviders.length > 0 ? (
+              <div className={styles.lockedProviders}>
+                <p className={styles.hint}>
+                  Want a provider you do not have a key for?
+                </p>
+                <UpgradePlanNudge
+                  providerLabel={lockedProviders[0]?.label ?? "another provider"}
+                  compact
+                />
+                {isHostedPlan ? (
+                  <p className={styles.hint}>
+                    Or <a href="/settings/credentials">add your own API key</a> to run that
+                    provider as Your key (self-pay).
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -502,7 +667,12 @@ export default function Wizard() {
             ) : (
               <>
                 <div className={styles.field}>
-                  <label htmlFor="quickModel">Quick-thinking model</label>
+                  <div className={styles.fieldLabelRow}>
+                    <label htmlFor="quickModel">Quick-thinking model</label>
+                    {selectedProviderChoice?.costSource ? (
+                      <ProviderCostBadge source={selectedProviderChoice.costSource} />
+                    ) : null}
+                  </div>
                   <select
                     id="quickModel"
                     value={form.quickThinkLlm}

@@ -9,6 +9,7 @@ export const PUBLIC_ROUTE_PREFIXES = [
   "/privacy",
   "/license",
   "/pricing",
+  "/billing-preview",
   "/checkout",
   "/sign-in",
   "/sign-up",
@@ -23,6 +24,7 @@ export const PUBLIC_ROUTE_MATCHERS = [
   "/license",
   // Use `(/.*)?` (not `(.*)`) so sibling paths like `/pricing-settings` stay protected.
   "/pricing(/.*)?",
+  "/billing-preview(/.*)?",
   "/checkout(/.*)?",
   "/sign-in(.*)",
   "/sign-up(.*)",

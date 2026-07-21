@@ -18,6 +18,7 @@ import {
   resolveConfig,
   saveUserCredentials,
 } from "@/lib/api-client";
+import ProviderCostBadge from "@/components/ProviderCostBadge";
 import {
   getProviderApiKeyLinkHint,
   getProviderApiKeyLinkLabel,
@@ -162,9 +163,10 @@ export default function CredentialsSetup({
       <div className={styles.intro}>
         <h2 className={styles.title}>Provider API Keys</h2>
         <p className="muted">
-          Enter the API keys you have access to. Only matching providers and
-          models will appear in the analysis wizard. Keys are saved on the
-          server and never returned to the browser.
+          Enter the API keys you have access to. On Hosted, a saved key marks that
+          provider as “Your key” (self-pay). Without a key, Hosted runs use platform
+          keys and count toward your allowance. Keys are saved on the server and never
+          returned to the browser.
         </p>
       </div>
 
@@ -174,12 +176,16 @@ export default function CredentialsSetup({
           const apiKeyUrl = resolveProviderApiKeyLink(provider.id, provider.apiKeyUrl);
           const apiKeyLinkLabel = getProviderApiKeyLinkLabel(provider.id);
           const apiKeyLinkHint = getProviderApiKeyLinkHint(provider.id);
+          const hasKey = Boolean(values.apiKey?.trim());
 
           return (
             <section key={provider.id} className={styles.card}>
               <header className={styles.cardHeader}>
                 <h3>{provider.label}</h3>
-                <span className={styles.badge}>{provider.modelSource}</span>
+                <div className={styles.badgeRow}>
+                  {hasKey ? <ProviderCostBadge source="self_pay" /> : null}
+                  <span className={styles.badge}>{provider.modelSource}</span>
+                </div>
               </header>
 
               {apiKeyUrl ? (

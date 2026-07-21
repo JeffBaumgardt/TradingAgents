@@ -412,6 +412,8 @@ export interface CheckoutResponse {
   interval: BillingInterval;
   checkoutUrl: string | null;
   message: string;
+  /** True when a scaffold subscription was activated for the signed-in user. */
+  subscriptionActivated?: boolean;
 }
 
 export function isBillingPlanId(value: string | null | undefined): value is BillingPlanId {
@@ -444,6 +446,75 @@ export function billingAnnualMonthlyEquivalentCents(
   monthlyPriceCents: number,
 ): number {
   return Math.round(billingAnnualTotalCents(monthlyPriceCents) / 12);
+}
+
+/**
+ * Provisional monthly hosted allowance in billable units.
+ * Quite open for normal use; used for abuse protection until a real matrix lands.
+ */
+export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = 5_000_000;
+
+export type SubscriptionStatus = "none" | "active" | "canceled" | "past_due";
+
+/** Who pays for model inference for a provider on a given run. */
+export type ProviderCostSource = "hosted" | "self_pay";
+
+export interface UserSubscription {
+  planId: BillingPlanId | null;
+  interval: BillingInterval | null;
+  status: SubscriptionStatus;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+}
+
+export interface UsageModelBreakdown {
+  providerId: string;
+  providerLabel: string;
+  modelId: string;
+  /** Raw prompt + completion tokens observed. */
+  tokensTotal: number;
+  /**
+   * Normalized units that count toward the hosted allowance.
+   * Self-pay traffic is tracked in tokensTotal but contributes 0 here.
+   */
+  billableUnits: number;
+  costSource: ProviderCostSource;
+  /** Share of hosted billable units in the period (0–1). */
+  shareOfBillable: number;
+}
+
+export interface UsageProviderBreakdown {
+  providerId: string;
+  providerLabel: string;
+  tokensTotal: number;
+  billableUnits: number;
+  selfPayTokens: number;
+  hostedTokens: number;
+  shareOfBillable: number;
+}
+
+export interface BillingUsageSummary {
+  /** True when rows are illustrative scaffold data (metering not live yet). */
+  isSample: boolean;
+  periodStart: string;
+  periodEnd: string;
+  allowanceBillableUnits: number;
+  usedBillableUnits: number;
+  remainingBillableUnits: number;
+  /** 0–1 clamped for progress UI. */
+  usedRatio: number;
+  tokensTotal: number;
+  selfPayTokens: number;
+  hostedTokens: number;
+  byProvider: UsageProviderBreakdown[];
+  byModel: UsageModelBreakdown[];
+}
+
+export interface BillingAccountResponse {
+  subscription: UserSubscription;
+  usage: BillingUsageSummary | null;
+  /** Providers the user can run via platform keys when on hosted. */
+  hostedProviderIds: string[];
 }
 
 export interface AgentStatusEvent {

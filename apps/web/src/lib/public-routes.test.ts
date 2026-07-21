@@ -15,7 +15,7 @@ describe("isPublicPath", () => {
     assert.equal(isPublicPath("/privacy"), true);
     assert.equal(isPublicPath("/license"), true);
     assert.equal(isPublicPath("/pricing"), true);
-    assert.equal(isPublicPath("/pricing/a"), true);
+    assert.equal(isPublicPath("/billing-preview"), true);
     assert.equal(isPublicPath("/checkout"), true);
     assert.equal(isPublicPath("/sign-in"), true);
     assert.equal(isPublicPath("/sign-in/factor-one"), true);
@@ -47,6 +47,7 @@ describe("isPublicPath", () => {
       "/privacy",
       "/license",
       "/pricing",
+      "/billing-preview",
       "/checkout",
       "/sign-in",
       "/sign-up",
@@ -58,6 +59,7 @@ describe("isPublicPath", () => {
   it("keeps the landing matcher exact for middleware", () => {
     assert.equal(PUBLIC_ROUTE_MATCHERS[0], "/");
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/pricing(/.*)?"));
+    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/billing-preview(/.*)?"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/checkout(/.*)?"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/sign-in(.*)"));
     assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/run(.*)"));
