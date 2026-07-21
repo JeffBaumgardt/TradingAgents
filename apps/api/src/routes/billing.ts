@@ -12,7 +12,7 @@ import {
   optionalUserId,
   requireUserId,
 } from "../middleware/user-context.js";
-import { listHostedModelCatalog } from "@tradingagents/api-types";
+import { listHostedModelsFromDb } from "../services/model-catalog-service.js";
 import { getBillingAccount } from "../services/billing-account-service.js";
 import {
   BillingServiceError,
@@ -26,8 +26,15 @@ billingRoutes.get("/billing/plans", (c) => {
   return c.json(listBillingPlans());
 });
 
-billingRoutes.get("/billing/models", (c) => {
-  return c.json(listHostedModelCatalog());
+billingRoutes.get("/billing/models", async (c) => {
+  try {
+    const client = getSupabaseAdmin(c);
+    return c.json(await listHostedModelsFromDb(client));
+  } catch {
+    // Tests and misconfigured contexts still get the static catalog.
+    const { listHostedModelCatalog } = await import("@tradingagents/api-types");
+    return c.json(listHostedModelCatalog());
+  }
 });
 
 billingRoutes.use("/billing/account", requireUserId());

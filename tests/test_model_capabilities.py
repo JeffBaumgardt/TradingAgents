@@ -17,6 +17,8 @@ class ModelCapabilityTests(unittest.TestCase):
             "claude-opus-4-6",
             "claude-opus-4-5",
             "claude-sonnet-4-6",
+            "claude-sonnet-5",
+            "claude-fable-5",
         ]
         for model in supported:
             with self.subTest(model=model):

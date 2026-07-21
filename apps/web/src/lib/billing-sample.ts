@@ -53,7 +53,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
     },
     hostedModelRow("google", "Google", "gemini-3.5-flash", 36_000),
     hostedModelRow("xai", "xAI", "grok-4.3", 28_000),
-    hostedModelRow("deepseek", "DeepSeek", "deepseek-v4-flash", 90_000),
+    hostedModelRow("openai", "OpenAI", "gpt-4o-mini", 90_000),
   ];
 
   const usedComputeCredits = byModel.reduce((sum, row) => sum + row.computeCredits, 0);
@@ -62,7 +62,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       usedComputeCredits > 0 ? row.computeCredits / usedComputeCredits : 0;
   }
 
-  const providerIds = ["openai", "anthropic", "google", "xai", "deepseek"] as const;
+  const providerIds = ["openai", "anthropic", "google", "xai"] as const;
   const byProvider = providerIds
     .map((providerId) => {
       const rows = byModel.filter((row) => row.providerId === providerId);
@@ -106,16 +106,19 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       isSample: true,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
+      baseAllowanceComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+      rolloverComputeCredits: 0,
       allowanceComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
       usedComputeCredits,
       remainingComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE - usedComputeCredits,
       usedRatio: Math.min(1, usedComputeCredits / HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE),
+      blockedLowBalance: false,
       tokensTotal: hostedTokens + selfPayTokens,
       selfPayTokens,
       hostedTokens,
       byProvider,
       byModel,
     },
-    hostedProviderIds: ["openai", "anthropic", "google", "xai", "openrouter", "deepseek"],
+    hostedProviderIds: ["openai", "anthropic", "google", "xai"],
   };
 }

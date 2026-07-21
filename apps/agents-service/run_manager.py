@@ -149,18 +149,25 @@ class RunManager:
         with self._lock:
             return self._runs.get(run_id)
 
-    def cancel_run(self, run_id: str) -> bool:
+    def cancel_run(
+        self,
+        run_id: str,
+        *,
+        message: str = "Run cancelled",
+        hint: str = "You cancelled this analysis.",
+    ) -> bool:
         record = self.get_run(run_id)
         if not record:
             return False
         record.cancel_event.set()
         record.status = "cancelled"
+        record.error = message
         self._broadcast(
             record,
             "run.error",
             {
-                "message": "Run cancelled",
-                "hint": "You cancelled this analysis.",
+                "message": message,
+                "hint": hint,
                 "stoppedAgents": 0,
             },
         )

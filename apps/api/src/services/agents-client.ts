@@ -139,9 +139,13 @@ export async function startRun(
   });
 }
 
-export async function cancelRun(runId: string): Promise<void> {
+export async function cancelRun(
+  runId: string,
+  reason?: { message?: string; hint?: string },
+): Promise<void> {
   await request<{ ok: boolean }>(`/internal/runs/${runId}`, {
     method: "DELETE",
+    body: reason ? JSON.stringify(reason) : undefined,
   });
 }
 

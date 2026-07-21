@@ -21,7 +21,15 @@ def supports_anthropic_effort(model: str) -> bool:
         return False
 
     if "sonnet" in model_id:
-        return "4-6" in model_id or "4.6" in model_id
+        # Sonnet 4.5 rejects effort; Sonnet 4.6+ and Sonnet 5+ accept it.
+        if "4-5" in model_id or "4.5" in model_id:
+            return False
+        return (
+            "4-6" in model_id
+            or "4.6" in model_id
+            or "sonnet-5" in model_id
+            or "sonnet-5-" in model_id
+        )
 
     if "opus" in model_id:
         for marker in ("4-5", "4.5", "4-6", "4.6", "4-7", "4.7", "4-8", "4.8"):

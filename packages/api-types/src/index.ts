@@ -43,6 +43,8 @@ export type SseEventType =
   | "tool.call"
   | "report.section"
   | "stats"
+  | "credit.warning"
+  | "credit.exhausted"
   | "trade.check"
   | "run.completed"
   | "run.error";
@@ -454,7 +456,8 @@ export function billingAnnualMonthlyEquivalentCents(
 
 /**
  * Monthly hosted allowance in compute credits.
- * One credit ≈ one token on the cheapest curated model (DeepSeek V4 Flash output rate).
+ * One credit ≈ one token at the margin-adjusted reference rate
+ * (~$0.2667/1M output = $0.28/1.05).
  * Sized for ~15% of net revenue at the $19 hosted list price after Stripe fees.
  */
 export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
@@ -487,8 +490,8 @@ export interface UsageModelBreakdown {
    */
   computeCredits: number;
   /**
-   * Output-cost multiplier vs the reference model (DeepSeek V4 Flash = 1×).
-   * Applied as: credits ≈ tokens × creditMultiplier.
+   * Output-cost multiplier vs the margin-adjusted credit reference rate
+   * (~$0.2667/1M output). Applied as: credits ≈ tokens × creditMultiplier.
    */
   creditMultiplier: number;
   costSource: ProviderCostSource;
@@ -511,11 +514,21 @@ export interface BillingUsageSummary {
   isSample: boolean;
   periodStart: string;
   periodEnd: string;
+  /** Base monthly allowance from plan_credit_configs (excludes rollover). */
+  baseAllowanceComputeCredits: number;
+  /** Unused base credits rolled from the immediately previous period only. */
+  rolloverComputeCredits: number;
+  /** base + rollover. */
   allowanceComputeCredits: number;
   usedComputeCredits: number;
   remainingComputeCredits: number;
   /** 0–1 clamped for account-level progress UI. */
   usedRatio: number;
+  /**
+   * True when remaining credits fell below the plan low-balance block ratio
+   * (default 3%) — new hosted runs are refused for the rest of the period.
+   */
+  blockedLowBalance: boolean;
   tokensTotal: number;
   selfPayTokens: number;
   hostedTokens: number;
@@ -529,6 +542,8 @@ export type {
 } from "./hosted-model-catalog.js";
 
 export {
+  COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M,
+  COMPUTE_CREDIT_MARGIN,
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   HOSTED_MODEL_CATALOG,
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,
@@ -573,6 +588,25 @@ export interface StreamStatsEvent {
   tool_calls: number;
   tokens_in: number;
   tokens_out: number;
+  /** Hosted compute credits charged for this run so far (0 when self-pay). */
+  compute_credits?: number;
+  /** Remaining hosted credits in the current billing period (hosted only). */
+  remaining_compute_credits?: number;
+}
+
+/** Live warning when hosted credit balance is getting low mid-run. */
+export interface CreditWarningEvent {
+  remainingComputeCredits: number;
+  totalAllowanceComputeCredits: number;
+  usedRatio: number;
+  message: string;
+}
+
+/** Run stopped because hosted credits were exhausted. */
+export interface CreditExhaustedEvent {
+  remainingComputeCredits: number;
+  message: string;
+  hint?: string;
 }
 
 export interface RunStartedEvent {
@@ -612,6 +646,8 @@ export interface SseEventMap {
   "tool.call": StreamToolCallEvent;
   "report.section": StreamReportSectionEvent;
   stats: StreamStatsEvent;
+  "credit.warning": CreditWarningEvent;
+  "credit.exhausted": CreditExhaustedEvent;
   "trade.check": TradeCheckEvent;
   "run.completed": RunCompletedEvent;
   "run.error": RunErrorEvent;

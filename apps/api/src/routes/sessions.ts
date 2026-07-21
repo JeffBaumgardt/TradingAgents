@@ -16,11 +16,12 @@ import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUserId } from "../middleware/user-context.js";
-import { getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
+import { cancelRun, getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
 import {
   getBillingAccount,
   userHasActiveSubscription,
 } from "../services/billing-account-service.js";
+import { meterSessionStats } from "../services/credit-service.js";
 import * as sessionService from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
@@ -59,11 +60,109 @@ async function relayAgentsFrame(
   userId: string,
   eventType: string,
   dataLine: string,
+  options?: {
+    runId?: string | null;
+    costSource?: "hosted" | "self_pay" | null;
+    subscription?: {
+      plan_id: string;
+      current_period_start: string;
+      current_period_end: string;
+    } | null;
+  },
 ): Promise<boolean> {
-  await stream.writeSSE({ event: eventType, data: dataLine });
+  let outboundData = dataLine;
+
+  if (eventType === "stats") {
+    try {
+      const payload = JSON.parse(dataLine) as Record<string, unknown>;
+      const tokensIn = typeof payload.tokens_in === "number" ? payload.tokens_in : 0;
+      const tokensOut = typeof payload.tokens_out === "number" ? payload.tokens_out : 0;
+      const meter = await meterSessionStats(client, {
+        sessionId,
+        userId,
+        tokensIn,
+        tokensOut,
+        subscription: options?.subscription ?? null,
+      });
+
+      const enriched = {
+        ...payload,
+        compute_credits: meter.sessionCredits,
+        ...(meter.remaining != null
+          ? { remaining_compute_credits: meter.remaining }
+          : {}),
+      };
+      outboundData = JSON.stringify(enriched);
+
+      await stream.writeSSE({ event: eventType, data: outboundData });
+      await sessionService.persistEvent(client, sessionId, eventType, enriched);
+
+      if (meter.shouldWarn && meter.warnMessage && meter.remaining != null && meter.totalAllowance != null) {
+        const warning = {
+          remainingComputeCredits: meter.remaining,
+          totalAllowanceComputeCredits: meter.totalAllowance,
+          usedRatio: meter.usedRatio ?? 0,
+          message: meter.warnMessage,
+        };
+        await stream.writeSSE({
+          event: "credit.warning",
+          data: JSON.stringify(warning),
+        });
+        await sessionService.persistEvent(client, sessionId, "credit.warning", warning);
+      }
+
+      if (meter.exhausted && meter.costSource === "hosted") {
+        const exhausted = {
+          remainingComputeCredits: meter.remaining ?? 0,
+          message: "Compute credits exhausted — this run has been stopped.",
+          hint: "Partial results below are still available. Hosted runs resume when your allowance resets (or after a one-time credit top-up when available).",
+        };
+        await stream.writeSSE({
+          event: "credit.exhausted",
+          data: JSON.stringify(exhausted),
+        });
+        await sessionService.persistEvent(client, sessionId, "credit.exhausted", exhausted);
+
+        if (options?.runId) {
+          try {
+            await cancelRun(options.runId, {
+              message: exhausted.message,
+              hint: exhausted.hint,
+            });
+          } catch {
+            // Best-effort stop; we still fail the session locally.
+          }
+        }
+
+        await relayRunError(stream, client, sessionId, exhausted.message, exhausted.hint);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      // Fail closed only when this run is spending platform credits.
+      const isHostedSpend = options?.costSource === "hosted";
+      if (isHostedSpend) {
+        const message = "Run stopped because credit metering failed.";
+        const hint = error instanceof Error ? error.message : "Unknown metering error";
+        if (options?.runId) {
+          try {
+            await cancelRun(options.runId, { message, hint });
+          } catch {
+            // Best-effort.
+          }
+        }
+        await relayRunError(stream, client, sessionId, message, hint);
+        return true;
+      }
+      // Self-pay: relay the raw stats frame without enrichment.
+    }
+  }
+
+  await stream.writeSSE({ event: eventType, data: outboundData });
 
   try {
-    const payload = JSON.parse(dataLine) as Record<string, unknown>;
+    const payload = JSON.parse(outboundData) as Record<string, unknown>;
     await sessionService.persistEvent(client, sessionId, eventType, payload);
 
     if (eventType === "report.section") {
@@ -140,6 +239,12 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
     const session = await sessionService.createSession(client, body, userId);
     return c.json(session, 201);
   } catch (error) {
+    if (error instanceof sessionService.SessionServiceError) {
+      return c.json(
+        { error: error.message, code: error.code },
+        error.status as 400 | 402 | 500,
+      );
+    }
     const message = error instanceof Error ? error.message : "Invalid request";
     return c.json({ error: message }, 400);
   }
@@ -253,6 +358,28 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
     const liveOnly = c.req.query("live") === "1" || c.req.query("live") === "true";
     let sawTerminalEvent = false;
 
+    const account = await getBillingAccount(client, userId);
+    const creditSubscription =
+      account.subscription.planId === "hosted" &&
+      account.subscription.currentPeriodStart &&
+      account.subscription.currentPeriodEnd
+        ? {
+            plan_id: "hosted",
+            current_period_start: account.subscription.currentPeriodStart,
+            current_period_end: account.subscription.currentPeriodEnd,
+          }
+        : null;
+
+    const { data: cursorRow } = await client
+      .from("session_usage_cursors")
+      .select("cost_source")
+      .eq("session_id", id)
+      .maybeSingle();
+    const costSource =
+      (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
+        ? ("hosted" as const)
+        : ("self_pay" as const);
+
     if (!liveOnly) {
       const stored = await sessionService.getStoredEvents(client, id);
       for (const event of stored) {
@@ -307,6 +434,11 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    const frameOptions = {
+      runId: session.runId,
+      costSource,
+      subscription: costSource === "hosted" ? creditSubscription : null,
+    };
 
     while (true) {
       const { done, value } = await reader.read();
@@ -345,9 +477,16 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
           userId,
           eventType,
           dataLine,
+          frameOptions,
         );
         if (terminal) {
           sawTerminalEvent = true;
+          try {
+            await reader.cancel();
+          } catch {
+            // Ignore cancel errors when stopping for credits.
+          }
+          return;
         }
       }
     }
@@ -383,6 +522,7 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
           sessionId: id,
           decision: null,
         }),
+        frameOptions,
       );
       return;
     }

@@ -27,7 +27,25 @@ import {
 import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
 import * as agentsClient from "./agents-client.js";
 import { getBillingAccount } from "./billing-account-service.js";
+import {
+  assertHostedCreditsForNewRun,
+  initSessionUsageCursor,
+} from "./credit-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
+import { resolveRunProviderCredentials } from "./platform-keys-service.js";
+import { startBackgroundRunMetering, stopBackgroundRunMetering } from "./run-metering-service.js";
+
+export class SessionServiceError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status: number, code: string) {
+    super(message);
+    this.name = "SessionServiceError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 function rowToSession(row: SessionRow): Session {
   return {
@@ -169,11 +187,45 @@ export async function createSession(
     throw new Error(validationError);
   }
 
+  const resolved = await resolveRunProviderCredentials(client, storedCredentials, {
+    isHostedPlan,
+    hostedProviderIds: billing.hostedProviderIds,
+    selectedProviderId: body.llmProvider,
+  });
+
+  if (isHostedPlan) {
+    if (!billing.subscription.currentPeriodStart || !billing.subscription.currentPeriodEnd) {
+      throw new SessionServiceError(
+        "Your hosted subscription is missing billing period dates. Please refresh billing or contact support before starting a run.",
+        402,
+        "credits_period_missing",
+      );
+    }
+    const gate = await assertHostedCreditsForNewRun(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: billing.subscription.currentPeriodStart,
+        current_period_end: billing.subscription.currentPeriodEnd,
+      },
+      body,
+      resolved.costSource,
+    );
+    if (!gate.allowed) {
+      throw new SessionServiceError(
+        gate.message ?? "Insufficient compute credits for this run.",
+        402,
+        gate.code ?? "credits_insufficient",
+      );
+    }
+  }
+
   const normalized: CreateSessionRequest = {
     ...body,
     ticker: normalizeTicker(body.ticker),
     userContext: sanitizeUserContext(body.userContext),
-    providerCredentials: storedCredentials,
+    providerCredentials: resolved.credentials,
   };
 
   const { providerCredentials: _providerCredentials, ...persistedConfig } = normalized;
@@ -196,6 +248,15 @@ export async function createSession(
     throw new Error(insertError.message);
   }
 
+  await initSessionUsageCursor(client, {
+    sessionId: id,
+    userId,
+    providerId: body.llmProvider,
+    quickModelId: body.quickThinkLlm,
+    deepModelId: body.deepThinkLlm,
+    costSource: resolved.costSource,
+  });
+
   const { runId } = await agentsClient.startRun(id, normalized);
 
   const { error: updateError } = await client
@@ -206,6 +267,26 @@ export async function createSession(
   if (updateError) {
     throw new Error(updateError.message);
   }
+
+  const meterSubscription =
+    isHostedPlan &&
+    billing.subscription.currentPeriodStart &&
+    billing.subscription.currentPeriodEnd
+      ? {
+          plan_id: "hosted",
+          current_period_start: billing.subscription.currentPeriodStart,
+          current_period_end: billing.subscription.currentPeriodEnd,
+        }
+      : null;
+
+  startBackgroundRunMetering({
+    client,
+    sessionId: id,
+    runId,
+    userId,
+    subscription: meterSubscription,
+    costSource: resolved.costSource,
+  });
 
   const session = await getSession(client, id, userId);
   if (!session) {
@@ -296,6 +377,7 @@ export async function cancelSession(
   }
 
   if (sessionRow.run_id && sessionRow.status === "running") {
+    stopBackgroundRunMetering(id);
     await agentsClient.cancelRun(sessionRow.run_id);
   }
 
@@ -336,6 +418,7 @@ export async function deleteSession(
 
   if (sessionRow.run_id && sessionRow.status === "running") {
     try {
+      stopBackgroundRunMetering(id);
       await agentsClient.cancelRun(sessionRow.run_id);
     } catch {
       // Best-effort cancel before removing persisted data.

@@ -28,13 +28,23 @@ describe("billing routes", () => {
     const body = (await response.json()) as {
       pricedAsOf: string;
       referenceOutputUsdPer1M: number;
-      models: Array<{ modelId: string; creditMultiplier: number; outputUsdPer1M: number }>;
+      models: Array<{
+        providerId: string;
+        modelId: string;
+        creditMultiplier: number;
+        outputUsdPer1M: number;
+      }>;
     };
     assert.ok(body.models.length >= 20);
-    assert.equal(body.referenceOutputUsdPer1M, 0.28);
-    const flash = body.models.find((model) => model.modelId === "deepseek-v4-flash");
-    assert.ok(flash);
-    assert.equal(flash?.creditMultiplier, 1);
+    assert.equal(body.referenceOutputUsdPer1M, 0.28 / 1.05);
+    const mini = body.models.find((model) => model.modelId === "gpt-4o-mini");
+    assert.ok(mini);
+    assert.equal(mini?.creditMultiplier, 2.3);
+    assert.ok(
+      body.models.every((model) =>
+        ["openai", "anthropic", "google", "xai"].includes(model.providerId),
+      ),
+    );
   });
 
   it("returns 501 scaffold for checkout", async () => {

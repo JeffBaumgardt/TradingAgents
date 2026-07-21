@@ -7,7 +7,6 @@
 
 import {
   BILLING_CATALOG,
-  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   getModelCreditMultiplier,
   isBillingInterval,
   isBillingPlanId,
@@ -22,6 +21,7 @@ import {
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import { computeCredits } from "../lib/billable-units.js";
+import { ensureCreditPeriod, getPlanCreditConfig, resolveMonthlyCreditWindow } from "./credit-service.js";
 import { ensureUser } from "./user-service.js";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -40,8 +40,6 @@ export const HOSTED_PROVIDER_IDS = [
   "anthropic",
   "google",
   "xai",
-  "openrouter",
-  "deepseek",
 ] as const;
 
 interface UsageEventRow {
@@ -100,11 +98,17 @@ function buildUsageSummary(
   periodStart: string,
   periodEnd: string,
   isSample: boolean,
+  allowance: {
+    baseAllowance: number;
+    rolloverCredits: number;
+    usedComputeCredits: number;
+    blockedLowBalance: boolean;
+  },
 ): BillingUsageSummary {
   const modelMap = new Map<string, UsageModelBreakdown>();
   const providerMap = new Map<string, UsageProviderBreakdown>();
 
-  let usedComputeCredits = 0;
+  let usedComputeCreditsFromEvents = 0;
   let tokensTotal = 0;
   let selfPayTokens = 0;
   let hostedTokens = 0;
@@ -112,7 +116,7 @@ function buildUsageSummary(
   for (const event of events) {
     const tokens = event.tokens_in + event.tokens_out;
     tokensTotal += tokens;
-    usedComputeCredits += event.billable_units;
+    usedComputeCreditsFromEvents += event.billable_units;
     if (event.cost_source === "self_pay") {
       selfPayTokens += tokens;
     } else {
@@ -159,6 +163,11 @@ function buildUsageSummary(
     }
   }
 
+  const usedComputeCredits = isSample
+    ? usedComputeCreditsFromEvents
+    : allowance.usedComputeCredits;
+  const totalAllowance = allowance.baseAllowance + allowance.rolloverCredits;
+
   const byModel = [...modelMap.values()]
     .map((row) => ({
       ...row,
@@ -173,17 +182,19 @@ function buildUsageSummary(
     }))
     .sort((a, b) => b.computeCredits - a.computeCredits || b.tokensTotal - a.tokensTotal);
 
-  const allowance = HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
-  const usedRatio = allowance > 0 ? Math.min(1, usedComputeCredits / allowance) : 0;
+  const usedRatio = totalAllowance > 0 ? Math.min(1, usedComputeCredits / totalAllowance) : 0;
 
   return {
     isSample,
     periodStart,
     periodEnd,
-    allowanceComputeCredits: allowance,
+    baseAllowanceComputeCredits: allowance.baseAllowance,
+    rolloverComputeCredits: allowance.rolloverCredits,
+    allowanceComputeCredits: totalAllowance,
     usedComputeCredits,
-    remainingComputeCredits: Math.max(0, allowance - usedComputeCredits),
+    remainingComputeCredits: Math.max(0, totalAllowance - usedComputeCredits),
     usedRatio,
+    blockedLowBalance: allowance.blockedLowBalance,
     tokensTotal,
     selfPayTokens,
     hostedTokens,
@@ -250,8 +261,8 @@ function sampleUsageEvents(): UsageEventRow[] {
       costSource: "hosted",
     },
     {
-      providerId: "deepseek",
-      modelId: "deepseek-v4-flash",
+      providerId: "openai",
+      modelId: "gpt-4o-mini",
       tokensIn: 30_000,
       tokensOut: 15_000,
       costSource: "hosted",
@@ -271,6 +282,33 @@ function sampleUsageEvents(): UsageEventRow[] {
       costSource: sample.costSource,
     }),
     cost_source: sample.costSource,
+  }));
+}
+
+async function loadUsageEventsForPeriod(
+  client: AppSupabaseClient,
+  userId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<UsageEventRow[]> {
+  const { data, error } = await client
+    .from("usage_events")
+    .select("provider_id, model_id, tokens_in, tokens_out, billable_units, cost_source")
+    .eq("user_id", userId)
+    .gte("created_at", periodStart)
+    .lte("created_at", periodEnd);
+
+  if (error) {
+    throw new Error(`usage_events read failed: ${error.message}`);
+  }
+
+  return ((data ?? []) as UsageEventRow[]).map((row) => ({
+    provider_id: row.provider_id,
+    model_id: row.model_id,
+    tokens_in: Number(row.tokens_in) || 0,
+    tokens_out: Number(row.tokens_out) || 0,
+    billable_units: Number(row.billable_units) || 0,
+    cost_source: row.cost_source === "self_pay" ? "self_pay" : "hosted",
   }));
 }
 
@@ -552,9 +590,57 @@ export async function getBillingAccount(
     const periodStart =
       subscription.currentPeriodStart ?? startOfUtcMonth().toISOString();
     const periodEnd = subscription.currentPeriodEnd ?? endOfUtcMonth().toISOString();
-    const events = scaffoldUsage.get(userId) ?? sampleUsageEvents();
-    // Metering is scaffolded — always label usage as sample until live ingestion ships.
-    usage = buildUsageSummary(events, periodStart, periodEnd, true);
+
+    const scaffoldEvents = scaffoldUsage.get(userId);
+    const useSample = Boolean(scaffoldEvents) && !stored;
+
+    if (useSample && scaffoldEvents) {
+      const config = await getPlanCreditConfig(client, "hosted");
+      const used = scaffoldEvents.reduce((sum, event) => sum + event.billable_units, 0);
+      usage = buildUsageSummary(scaffoldEvents, periodStart, periodEnd, true, {
+        baseAllowance: config.monthly_credit_allowance,
+        rolloverCredits: 0,
+        usedComputeCredits: used,
+        blockedLowBalance: false,
+      });
+    } else if (stored) {
+      const monthly = resolveMonthlyCreditWindow({
+        subscriptionPeriodStart: periodStart,
+        subscriptionPeriodEnd: periodEnd,
+      });
+      const period = await ensureCreditPeriod(client, userId, {
+        plan_id: "hosted",
+        current_period_start: periodStart,
+        current_period_end: periodEnd,
+      });
+      const events = await loadUsageEventsForPeriod(
+        client,
+        userId,
+        monthly.periodStart,
+        monthly.periodEnd,
+      );
+      usage = buildUsageSummary(
+        events,
+        period.period_start,
+        period.period_end,
+        false,
+        {
+          baseAllowance: period.base_allowance,
+          rolloverCredits: period.rollover_credits,
+          usedComputeCredits: period.used_credits,
+          blockedLowBalance: period.blocked_low_balance,
+        },
+      );
+    } else {
+      // No stored subscription and no scaffold seed — empty live usage shell.
+      const config = await getPlanCreditConfig(client, "hosted");
+      usage = buildUsageSummary([], periodStart, periodEnd, false, {
+        baseAllowance: config.monthly_credit_allowance,
+        rolloverCredits: 0,
+        usedComputeCredits: 0,
+        blockedLowBalance: false,
+      });
+    }
   }
 
   return {
