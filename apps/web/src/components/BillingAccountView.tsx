@@ -170,9 +170,10 @@ export default function BillingAccountView({
               Nano) drains the pool slowly and a frontier reasoning model drains it faster.
             </p>
             <p className={styles.breakdownIntro}>
-              {`Reference model: DeepSeek V4 Flash at $${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M}/1M output tokens = `}
+              {`Reference rate: $${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M}/1M output tokens = `}
               <strong>×1</strong>. Catalog prices reviewed {HOSTED_MODEL_CATALOG_PRICED_AS_OF}.
-              “Your key” traffic still appears in the tree but never consumes credits.
+              Hosted providers are OpenAI, Anthropic, Google, and xAI. “Your key” traffic still
+              appears in the tree but never consumes credits.
             </p>
           </section>
         </>

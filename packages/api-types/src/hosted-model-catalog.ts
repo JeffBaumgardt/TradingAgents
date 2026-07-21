@@ -12,8 +12,7 @@ export type HostedModelProviderId =
   | "openai"
   | "anthropic"
   | "google"
-  | "xai"
-  | "deepseek";
+  | "xai";
 
 export interface HostedModelCostEntry {
   providerId: HostedModelProviderId;
@@ -32,8 +31,9 @@ export interface HostedModelCostEntry {
 }
 
 /**
- * Cheapest output rate in {@link HOSTED_MODEL_CATALOG} — DeepSeek V4 Flash.
- * One compute credit ≈ one token on this reference model.
+ * Credit unit: $0.28 output USD per 1M tokens.
+ * One compute credit ≈ one token at this rate (kept stable so allowance math
+ * does not jump when the cheapest hosted SKU changes).
  */
 export const COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M = 0.28;
 
@@ -42,7 +42,7 @@ export const HOSTED_MODEL_CATALOG_PRICED_AS_OF = "2026-07-20";
 
 /**
  * Curated hosted catalog for TradingAgents.
- * Sources: OpenAI, Anthropic, Google Gemini, xAI, and DeepSeek public API pricing.
+ * Hosted plan providers: OpenAI, Anthropic, Google Gemini, and xAI only.
  */
 export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
   // OpenAI — https://developers.openai.com/api/docs/pricing
@@ -304,28 +304,6 @@ export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
     outputUsdPer1M: 6,
     notes: "≤200K prompt tier.",
   },
-
-  // DeepSeek — cache-miss input + output (standard production rates)
-  {
-    providerId: "deepseek",
-    providerLabel: "DeepSeek",
-    modelId: "deepseek-v4-flash",
-    displayName: "DeepSeek V4 Flash",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 0.14,
-    outputUsdPer1M: 0.28,
-    notes: "Input rate is cache-miss; cache-hit input is much lower.",
-  },
-  {
-    providerId: "deepseek",
-    providerLabel: "DeepSeek",
-    modelId: "deepseek-v4-pro",
-    displayName: "DeepSeek V4 Pro",
-    modes: ["deep"],
-    inputUsdPer1M: 0.435,
-    outputUsdPer1M: 0.87,
-    notes: "Input rate is cache-miss; cache-hit input is much lower.",
-  },
 ] as const;
 
 /** Round multiplier for stable UI + metering. */
@@ -335,7 +313,7 @@ export function roundCreditMultiplier(value: number): number {
 
 /**
  * Output-cost multiplier vs {@link COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M}.
- * Cheap models ≈ 1×; frontier models are much higher.
+ * Cheaper hosted models are near 1×; frontier models are much higher.
  */
 export function creditMultiplierFromOutputUsdPer1M(outputUsdPer1M: number): number {
   if (!Number.isFinite(outputUsdPer1M) || outputUsdPer1M <= 0) {

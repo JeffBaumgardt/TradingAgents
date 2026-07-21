@@ -22,13 +22,18 @@ describe("hosted-model-catalog", () => {
     }
   });
 
-  it("normalizes multipliers from output $/1M against the DeepSeek Flash reference", () => {
+  it("normalizes multipliers from output $/1M against the credit reference rate", () => {
     assert.equal(COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M, 0.28);
     assert.equal(creditMultiplierFromOutputUsdPer1M(0.28), 1);
-    assert.equal(getModelCreditMultiplier("deepseek", "deepseek-v4-flash"), 1);
+    assert.equal(getModelCreditMultiplier("openai", "gpt-4o-mini"), 2.1);
     assert.ok(
       getModelCreditMultiplier("anthropic", "claude-opus-4-8") >
         getModelCreditMultiplier("anthropic", "claude-haiku-4-5"),
+    );
+    assert.ok(
+      HOSTED_MODEL_CATALOG.every((entry) =>
+        ["openai", "anthropic", "google", "xai"].includes(entry.providerId),
+      ),
     );
   });
 

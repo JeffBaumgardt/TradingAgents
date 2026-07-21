@@ -53,7 +53,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
     },
     hostedModelRow("google", "Google", "gemini-3.5-flash", 36_000),
     hostedModelRow("xai", "xAI", "grok-4.3", 28_000),
-    hostedModelRow("deepseek", "DeepSeek", "deepseek-v4-flash", 90_000),
+    hostedModelRow("openai", "OpenAI", "gpt-4o-mini", 90_000),
   ];
 
   const usedComputeCredits = byModel.reduce((sum, row) => sum + row.computeCredits, 0);
@@ -62,7 +62,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       usedComputeCredits > 0 ? row.computeCredits / usedComputeCredits : 0;
   }
 
-  const providerIds = ["openai", "anthropic", "google", "xai", "deepseek"] as const;
+  const providerIds = ["openai", "anthropic", "google", "xai"] as const;
   const byProvider = providerIds
     .map((providerId) => {
       const rows = byModel.filter((row) => row.providerId === providerId);
@@ -119,6 +119,6 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       byProvider,
       byModel,
     },
-    hostedProviderIds: ["openai", "anthropic", "google", "xai", "openrouter", "deepseek"],
+    hostedProviderIds: ["openai", "anthropic", "google", "xai"],
   };
 }

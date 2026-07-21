@@ -29,8 +29,8 @@ Repeat for each hosted provider you support:
 | `anthropic` | `ANTHROPIC_API_KEY` |
 | `google` | `GOOGLE_API_KEY` |
 | `xai` | `XAI_API_KEY` |
-| `deepseek` | `DEEPSEEK_API_KEY` |
-| `openrouter` | `OPENROUTER_API_KEY` |
+
+Hosted providers are limited to OpenAI, Anthropic, Google, and xAI.
 
 Verify (ciphertext only — never select expecting plaintext):
 

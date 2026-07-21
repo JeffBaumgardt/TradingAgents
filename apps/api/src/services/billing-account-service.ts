@@ -40,8 +40,6 @@ export const HOSTED_PROVIDER_IDS = [
   "anthropic",
   "google",
   "xai",
-  "openrouter",
-  "deepseek",
 ] as const;
 
 interface UsageEventRow {
@@ -263,8 +261,8 @@ function sampleUsageEvents(): UsageEventRow[] {
       costSource: "hosted",
     },
     {
-      providerId: "deepseek",
-      modelId: "deepseek-v4-flash",
+      providerId: "openai",
+      modelId: "gpt-4o-mini",
       tokensIn: 30_000,
       tokensOut: 15_000,
       costSource: "hosted",

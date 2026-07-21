@@ -34,8 +34,7 @@ export async function listHostedModelsFromDb(client: AppSupabaseClient) {
         | "openai"
         | "anthropic"
         | "google"
-        | "xai"
-        | "deepseek",
+        | "xai",
       providerLabel: row.provider_label,
       modelId: row.model_id,
       displayName: row.display_name,

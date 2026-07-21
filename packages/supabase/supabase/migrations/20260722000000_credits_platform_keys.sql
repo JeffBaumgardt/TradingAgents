@@ -98,9 +98,7 @@ insert into public.model_credit_multipliers (
   ('xai', 'grok-4.3', 'Grok 4.3', 'xAI', 1.25, 2.5, 8.9, '["quick","deep"]'::jsonb, '≤200K prompt tier.', true),
   ('xai', 'grok-4.20-0309-reasoning', 'Grok 4.20 (Reasoning)', 'xAI', 1.25, 2.5, 8.9, '["deep"]'::jsonb, '≤200K prompt tier.', true),
   ('xai', 'grok-4.20-multi-agent-0309', 'Grok 4.20 Multi-Agent', 'xAI', 1.25, 2.5, 8.9, '["deep"]'::jsonb, '≤200K prompt tier.', true),
-  ('xai', 'grok-4.5', 'Grok 4.5', 'xAI', 2, 6, 21.4, '["deep"]'::jsonb, '≤200K prompt tier.', true),
-  ('deepseek', 'deepseek-v4-flash', 'DeepSeek V4 Flash', 'DeepSeek', 0.14, 0.28, 1, '["quick","deep"]'::jsonb, 'Input rate is cache-miss; cache-hit input is much lower.', true),
-  ('deepseek', 'deepseek-v4-pro', 'DeepSeek V4 Pro', 'DeepSeek', 0.435, 0.87, 3.1, '["deep"]'::jsonb, 'Input rate is cache-miss; cache-hit input is much lower.', true)
+  ('xai', 'grok-4.5', 'Grok 4.5', 'xAI', 2, 6, 21.4, '["deep"]'::jsonb, '≤200K prompt tier.', true)
 on conflict (provider_id, model_id) do update set
   display_name = excluded.display_name,
   provider_label = excluded.provider_label,

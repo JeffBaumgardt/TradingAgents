@@ -456,7 +456,7 @@ export function billingAnnualMonthlyEquivalentCents(
 
 /**
  * Monthly hosted allowance in compute credits.
- * One credit ≈ one token on the cheapest curated model (DeepSeek V4 Flash output rate).
+ * One credit ≈ one token at the $0.28/1M output reference rate.
  * Sized for ~15% of net revenue at the $19 hosted list price after Stripe fees.
  */
 export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
@@ -489,7 +489,7 @@ export interface UsageModelBreakdown {
    */
   computeCredits: number;
   /**
-   * Output-cost multiplier vs the reference model (DeepSeek V4 Flash = 1×).
+   * Output-cost multiplier vs the $0.28/1M credit reference rate.
    * Applied as: credits ≈ tokens × creditMultiplier.
    */
   creditMultiplier: number;

@@ -9,11 +9,11 @@ import { computeCredits } from "./billable-units.js";
 
 describe("billable-units / compute credits", () => {
   it("gives cheaper output models a lower multiplier than frontier models", () => {
-    const flash = getModelCreditMultiplier("deepseek", "deepseek-v4-flash");
+    const mini = getModelCreditMultiplier("openai", "gpt-4o-mini");
     const haiku = getModelCreditMultiplier("anthropic", "claude-haiku-4-5");
     const opus = getModelCreditMultiplier("anthropic", "claude-opus-4-8");
-    assert.equal(flash, 1);
-    assert.ok(haiku > flash);
+    assert.equal(mini, 2.1);
+    assert.ok(haiku > mini);
     assert.ok(opus > haiku);
   });
 
@@ -22,11 +22,11 @@ describe("billable-units / compute credits", () => {
       computeCredits({
         tokensIn: 100,
         tokensOut: 100,
-        providerId: "deepseek",
-        modelId: "deepseek-v4-flash",
+        providerId: "openai",
+        modelId: "gpt-4o-mini",
         costSource: "hosted",
       }),
-      200,
+      420,
     );
     assert.equal(
       computeCredits({
