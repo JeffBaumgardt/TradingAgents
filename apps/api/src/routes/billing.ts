@@ -12,6 +12,7 @@ import {
   optionalUserId,
   requireUserId,
 } from "../middleware/user-context.js";
+import { listHostedModelCatalog } from "@tradingagents/api-types";
 import { getBillingAccount } from "../services/billing-account-service.js";
 import {
   BillingServiceError,
@@ -23,6 +24,10 @@ export const billingRoutes = new Hono();
 
 billingRoutes.get("/billing/plans", (c) => {
   return c.json(listBillingPlans());
+});
+
+billingRoutes.get("/billing/models", (c) => {
+  return c.json(listHostedModelCatalog());
 });
 
 billingRoutes.use("/billing/account", requireUserId());

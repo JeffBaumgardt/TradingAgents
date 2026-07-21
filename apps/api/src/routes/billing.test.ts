@@ -22,6 +22,21 @@ describe("billing routes", () => {
     assert.equal(body.plans[0]?.monthlyPriceCents, 300);
   });
 
+  it("lists curated hosted models with credit multipliers", async () => {
+    const response = await app.request("/billing/models");
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      pricedAsOf: string;
+      referenceOutputUsdPer1M: number;
+      models: Array<{ modelId: string; creditMultiplier: number; outputUsdPer1M: number }>;
+    };
+    assert.ok(body.models.length >= 20);
+    assert.equal(body.referenceOutputUsdPer1M, 0.28);
+    const flash = body.models.find((model) => model.modelId === "deepseek-v4-flash");
+    assert.ok(flash);
+    assert.equal(flash?.creditMultiplier, 1);
+  });
+
   it("returns 501 scaffold for checkout", async () => {
     const response = await app.request("/billing/checkout", {
       method: "POST",

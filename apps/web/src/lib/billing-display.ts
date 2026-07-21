@@ -9,7 +9,8 @@ export function formatTokenCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
-export function formatBillableUnits(value: number): string {
+/** Compact formatter for compute credits (and legacy billable-unit callers). */
+export function formatComputeCredits(value: number): string {
   if (value >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
   }
@@ -17,6 +18,16 @@ export function formatBillableUnits(value: number): string {
     return `${(value / 1_000).toFixed(value % 1_000 === 0 ? 0 : 1)}k`;
   }
   return formatTokenCount(value);
+}
+
+/** @deprecated Use {@link formatComputeCredits}. */
+export function formatBillableUnits(value: number): string {
+  return formatComputeCredits(value);
+}
+
+export function formatCreditMultiplier(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `×${rounded}` : `×${rounded.toFixed(1)}`;
 }
 
 export function formatPeriodEnd(iso: string | null | undefined): string {
@@ -40,7 +51,7 @@ export function costSourceLabel(source: ProviderCostSource): string {
 
 export function costSourceHint(source: ProviderCostSource): string {
   if (source === "self_pay") {
-    return "Billed by your provider — does not use hosted allowance";
+    return "Billed by your provider — does not use compute credits";
   }
-  return "Runs on platform keys — counts toward your hosted allowance";
+  return "Runs on platform keys — counts toward your compute credit allowance";
 }

@@ -3,8 +3,30 @@
  * Sample hosted billing account for UI previews and screenshots.
  */
 
-import type { BillingAccountResponse } from "@tradingagents/api-types";
-import { HOSTED_MONTHLY_BILLABLE_ALLOWANCE } from "@tradingagents/api-types";
+import type { BillingAccountResponse, UsageModelBreakdown } from "@tradingagents/api-types";
+import {
+  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  getModelCreditMultiplier,
+} from "@tradingagents/api-types";
+
+function hostedModelRow(
+  providerId: string,
+  providerLabel: string,
+  modelId: string,
+  tokensTotal: number,
+): UsageModelBreakdown {
+  const creditMultiplier = getModelCreditMultiplier(providerId, modelId);
+  return {
+    providerId,
+    providerLabel,
+    modelId,
+    tokensTotal,
+    computeCredits: Math.round(tokensTotal * creditMultiplier),
+    creditMultiplier,
+    costSource: "hosted",
+    shareOfCredits: 0,
+  };
+}
 
 export function buildSampleBillingAccount(): BillingAccountResponse {
   const periodStart = new Date();
@@ -13,50 +35,64 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
   const periodEnd = new Date(periodStart);
   periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
-  const byModel = [
-    {
-      providerId: "openai",
-      providerLabel: "OpenAI",
-      modelId: "gpt-4o",
-      tokensTotal: 58_000,
-      billableUnits: 174_000,
-      costSource: "hosted" as const,
-      shareOfBillable: 0,
-    },
+  // Token volumes sized so weighted compute credits land ~40–60% of allowance.
+  const byModel: UsageModelBreakdown[] = [
+    hostedModelRow("openai", "OpenAI", "gpt-5.4-mini", 22_000),
+    hostedModelRow("openai", "OpenAI", "gpt-5.5", 4_000),
+    hostedModelRow("anthropic", "Anthropic", "claude-opus-4-8", 6_000),
+    hostedModelRow("anthropic", "Anthropic", "claude-haiku-4-5", 18_000),
     {
       providerId: "anthropic",
       providerLabel: "Anthropic",
-      modelId: "claude-opus-4",
-      tokensTotal: 20_000,
-      billableUnits: 160_000,
-      costSource: "hosted" as const,
-      shareOfBillable: 0,
+      modelId: "claude-sonnet-4-6",
+      tokensTotal: 28_000,
+      computeCredits: 0,
+      creditMultiplier: getModelCreditMultiplier("anthropic", "claude-sonnet-4-6"),
+      costSource: "self_pay",
+      shareOfCredits: 0,
     },
-    {
-      providerId: "google",
-      providerLabel: "Google",
-      modelId: "gemini-2.0-flash",
-      tokensTotal: 130_000,
-      billableUnits: 130_000,
-      costSource: "hosted" as const,
-      shareOfBillable: 0,
-    },
-    {
-      providerId: "anthropic",
-      providerLabel: "Anthropic",
-      modelId: "claude-sonnet-4",
-      tokensTotal: 77_000,
-      billableUnits: 0,
-      costSource: "self_pay" as const,
-      shareOfBillable: 0,
-    },
+    hostedModelRow("google", "Google", "gemini-3.5-flash", 18_000),
+    hostedModelRow("xai", "xAI", "grok-4.3", 14_000),
+    hostedModelRow("deepseek", "DeepSeek", "deepseek-v4-flash", 45_000),
   ];
 
-  const usedBillableUnits = byModel.reduce((sum, row) => sum + row.billableUnits, 0);
+  const usedComputeCredits = byModel.reduce((sum, row) => sum + row.computeCredits, 0);
   for (const row of byModel) {
-    row.shareOfBillable =
-      usedBillableUnits > 0 ? row.billableUnits / usedBillableUnits : 0;
+    row.shareOfCredits =
+      usedComputeCredits > 0 ? row.computeCredits / usedComputeCredits : 0;
   }
+
+  const providerIds = ["openai", "anthropic", "google", "xai", "deepseek"] as const;
+  const byProvider = providerIds
+    .map((providerId) => {
+      const rows = byModel.filter((row) => row.providerId === providerId);
+      if (rows.length === 0) {
+        return null;
+      }
+      const computeCredits = rows.reduce((sum, row) => sum + row.computeCredits, 0);
+      const tokensTotal = rows.reduce((sum, row) => sum + row.tokensTotal, 0);
+      const selfPayTokens = rows
+        .filter((row) => row.costSource === "self_pay")
+        .reduce((sum, row) => sum + row.tokensTotal, 0);
+      return {
+        providerId,
+        providerLabel: rows[0]?.providerLabel ?? providerId,
+        tokensTotal,
+        computeCredits,
+        selfPayTokens,
+        hostedTokens: tokensTotal - selfPayTokens,
+        shareOfCredits: usedComputeCredits > 0 ? computeCredits / usedComputeCredits : 0,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null)
+    .sort((a, b) => b.computeCredits - a.computeCredits || b.tokensTotal - a.tokensTotal);
+
+  const hostedTokens = byModel
+    .filter((row) => row.costSource === "hosted")
+    .reduce((sum, row) => sum + row.tokensTotal, 0);
+  const selfPayTokens = byModel
+    .filter((row) => row.costSource === "self_pay")
+    .reduce((sum, row) => sum + row.tokensTotal, 0);
 
   return {
     subscription: {
@@ -70,42 +106,14 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       isSample: true,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
-      allowanceBillableUnits: HOSTED_MONTHLY_BILLABLE_ALLOWANCE,
-      usedBillableUnits,
-      remainingBillableUnits: HOSTED_MONTHLY_BILLABLE_ALLOWANCE - usedBillableUnits,
-      usedRatio: usedBillableUnits / HOSTED_MONTHLY_BILLABLE_ALLOWANCE,
-      tokensTotal: byModel.reduce((sum, row) => sum + row.tokensTotal, 0),
-      selfPayTokens: 77_000,
-      hostedTokens: 208_000,
-      byProvider: [
-        {
-          providerId: "openai",
-          providerLabel: "OpenAI",
-          tokensTotal: 58_000,
-          billableUnits: 174_000,
-          selfPayTokens: 0,
-          hostedTokens: 58_000,
-          shareOfBillable: 0.45,
-        },
-        {
-          providerId: "anthropic",
-          providerLabel: "Anthropic",
-          tokensTotal: 97_000,
-          billableUnits: 160_000,
-          selfPayTokens: 77_000,
-          hostedTokens: 20_000,
-          shareOfBillable: 0.42,
-        },
-        {
-          providerId: "google",
-          providerLabel: "Google",
-          tokensTotal: 130_000,
-          billableUnits: 130_000,
-          selfPayTokens: 0,
-          hostedTokens: 130_000,
-          shareOfBillable: 0.13,
-        },
-      ],
+      allowanceComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+      usedComputeCredits,
+      remainingComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE - usedComputeCredits,
+      usedRatio: Math.min(1, usedComputeCredits / HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE),
+      tokensTotal: hostedTokens + selfPayTokens,
+      selfPayTokens,
+      hostedTokens,
+      byProvider,
       byModel,
     },
     hostedProviderIds: ["openai", "anthropic", "google", "xai", "openrouter", "deepseek"],

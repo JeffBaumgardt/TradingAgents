@@ -4,34 +4,55 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { computeBillableUnits, getModelBillableWeight } from "./billable-units.js";
+import { getModelCreditMultiplier } from "@tradingagents/api-types";
+import { computeCredits } from "./billable-units.js";
 
-describe("billable-units", () => {
-  it("tilts expensive models higher than cheap ones", () => {
-    assert.ok(getModelBillableWeight("anthropic", "claude-opus-4") > getModelBillableWeight("google", "gemini-flash"));
-    assert.ok(getModelBillableWeight("openai", "o1") > getModelBillableWeight("openai", "gpt-4o-mini"));
+describe("billable-units / compute credits", () => {
+  it("gives cheaper output models a lower multiplier than frontier models", () => {
+    const flash = getModelCreditMultiplier("deepseek", "deepseek-v4-flash");
+    const haiku = getModelCreditMultiplier("anthropic", "claude-haiku-4-5");
+    const opus = getModelCreditMultiplier("anthropic", "claude-opus-4-8");
+    assert.equal(flash, 1);
+    assert.ok(haiku > flash);
+    assert.ok(opus > haiku);
   });
 
-  it("charges hosted traffic and zeroes self-pay billable units", () => {
+  it("charges hosted traffic and zeroes self-pay compute credits", () => {
     assert.equal(
-      computeBillableUnits({
+      computeCredits({
         tokensIn: 100,
         tokensOut: 100,
-        providerId: "openai",
-        modelId: "gpt-4o-mini",
+        providerId: "deepseek",
+        modelId: "deepseek-v4-flash",
         costSource: "hosted",
       }),
       200,
     );
     assert.equal(
-      computeBillableUnits({
+      computeCredits({
         tokensIn: 1000,
         tokensOut: 1000,
         providerId: "anthropic",
-        modelId: "claude-opus-4",
+        modelId: "claude-opus-4-8",
         costSource: "self_pay",
       }),
       0,
+    );
+    assert.ok(
+      computeCredits({
+        tokensIn: 100,
+        tokensOut: 100,
+        providerId: "anthropic",
+        modelId: "claude-opus-4-8",
+        costSource: "hosted",
+      }) >
+        computeCredits({
+          tokensIn: 100,
+          tokensOut: 100,
+          providerId: "anthropic",
+          modelId: "claude-haiku-4-5",
+          costSource: "hosted",
+        }),
     );
   });
 });

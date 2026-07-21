@@ -7,7 +7,8 @@
 
 import {
   BILLING_CATALOG,
-  HOSTED_MONTHLY_BILLABLE_ALLOWANCE,
+  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  getModelCreditMultiplier,
   type BillingAccountResponse,
   type BillingInterval,
   type BillingPlanId,
@@ -18,7 +19,7 @@ import {
   type UserSubscription,
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
-import { computeBillableUnits } from "../lib/billable-units.js";
+import { computeCredits } from "../lib/billable-units.js";
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
@@ -98,7 +99,7 @@ function buildUsageSummary(
   const modelMap = new Map<string, UsageModelBreakdown>();
   const providerMap = new Map<string, UsageProviderBreakdown>();
 
-  let usedBillableUnits = 0;
+  let usedComputeCredits = 0;
   let tokensTotal = 0;
   let selfPayTokens = 0;
   let hostedTokens = 0;
@@ -106,7 +107,7 @@ function buildUsageSummary(
   for (const event of events) {
     const tokens = event.tokens_in + event.tokens_out;
     tokensTotal += tokens;
-    usedBillableUnits += event.billable_units;
+    usedComputeCredits += event.billable_units;
     if (event.cost_source === "self_pay") {
       selfPayTokens += tokens;
     } else {
@@ -117,23 +118,24 @@ function buildUsageSummary(
     const existingModel = modelMap.get(modelKey);
     if (existingModel) {
       existingModel.tokensTotal += tokens;
-      existingModel.billableUnits += event.billable_units;
+      existingModel.computeCredits += event.billable_units;
     } else {
       modelMap.set(modelKey, {
         providerId: event.provider_id,
         providerLabel: providerLabel(event.provider_id),
         modelId: event.model_id,
         tokensTotal: tokens,
-        billableUnits: event.billable_units,
+        computeCredits: event.billable_units,
+        creditMultiplier: getModelCreditMultiplier(event.provider_id, event.model_id),
         costSource: event.cost_source,
-        shareOfBillable: 0,
+        shareOfCredits: 0,
       });
     }
 
     const existingProvider = providerMap.get(event.provider_id);
     if (existingProvider) {
       existingProvider.tokensTotal += tokens;
-      existingProvider.billableUnits += event.billable_units;
+      existingProvider.computeCredits += event.billable_units;
       if (event.cost_source === "self_pay") {
         existingProvider.selfPayTokens += tokens;
       } else {
@@ -144,10 +146,10 @@ function buildUsageSummary(
         providerId: event.provider_id,
         providerLabel: providerLabel(event.provider_id),
         tokensTotal: tokens,
-        billableUnits: event.billable_units,
+        computeCredits: event.billable_units,
         selfPayTokens: event.cost_source === "self_pay" ? tokens : 0,
         hostedTokens: event.cost_source === "hosted" ? tokens : 0,
-        shareOfBillable: 0,
+        shareOfCredits: 0,
       });
     }
   }
@@ -155,27 +157,27 @@ function buildUsageSummary(
   const byModel = [...modelMap.values()]
     .map((row) => ({
       ...row,
-      shareOfBillable: usedBillableUnits > 0 ? row.billableUnits / usedBillableUnits : 0,
+      shareOfCredits: usedComputeCredits > 0 ? row.computeCredits / usedComputeCredits : 0,
     }))
-    .sort((a, b) => b.billableUnits - a.billableUnits || b.tokensTotal - a.tokensTotal);
+    .sort((a, b) => b.computeCredits - a.computeCredits || b.tokensTotal - a.tokensTotal);
 
   const byProvider = [...providerMap.values()]
     .map((row) => ({
       ...row,
-      shareOfBillable: usedBillableUnits > 0 ? row.billableUnits / usedBillableUnits : 0,
+      shareOfCredits: usedComputeCredits > 0 ? row.computeCredits / usedComputeCredits : 0,
     }))
-    .sort((a, b) => b.billableUnits - a.billableUnits || b.tokensTotal - a.tokensTotal);
+    .sort((a, b) => b.computeCredits - a.computeCredits || b.tokensTotal - a.tokensTotal);
 
-  const allowance = HOSTED_MONTHLY_BILLABLE_ALLOWANCE;
-  const usedRatio = allowance > 0 ? Math.min(1, usedBillableUnits / allowance) : 0;
+  const allowance = HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
+  const usedRatio = allowance > 0 ? Math.min(1, usedComputeCredits / allowance) : 0;
 
   return {
     isSample,
     periodStart,
     periodEnd,
-    allowanceBillableUnits: allowance,
-    usedBillableUnits,
-    remainingBillableUnits: Math.max(0, allowance - usedBillableUnits),
+    allowanceComputeCredits: allowance,
+    usedComputeCredits,
+    remainingComputeCredits: Math.max(0, allowance - usedComputeCredits),
     usedRatio,
     tokensTotal,
     selfPayTokens,
@@ -195,37 +197,58 @@ function sampleUsageEvents(): UsageEventRow[] {
   }> = [
     {
       providerId: "anthropic",
-      modelId: "claude-opus-4",
+      modelId: "claude-opus-4-8",
+      tokensIn: 3_500,
+      tokensOut: 2_500,
+      costSource: "hosted",
+    },
+    {
+      providerId: "anthropic",
+      modelId: "claude-haiku-4-5",
       tokensIn: 12_000,
+      tokensOut: 6_000,
+      costSource: "hosted",
+    },
+    {
+      providerId: "openai",
+      modelId: "gpt-5.4-mini",
+      tokensIn: 14_000,
       tokensOut: 8_000,
       costSource: "hosted",
     },
     {
       providerId: "openai",
-      modelId: "gpt-4o",
-      tokensIn: 40_000,
-      tokensOut: 18_000,
+      modelId: "gpt-5.5",
+      tokensIn: 2_500,
+      tokensOut: 1_500,
       costSource: "hosted",
     },
     {
       providerId: "google",
-      modelId: "gemini-2.0-flash",
-      tokensIn: 90_000,
-      tokensOut: 40_000,
+      modelId: "gemini-3.5-flash",
+      tokensIn: 12_000,
+      tokensOut: 6_000,
       costSource: "hosted",
     },
     {
       providerId: "anthropic",
-      modelId: "claude-sonnet-4",
-      tokensIn: 55_000,
-      tokensOut: 22_000,
+      modelId: "claude-sonnet-4-6",
+      tokensIn: 18_000,
+      tokensOut: 10_000,
       costSource: "self_pay",
     },
     {
       providerId: "xai",
-      modelId: "grok-3",
-      tokensIn: 25_000,
-      tokensOut: 12_000,
+      modelId: "grok-4.3",
+      tokensIn: 9_000,
+      tokensOut: 5_000,
+      costSource: "hosted",
+    },
+    {
+      providerId: "deepseek",
+      modelId: "deepseek-v4-flash",
+      tokensIn: 30_000,
+      tokensOut: 15_000,
       costSource: "hosted",
     },
   ];
@@ -235,7 +258,7 @@ function sampleUsageEvents(): UsageEventRow[] {
     model_id: sample.modelId,
     tokens_in: sample.tokensIn,
     tokens_out: sample.tokensOut,
-    billable_units: computeBillableUnits({
+    billable_units: computeCredits({
       tokensIn: sample.tokensIn,
       tokensOut: sample.tokensOut,
       providerId: sample.providerId,

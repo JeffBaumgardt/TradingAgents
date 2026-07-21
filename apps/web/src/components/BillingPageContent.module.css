@@ -180,29 +180,6 @@
   background: var(--color-border-strong);
 }
 
-.modelList,
-.providerList {
-  list-style: none;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.85rem;
-}
-
-.modelRow,
-.providerRow {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.providerRow {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 1rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid var(--color-border-subtle);
-}
-
 .modelTitleRow {
   display: flex;
   flex-wrap: wrap;
@@ -210,14 +187,103 @@
   gap: 0.45rem;
 }
 
-.subheading {
-  margin: 1.4rem 0 0;
-  font-size: 1rem;
+.providerTree {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
 }
 
-.providerBillable {
+.providerTreeItem {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--color-bg-page) 55%, var(--color-bg-surface));
+  padding: 0.75rem 0.85rem;
+}
+
+.providerTreeHeader {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.providerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.providerToggle:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.providerChevron {
+  display: inline-flex;
+  width: 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.providerName {
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 1.02rem;
+}
+
+.providerAggregate {
+  display: grid;
+  gap: 0.15rem;
+  margin-left: 1.45rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.providerSplit {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.modelTree {
+  list-style: none;
+  margin: 0.7rem 0 0 1.45rem;
+  padding: 0.55rem 0 0;
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.modelTreeRow {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.modelId {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.multiplierChip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-surface);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.12rem 0.45rem;
 }
 
 .error {

@@ -449,10 +449,14 @@ export function billingAnnualMonthlyEquivalentCents(
 }
 
 /**
- * Provisional monthly hosted allowance in billable units.
- * Quite open for normal use; used for abuse protection until a real matrix lands.
+ * Provisional monthly hosted allowance in compute credits.
+ * One credit ≈ one token on the cheapest curated model (DeepSeek V4 Flash output rate).
+ * Quite open for normal use; abuse protection until live metering lands.
  */
-export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = 5_000_000;
+export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 5_000_000;
+
+/** @deprecated Use {@link HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE}. */
+export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
 
 export type SubscriptionStatus = "none" | "active" | "canceled" | "past_due";
 
@@ -474,23 +478,28 @@ export interface UsageModelBreakdown {
   /** Raw prompt + completion tokens observed. */
   tokensTotal: number;
   /**
-   * Normalized units that count toward the hosted allowance.
+   * Normalized compute credits that count toward the hosted allowance.
    * Self-pay traffic is tracked in tokensTotal but contributes 0 here.
    */
-  billableUnits: number;
+  computeCredits: number;
+  /**
+   * Output-cost multiplier vs the reference model (DeepSeek V4 Flash = 1×).
+   * Applied as: credits ≈ tokens × creditMultiplier.
+   */
+  creditMultiplier: number;
   costSource: ProviderCostSource;
-  /** Share of hosted billable units in the period (0–1). */
-  shareOfBillable: number;
+  /** Share of hosted compute credits in the period (0–1). */
+  shareOfCredits: number;
 }
 
 export interface UsageProviderBreakdown {
   providerId: string;
   providerLabel: string;
   tokensTotal: number;
-  billableUnits: number;
+  computeCredits: number;
   selfPayTokens: number;
   hostedTokens: number;
-  shareOfBillable: number;
+  shareOfCredits: number;
 }
 
 export interface BillingUsageSummary {
@@ -498,10 +507,10 @@ export interface BillingUsageSummary {
   isSample: boolean;
   periodStart: string;
   periodEnd: string;
-  allowanceBillableUnits: number;
-  usedBillableUnits: number;
-  remainingBillableUnits: number;
-  /** 0–1 clamped for progress UI. */
+  allowanceComputeCredits: number;
+  usedComputeCredits: number;
+  remainingComputeCredits: number;
+  /** 0–1 clamped for account-level progress UI. */
   usedRatio: number;
   tokensTotal: number;
   selfPayTokens: number;
@@ -509,6 +518,22 @@ export interface BillingUsageSummary {
   byProvider: UsageProviderBreakdown[];
   byModel: UsageModelBreakdown[];
 }
+
+export type {
+  HostedModelCostEntry,
+  HostedModelProviderId,
+} from "./hosted-model-catalog.js";
+
+export {
+  COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
+  HOSTED_MODEL_CATALOG,
+  HOSTED_MODEL_CATALOG_PRICED_AS_OF,
+  creditMultiplierFromOutputUsdPer1M,
+  getHostedModelCostEntry,
+  getModelCreditMultiplier,
+  listHostedModelCatalog,
+  roundCreditMultiplier,
+} from "./hosted-model-catalog.js";
 
 export interface BillingAccountResponse {
   subscription: UserSubscription;
