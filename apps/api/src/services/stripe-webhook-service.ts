@@ -1,7 +1,7 @@
 /**
  * apps/api/src/services/stripe-webhook-service.ts
  *
- * Handles Stripe webhook events for Managed Payments Checkout.
+ * Handles Stripe webhook events for Managed Payments Checkout + subscription lifecycle.
  */
 
 import {
@@ -13,7 +13,10 @@ import {
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import type Stripe from "stripe";
 import { getStripeClient } from "../lib/stripe.js";
-import { activatePaidSubscription } from "./billing-account-service.js";
+import {
+  activatePaidSubscription,
+  syncStripeSubscription,
+} from "./billing-account-service.js";
 
 function asStringId(
   value: string | { id: string } | null | undefined,
@@ -31,16 +34,55 @@ function unixToIso(seconds: number | null | undefined): string | null {
   return new Date(seconds * 1000).toISOString();
 }
 
-function resolvePlanAndInterval(session: Stripe.Checkout.Session): {
+function resolvePlanAndInterval(metadata: Stripe.Metadata | null | undefined): {
   planId: BillingPlanId;
   interval: BillingInterval;
 } | null {
-  const planId = session.metadata?.planId;
-  const interval = session.metadata?.interval;
+  const planId = metadata?.planId;
+  const interval = metadata?.interval;
   if (!isBillingPlanId(planId) || !isBillingInterval(interval)) {
     return null;
   }
   return { planId, interval };
+}
+
+function mapStripeSubscriptionStatus(
+  status: Stripe.Subscription.Status,
+): "active" | "past_due" | "canceled" | null {
+  switch (status) {
+    case "active":
+    case "trialing":
+      return "active";
+    case "past_due":
+      return "past_due";
+    case "canceled":
+    case "unpaid":
+    case "incomplete_expired":
+    case "paused":
+      return "canceled";
+    case "incomplete":
+      return null;
+    default:
+      return null;
+  }
+}
+
+function periodDatesFromSubscription(subscription: Stripe.Subscription): {
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+} {
+  const item = subscription.items?.data?.[0];
+  return {
+    currentPeriodStart: unixToIso(item?.current_period_start),
+    currentPeriodEnd: unixToIso(item?.current_period_end),
+  };
+}
+
+function isCheckoutPaymentComplete(session: Stripe.Checkout.Session): boolean {
+  return (
+    session.payment_status === "paid" ||
+    session.payment_status === "no_payment_required"
+  );
 }
 
 /**
@@ -54,6 +96,11 @@ export async function handleCheckoutSessionCompleted(
     return { activated: false, reason: "not_subscription_mode" };
   }
 
+  if (!isCheckoutPaymentComplete(session)) {
+    // Delayed payment methods complete via checkout.session.async_payment_succeeded.
+    return { activated: false, reason: "payment_not_complete" };
+  }
+
   const userId =
     session.client_reference_id?.trim() ||
     session.metadata?.userId?.trim() ||
@@ -62,7 +109,7 @@ export async function handleCheckoutSessionCompleted(
     return { activated: false, reason: "missing_user_id" };
   }
 
-  const planInterval = resolvePlanAndInterval(session);
+  const planInterval = resolvePlanAndInterval(session.metadata);
   if (!planInterval) {
     return { activated: false, reason: "missing_plan_metadata" };
   }
@@ -79,10 +126,12 @@ export async function handleCheckoutSessionCompleted(
     try {
       const stripe = getStripeClient();
       const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-      // Period dates live on subscription items in current Stripe API versions.
-      const item = subscription.items?.data?.[0];
-      const start = unixToIso(item?.current_period_start);
-      const end = unixToIso(item?.current_period_end);
+      const mapped = mapStripeSubscriptionStatus(subscription.status);
+      if (mapped !== "active") {
+        return { activated: false, reason: "subscription_not_active" };
+      }
+      const { currentPeriodStart: start, currentPeriodEnd: end } =
+        periodDatesFromSubscription(subscription);
       if (start) {
         currentPeriodStart = start;
       }
@@ -112,18 +161,78 @@ export async function handleCheckoutSessionCompleted(
   return { activated: true };
 }
 
+async function handleSubscriptionLifecycle(
+  client: AppSupabaseClient,
+  subscription: Stripe.Subscription,
+  forceStatus?: "canceled",
+): Promise<{ handled: boolean; detail?: string }> {
+  const stripeSubscriptionId = subscription.id;
+  const mapped =
+    forceStatus ?? mapStripeSubscriptionStatus(subscription.status);
+  if (!mapped) {
+    return { handled: false, detail: "subscription_status_ignored" };
+  }
+
+  const planInterval = resolvePlanAndInterval(subscription.metadata);
+  const { currentPeriodStart, currentPeriodEnd } =
+    periodDatesFromSubscription(subscription);
+
+  const result = await syncStripeSubscription(client, {
+    stripeSubscriptionId,
+    status: mapped,
+    planId: planInterval?.planId ?? null,
+    interval: planInterval?.interval ?? null,
+    currentPeriodStart,
+    currentPeriodEnd,
+    stripeCustomerId: asStringId(subscription.customer),
+  });
+
+  return {
+    handled: result.updated,
+    detail: result.reason,
+  };
+}
+
 export async function processStripeEvent(
   client: AppSupabaseClient,
   event: Stripe.Event,
 ): Promise<{ handled: boolean; detail?: string }> {
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const result = await handleCheckoutSessionCompleted(client, session);
-    return {
-      handled: result.activated,
-      detail: result.reason,
-    };
+  switch (event.type) {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const result = await handleCheckoutSessionCompleted(client, session);
+      return {
+        handled: result.activated,
+        detail: result.reason,
+      };
+    }
+    case "checkout.session.async_payment_failed": {
+      return { handled: false, detail: "async_payment_failed" };
+    }
+    case "customer.subscription.updated": {
+      const subscription = event.data.object as Stripe.Subscription;
+      return handleSubscriptionLifecycle(client, subscription);
+    }
+    case "customer.subscription.deleted": {
+      const subscription = event.data.object as Stripe.Subscription;
+      return handleSubscriptionLifecycle(client, subscription, "canceled");
+    }
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = asStringId(
+        invoice.parent?.subscription_details?.subscription ?? null,
+      );
+      if (!subscriptionId) {
+        return { handled: false, detail: "invoice_missing_subscription" };
+      }
+      const result = await syncStripeSubscription(client, {
+        stripeSubscriptionId: subscriptionId,
+        status: "past_due",
+      });
+      return { handled: result.updated, detail: result.reason };
+    }
+    default:
+      return { handled: false, detail: "ignored_event_type" };
   }
-
-  return { handled: false, detail: "ignored_event_type" };
 }

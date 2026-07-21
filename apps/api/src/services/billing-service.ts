@@ -15,6 +15,7 @@ import {
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import type Stripe from "stripe";
+import { isBillingScaffoldEnabled } from "../lib/billing-scaffold.js";
 import {
   areStripePricesConfigured,
   getStripePriceId,
@@ -25,7 +26,7 @@ import {
   isStripeConfigured,
   STRIPE_MANAGED_PAYMENTS_API_VERSION,
 } from "../lib/stripe.js";
-import { getWebAppOrigin } from "../lib/web-app-origin.js";
+import { getWebAppOrigin, WebAppOriginError } from "../lib/web-app-origin.js";
 import {
   activateScaffoldSubscription,
   findStripeCustomerIdForUser,
@@ -102,8 +103,20 @@ async function createScaffoldCheckoutSession(
   interval: BillingInterval,
   options: { userId?: string | null; client?: AppSupabaseClient | null },
 ): Promise<CheckoutResult> {
+  const missingPrices = missingStripePriceEnvKeys();
+  const stripeHint = !isStripeConfigured()
+    ? "Set STRIPE_SECRET_KEY (from https://dashboard.stripe.com/apikeys)."
+    : missingPrices.length > 0
+      ? `Set Stripe price env vars: ${missingPrices.join(", ")}.`
+      : "Connect Stripe to enable Managed Payments Checkout.";
+
+  // Free entitlement activation is opt-in for local review only — never in production.
   let subscriptionActivated = false;
-  if (options.userId && options.client) {
+  if (
+    isBillingScaffoldEnabled() &&
+    options.userId &&
+    options.client
+  ) {
     await activateScaffoldSubscription(
       options.client,
       options.userId,
@@ -113,12 +126,8 @@ async function createScaffoldCheckoutSession(
     subscriptionActivated = true;
   }
 
-  const missingPrices = missingStripePriceEnvKeys();
-  const stripeHint = !isStripeConfigured()
-    ? "Set STRIPE_SECRET_KEY (from https://dashboard.stripe.com/apikeys)."
-    : missingPrices.length > 0
-      ? `Set Stripe price env vars: ${missingPrices.join(", ")}.`
-      : "Connect Stripe to enable Managed Payments Checkout.";
+  const scaffoldHint =
+    "To review billing UI without Stripe, set BILLING_SCAFFOLD=true (non-production only).";
 
   return {
     status: "not_configured",
@@ -128,7 +137,7 @@ async function createScaffoldCheckoutSession(
     subscriptionActivated,
     message: subscriptionActivated
       ? `Payment provider is not live yet, but your plan was activated in scaffold mode so you can review the billing page. ${stripeHint}`
-      : `Checkout is scaffolded. Sign in and continue to activate a reviewable scaffold subscription, or connect Stripe. ${stripeHint}`,
+      : `Checkout is not configured for live payments. ${stripeHint} ${scaffoldHint}`,
   };
 }
 
@@ -152,7 +161,15 @@ async function createManagedPaymentsCheckoutSession(
     );
   }
 
-  const origin = getWebAppOrigin();
+  let origin: string;
+  try {
+    origin = getWebAppOrigin();
+  } catch (error) {
+    if (error instanceof WebAppOriginError) {
+      throw new BillingServiceError(error.message, 500);
+    }
+    throw error;
+  }
   const successUrl = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${origin}/checkout?plan=${encodeURIComponent(planId)}&interval=${encodeURIComponent(interval)}`;
 

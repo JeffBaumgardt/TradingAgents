@@ -93,11 +93,11 @@ export default function CheckoutScaffold() {
 
       // Stripe env not configured on the API — surface that clearly.
       setSubscriptionActivated(Boolean(result.subscriptionActivated));
-      setMessage(
+          setMessage(
         result.subscriptionActivated
-          ? "Stripe isn’t connected yet, so we activated a temporary review subscription. Connect STRIPE_SECRET_KEY on the API to take real payments."
+          ? "Stripe isn’t connected yet, so we activated a temporary review subscription (BILLING_SCAFFOLD). Connect STRIPE_SECRET_KEY on the API to take real payments."
           : (result.message ??
-            "Stripe isn’t connected yet. Add STRIPE_SECRET_KEY and price IDs on the API, then try again."),
+            "Stripe isn’t connected yet. Add STRIPE_SECRET_KEY and price IDs on the API, or set BILLING_SCAFFOLD=true for local review."),
       );
     } catch (caught) {
       if (caught instanceof ApiClientError) {

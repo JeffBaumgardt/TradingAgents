@@ -52,10 +52,12 @@ interface UsageEventRow {
   cost_source: ProviderCostSource;
 }
 
+type StoredSubscriptionStatus = "active" | "past_due" | "canceled";
+
 interface ScaffoldSubscription {
   planId: BillingPlanId;
   interval: BillingInterval;
-  status: "active";
+  status: StoredSubscriptionStatus;
   currentPeriodStart: string;
   currentPeriodEnd: string;
 }
@@ -286,12 +288,22 @@ export interface ActivatePaidSubscriptionInput {
   userId: string;
   planId: BillingPlanId;
   interval: BillingInterval;
-  status?: "active" | "past_due" | "canceled";
+  status?: StoredSubscriptionStatus;
   currentPeriodStart: string;
   currentPeriodEnd: string;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
   stripeCheckoutSessionId: string | null;
+}
+
+export interface SyncStripeSubscriptionInput {
+  stripeSubscriptionId: string;
+  status: StoredSubscriptionStatus;
+  planId?: BillingPlanId | null;
+  interval?: BillingInterval | null;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  stripeCustomerId?: string | null;
 }
 
 function rowToUserSubscription(row: StoredSubscriptionRow): UserSubscription {
@@ -367,22 +379,21 @@ export async function activatePaidSubscription(
     onConflict: "user_id",
   });
 
-  // Keep scaffold in sync so local/dev still reflects activation if Postgres
-  // is unavailable (in-memory client) or the migration has not been applied.
+  if (error) {
+    // Fail closed so Stripe retries the webhook instead of granting access
+    // from an in-memory map that other API instances cannot see.
+    throw new Error(`user_subscriptions upsert failed: ${error.message}`);
+  }
+
   scaffoldSubscriptions.set(input.userId, {
     planId: input.planId,
     interval: input.interval,
-    status: "active",
+    status,
     currentPeriodStart: input.currentPeriodStart,
     currentPeriodEnd: input.currentPeriodEnd,
   });
-  if (input.planId === "hosted" && !scaffoldUsage.has(input.userId)) {
+  if (input.planId === "hosted" && status === "active" && !scaffoldUsage.has(input.userId)) {
     scaffoldUsage.set(input.userId, sampleUsageEvents());
-  }
-
-  if (error) {
-    // Table may be missing in older environments; scaffold map still works.
-    console.warn("[billing] user_subscriptions upsert failed:", error.message);
   }
 
   return {
@@ -392,6 +403,81 @@ export async function activatePaidSubscription(
     currentPeriodStart: input.currentPeriodStart,
     currentPeriodEnd: input.currentPeriodEnd,
   };
+}
+
+/**
+ * Sync local subscription status from Stripe lifecycle events
+ * (updated / deleted / payment failed).
+ */
+export async function syncStripeSubscription(
+  client: AppSupabaseClient,
+  input: SyncStripeSubscriptionInput,
+): Promise<{ updated: boolean; reason?: string }> {
+  const { data, error: loadError } = await client
+    .from("user_subscriptions")
+    .select(
+      "user_id, plan_id, interval, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id",
+    )
+    .eq("stripe_subscription_id", input.stripeSubscriptionId)
+    .maybeSingle();
+
+  if (loadError) {
+    throw new Error(
+      `user_subscriptions lookup failed: ${loadError.message}`,
+    );
+  }
+
+  if (!data) {
+    return { updated: false, reason: "subscription_not_found" };
+  }
+
+  const existing = data as StoredSubscriptionRow & { user_id: string };
+  const planId =
+    input.planId ??
+    (isBillingPlanId(existing.plan_id) ? existing.plan_id : null);
+  const interval =
+    input.interval ??
+    (isBillingInterval(existing.interval) ? existing.interval : null);
+
+  if (!planId || !interval) {
+    return { updated: false, reason: "invalid_stored_plan" };
+  }
+
+  const currentPeriodStart =
+    input.currentPeriodStart ?? existing.current_period_start;
+  const currentPeriodEnd =
+    input.currentPeriodEnd ?? existing.current_period_end;
+  const stripeCustomerId =
+    input.stripeCustomerId ?? existing.stripe_customer_id ?? null;
+
+  const { error } = await client.from("user_subscriptions").upsert(
+    {
+      user_id: existing.user_id,
+      plan_id: planId,
+      interval,
+      status: input.status,
+      current_period_start: currentPeriodStart,
+      current_period_end: currentPeriodEnd,
+      stripe_customer_id: stripeCustomerId,
+      stripe_subscription_id: input.stripeSubscriptionId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) {
+    throw new Error(`user_subscriptions sync failed: ${error.message}`);
+  }
+
+  scaffoldSubscriptions.set(existing.user_id, {
+    planId,
+    interval,
+    status: input.status,
+    currentPeriodStart,
+    currentPeriodEnd,
+  });
+
+  return { updated: true };
 }
 
 export async function findStripeCustomerIdForUser(

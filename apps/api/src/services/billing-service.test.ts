@@ -23,7 +23,7 @@ describe("billing-service", () => {
     assert.equal(plans[1]?.priceProvisional, false);
   });
 
-  it("returns a not_configured checkout scaffold for valid requests", async () => {
+  it("returns a not_configured checkout response without activating by default", async () => {
     const result = await createCheckoutSession({
       planId: "byok",
       interval: "annual",
@@ -34,7 +34,30 @@ describe("billing-service", () => {
     assert.equal(result.interval, "annual");
     assert.equal(result.checkoutUrl, null);
     assert.equal(result.subscriptionActivated, false);
-    assert.match(result.message, /scaffolded/i);
+    assert.match(result.message, /not configured/i);
+  });
+
+  it("activates a scaffold subscription only when BILLING_SCAFFOLD=true", async () => {
+    const previous = process.env.BILLING_SCAFFOLD;
+    process.env.BILLING_SCAFFOLD = "true";
+    try {
+      const { createInMemorySupabase } = await import(
+        "@tradingagents/supabase/test"
+      );
+      const client = createInMemorySupabase();
+      const result = await createCheckoutSession(
+        { planId: "hosted", interval: "monthly" },
+        { userId: "user_scaffold", client },
+      );
+      assert.equal(result.subscriptionActivated, true);
+      assert.match(result.message, /scaffold mode/i);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.BILLING_SCAFFOLD;
+      } else {
+        process.env.BILLING_SCAFFOLD = previous;
+      }
+    }
   });
 
   it("rejects client-supplied redirect URLs", async () => {
