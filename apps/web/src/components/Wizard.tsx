@@ -16,6 +16,7 @@ import type {
   ProviderCostSource,
   ResearchDepth,
 } from "@tradingagents/api-types";
+import { getHostedModelCostEntry } from "@tradingagents/api-types";
 import {
   normalizeTickerSymbol,
   shouldShowProviderConfigStep,
@@ -771,14 +772,22 @@ export default function Wizard() {
                 </div>
                 <ModelPicker
                   id="thinkModelList"
-                  models={thinkModels}
+                  models={
+                    isHostedCost
+                      ? thinkModels.filter(
+                          (model) =>
+                            model.id !== "custom" &&
+                            Boolean(getHostedModelCostEntry(form.llmProvider, model.id)),
+                        )
+                      : thinkModels
+                  }
                   value={form.thinkLlm}
                   onChange={(modelId) => patchForm({ thinkLlm: modelId })}
                   showCreditSpend={isHostedCost}
                   labelledBy="think-model-label"
                   describedBy="think-model-hint"
                 />
-                {form.thinkLlm === "custom" && (
+                {!isHostedCost && form.thinkLlm === "custom" && (
                   <input
                     className={styles.customModelRow}
                     placeholder="Enter model ID"

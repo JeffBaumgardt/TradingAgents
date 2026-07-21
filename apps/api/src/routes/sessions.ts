@@ -269,11 +269,21 @@ sessionRoutes.get("/sessions/:id", optionalUserId(), async (c) => {
 sessionRoutes.delete("/sessions/:id", requireUserId(), async (c) => {
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
-  const deleted = await sessionService.deleteSession(client, sessionIdParam(c), userId);
-  if (!deleted) {
-    return c.json({ error: "Session not found" }, 404);
+  try {
+    const deleted = await sessionService.deleteSession(client, sessionIdParam(c), userId);
+    if (!deleted) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+    return c.body(null, 204);
+  } catch (error) {
+    if (error instanceof sessionService.SessionServiceError) {
+      return c.json(
+        { error: error.message, code: error.code },
+        error.status as 400 | 402 | 409 | 500,
+      );
+    }
+    throw error;
   }
-  return c.body(null, 204);
 });
 
 /** Public share-by-link: final agent report for a completed run. */

@@ -207,3 +207,26 @@ def active_provider_api_key(
 ) -> str | None:
     creds = _normalize_credentials(provider_credentials)
     return creds.get(llm_provider.lower(), {}).get("apiKey")
+
+
+def resolve_provider_backend_url(
+    llm_provider: str,
+    requested_backend_url: str | None = None,
+) -> str | None:
+    """
+    Pin product providers to their catalog endpoints.
+
+    Client-supplied backend URLs are ignored for known providers so API keys
+    (user or platform) cannot be redirected to an attacker-controlled proxy.
+    Unknown / legacy providers keep the requested URL.
+    """
+    provider_key = (llm_provider or "").lower().strip()
+    definition = next(
+        (item for item in PROVIDER_DEFINITIONS if item["id"] == provider_key),
+        None,
+    )
+    if definition is not None:
+        return definition["backendUrl"]
+    if isinstance(requested_backend_url, str) and requested_backend_url.strip():
+        return requested_backend_url.strip()
+    return None

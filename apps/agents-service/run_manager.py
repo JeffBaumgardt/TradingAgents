@@ -27,6 +27,7 @@ load_dotenv(find_dotenv(".env.enterprise", usecwd=True), override=False)
 from provider_credentials import (
     active_provider_api_key,
     credentials_to_env_updates,
+    resolve_provider_backend_url,
 )
 from stream_processor import StreamProcessor, format_sse
 
@@ -261,7 +262,10 @@ class RunManager:
             # Legacy keys kept in sync for any leftover dual-model readers.
             config["quick_think_llm"] = think_llm
             config["deep_think_llm"] = think_llm
-            config["backend_url"] = payload.get("backendUrl")
+            config["backend_url"] = resolve_provider_backend_url(
+                payload["llmProvider"],
+                payload.get("backendUrl"),
+            )
             config["llm_provider"] = payload["llmProvider"].lower()
             config["google_thinking_level"] = payload.get("googleThinkingLevel")
             config["openai_reasoning_effort"] = payload.get("openaiReasoningEffort")

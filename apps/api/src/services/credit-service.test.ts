@@ -222,6 +222,160 @@ describe("credit-service", () => {
     assert.equal(gate.code, "credits_insufficient");
   });
 
+  it("rejects a second hosted run when in-flight estimates exhaust remaining credits", async () => {
+    const client = createInMemorySupabase();
+    const userId = "user-credit-inflight";
+    const sessionId = "session-inflight";
+    await client.from("users").insert({
+      id: userId,
+      email: null,
+      first_name: null,
+      last_name: null,
+      image_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const subscription = {
+      plan_id: "hosted",
+      current_period_start: "2026-07-01T00:00:00.000Z",
+      current_period_end: "2026-08-01T00:00:00.000Z",
+    } as const;
+
+    const period = await ensureCreditPeriod(
+      client,
+      userId,
+      subscription,
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
+
+    const runBody = {
+      ticker: "AAPL",
+      analysisDate: "2026-07-01",
+      analysts: ["market", "news", "social", "fundamentals"],
+      researchDepth: 5 as const,
+      llmProvider: "openai",
+      thinkLlm: "gpt-5.5",
+      outputLanguage: "English",
+    };
+
+    const estimate = await estimateRunCredits(client, runBody, "hosted");
+    // Leave enough for one estimate, but not two concurrent ones.
+    await client
+      .from("user_credit_periods")
+      .update({ used_credits: Math.max(0, period.base_allowance - estimate - 1_000) })
+      .eq("id", period.id);
+
+    await client.from("sessions").insert({
+      id: sessionId,
+      user_id: userId,
+      ticker: "AAPL",
+      analysis_date: "2026-07-01",
+      status: "pending",
+      config: runBody,
+      run_id: null,
+      report_markdown: null,
+      report_sections: null,
+      decision: null,
+      error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    await initSessionUsageCursor(client, {
+      sessionId,
+      userId,
+      providerId: "openai",
+      quickModelId: "gpt-5.5",
+      deepModelId: "gpt-5.5",
+      costSource: "hosted",
+    });
+
+    const gate = await assertHostedCreditsForNewRun(
+      client,
+      userId,
+      subscription,
+      runBody,
+      "hosted",
+    );
+
+    assert.equal(gate.allowed, false);
+    assert.equal(gate.code, "credits_insufficient");
+    assert.match(gate.message ?? "", /in-flight|in progress/i);
+  });
+
+  it("rejects post-insert when concurrent pending hosted estimates exceed remaining", async () => {
+    const client = createInMemorySupabase();
+    const userId = "user-credit-inflight-over";
+    await client.from("users").insert({
+      id: userId,
+      email: null,
+      first_name: null,
+      last_name: null,
+      image_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const subscription = {
+      plan_id: "hosted",
+      current_period_start: "2026-07-01T00:00:00.000Z",
+      current_period_end: "2026-08-01T00:00:00.000Z",
+    } as const;
+
+    const period = await ensureCreditPeriod(
+      client,
+      userId,
+      subscription,
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
+
+    const runBody = {
+      ticker: "AAPL",
+      analysisDate: "2026-07-01",
+      analysts: ["market", "news", "social", "fundamentals"],
+      researchDepth: 5 as const,
+      llmProvider: "openai",
+      thinkLlm: "gpt-5.5",
+      outputLanguage: "English",
+    };
+    const estimate = await estimateRunCredits(client, runBody, "hosted");
+    await client
+      .from("user_credit_periods")
+      .update({ used_credits: Math.max(0, period.base_allowance - estimate - 1_000) })
+      .eq("id", period.id);
+
+    for (const sessionId of ["session-a", "session-b"]) {
+      await client.from("sessions").insert({
+        id: sessionId,
+        user_id: userId,
+        ticker: "AAPL",
+        analysis_date: "2026-07-01",
+        status: "pending",
+        config: runBody,
+        run_id: null,
+        report_markdown: null,
+        report_sections: null,
+        decision: null,
+        error: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      await initSessionUsageCursor(client, {
+        sessionId,
+        userId,
+        providerId: "openai",
+        quickModelId: "gpt-5.5",
+        deepModelId: "gpt-5.5",
+        costSource: "hosted",
+      });
+    }
+
+    const { assertHostedInFlightWithinBalance } = await import("./credit-service.js");
+    const within = await assertHostedInFlightWithinBalance(client, userId, subscription);
+    assert.equal(within.allowed, false);
+    assert.equal(within.code, "credits_insufficient");
+  });
+
   it("meters token deltas into usage_events and charges hosted credits", async () => {
     const client = createInMemorySupabase();
     const userId = "user-meter";

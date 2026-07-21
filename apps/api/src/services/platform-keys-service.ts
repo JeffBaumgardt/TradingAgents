@@ -138,11 +138,12 @@ export async function resolveRunProviderCredentials(
   });
   const usedPlatformKey = Boolean(credentials[selected]?.apiKey?.trim());
 
+  // Fail closed: never mark traffic as hosted (or bill credits) unless we
+  // actually injected a platform key. Missing rows must not fall through to
+  // agents-service process-env keys as an unpaid/shared sidecar.
   return {
     credentials,
-    // Hosted plan + no user key: still hosted even if platform row is missing
-    // (agents-service may fall back to process env).
-    costSource: "hosted",
+    costSource: usedPlatformKey ? "hosted" : "self_pay",
     usedPlatformKey,
   };
 }

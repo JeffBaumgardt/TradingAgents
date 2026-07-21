@@ -96,6 +96,24 @@ describe("platform-keys-service", () => {
     assert.equal(resolved.credentials.openai?.apiKey, "sk-platform-openai");
   });
 
+  it("does not mark costSource hosted when the platform key row is missing", async () => {
+    const client = createInMemorySupabase();
+
+    const resolved = await resolveRunProviderCredentials(
+      client,
+      {},
+      {
+        isHostedPlan: true,
+        hostedProviderIds: ["openai"],
+        selectedProviderId: "openai",
+      },
+    );
+
+    assert.equal(resolved.costSource, "self_pay");
+    assert.equal(resolved.usedPlatformKey, false);
+    assert.equal(resolved.credentials.openai?.apiKey, undefined);
+  });
+
   it("merges platform keys across hosted providers for config resolve", async () => {
     const client = createInMemorySupabase();
     await upsertPlatformApiKey(client, {

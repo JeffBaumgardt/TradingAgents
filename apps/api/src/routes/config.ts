@@ -2,12 +2,17 @@
  * apps/api/src/routes/config.ts
  *
  * Configuration discovery routes proxied to the Python agents-service.
- * Hosted-plan users may have no personal keys — merge platform keys so
- * provider resolve and model catalogs still work.
+ * Hosted-plan users may have no personal keys — mark hosted providers as
+ * available in resolve responses without ever forwarding platform API keys.
+ * Model catalogs use the public static list when the user has no BYOK key.
  */
 
 import { Hono } from "hono";
-import type { ModelMode, ProviderModelsResponse } from "@tradingagents/api-types";
+import type {
+  ModelMode,
+  ProviderModelsResponse,
+  ResolvedConfigResponse,
+} from "@tradingagents/api-types";
 import { getModelCreditMultiplier } from "@tradingagents/api-types";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import {
@@ -19,9 +24,9 @@ import {
 } from "../services/agents-client.js";
 import { getBillingAccount } from "../services/billing-account-service.js";
 import { getRequestUserId, requireUserId } from "../middleware/user-context.js";
-import { mergeHostedPlatformCredentials } from "../services/platform-keys-service.js";
 import { resolveRequestCredentials } from "../services/request-credentials.js";
 import { resolveCreditMultiplier } from "../services/credit-service.js";
+import { canonicalBackendUrlForProvider } from "../lib/provider-backend-urls.js";
 
 export const configRoutes = new Hono();
 
@@ -34,23 +39,53 @@ function parseModelMode(value: unknown): ModelMode | null {
   return MODEL_MODES.has(value as ModelMode) ? (value as ModelMode) : null;
 }
 
-async function resolveCredentialsWithPlatformKeys(
-  c: Parameters<typeof resolveRequestCredentials>[0],
-  providerIds?: readonly string[],
-) {
-  const userCredentials = (await resolveRequestCredentials(c)) ?? {};
-  const userId = getRequestUserId(c);
-  const client = getSupabaseAdmin(c);
-  const billing = await getBillingAccount(client, userId);
-  const isHostedPlan =
-    billing.subscription.planId === "hosted" &&
-    billing.subscription.status === "active";
+/**
+ * Hosted subscribers can run without BYOK. Enrich resolve so the wizard sees
+ * those providers — without decrypting or forwarding platform keys.
+ */
+function enrichResolvedConfigForHostedPlan(
+  resolved: ResolvedConfigResponse,
+  hostedProviderIds: readonly string[],
+): ResolvedConfigResponse {
+  const hostedIds = hostedProviderIds
+    .map((id) => id.toLowerCase().trim())
+    .filter(Boolean);
+  if (hostedIds.length === 0) {
+    return resolved;
+  }
 
-  return mergeHostedPlatformCredentials(client, userCredentials, {
-    isHostedPlan,
-    hostedProviderIds: billing.hostedProviderIds,
-    providerIds,
-  });
+  const schemaById = new Map(
+    resolved.credentialsSchema.providers.map((provider) => [
+      provider.id.toLowerCase(),
+      provider,
+    ]),
+  );
+  const providersById = new Map(
+    resolved.providers.map((provider) => [provider.id.toLowerCase(), provider]),
+  );
+
+  for (const hostedId of hostedIds) {
+    if (providersById.has(hostedId)) {
+      continue;
+    }
+    const schema = schemaById.get(hostedId);
+    providersById.set(hostedId, {
+      id: hostedId,
+      label: schema?.label ?? hostedId,
+      backendUrl: schema?.backendUrl ?? canonicalBackendUrlForProvider(hostedId),
+    });
+  }
+
+  const available = new Set([
+    ...(resolved.availableProviderIds ?? []),
+    ...hostedIds,
+  ]);
+
+  return {
+    ...resolved,
+    providers: [...providersById.values()],
+    availableProviderIds: [...available],
+  };
 }
 
 async function enrichModelsWithCreditMultipliers(
@@ -83,9 +118,22 @@ configRoutes.get("/config/credentials/schema", async (c) => {
 
 configRoutes.post("/config/resolve", requireUserId(), async (c) => {
   try {
-    const providerCredentials = await resolveCredentialsWithPlatformKeys(c);
-    const resolved = await resolveConfig(providerCredentials);
-    return c.json(resolved);
+    // User BYOK only — never merge platform keys into this internal hop.
+    const userCredentials = (await resolveRequestCredentials(c)) ?? {};
+    const userId = getRequestUserId(c);
+    const client = getSupabaseAdmin(c);
+    const billing = await getBillingAccount(client, userId);
+    const isHostedPlan =
+      billing.subscription.planId === "hosted" &&
+      billing.subscription.status === "active";
+
+    const resolved = await resolveConfig(userCredentials);
+    if (!isHostedPlan) {
+      return c.json(resolved);
+    }
+    return c.json(
+      enrichResolvedConfigForHostedPlan(resolved, billing.hostedProviderIds),
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request";
     return c.json({ error: message }, 400);
@@ -111,15 +159,14 @@ configRoutes.post("/config/providers/:provider/models", requireUserId(), async (
   }
 
   try {
-    const providerCredentials = await resolveCredentialsWithPlatformKeys(c, [
-      provider,
-    ]);
-    const hasProviderKey = Boolean(
-      providerCredentials[provider.toLowerCase()]?.apiKey?.trim(),
-    );
+    // Static catalogs do not need keys. Only forward the user's own BYOK —
+    // never decrypt platform keys just to list models.
+    const userCredentials = (await resolveRequestCredentials(c)) ?? {};
+    const providerKey = provider.toLowerCase();
+    const hasUserKey = Boolean(userCredentials[providerKey]?.apiKey?.trim());
 
-    const raw = hasProviderKey
-      ? await fetchProviderModels(provider, mode, providerCredentials)
+    const raw = hasUserKey
+      ? await fetchProviderModels(provider, mode, userCredentials)
       : await fetchProviderModelsPublic(provider, mode);
     return c.json(await enrichModelsWithCreditMultipliers(c, provider, raw));
   } catch (error) {
