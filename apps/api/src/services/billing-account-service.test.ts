@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import { HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE } from "@tradingagents/api-types";
 import {
   activateScaffoldSubscription,
@@ -14,7 +15,7 @@ import {
 describe("billing-account-service", () => {
   it("activates a hosted scaffold subscription with sample usage", async () => {
     const userId = `user-hosted-${Date.now()}`;
-    const client = {} as never;
+    const client = createInMemorySupabase();
 
     await activateScaffoldSubscription(client, userId, "hosted", "monthly");
     const account = await getBillingAccount(client, userId);
@@ -32,7 +33,7 @@ describe("billing-account-service", () => {
   });
 
   it("returns empty subscription for unknown users", async () => {
-    const account = await getBillingAccount({} as never, "missing-user");
+    const account = await getBillingAccount(createInMemorySupabase(), "missing-user");
     assert.equal(account.subscription.status, "none");
     assert.equal(account.usage, null);
   });
@@ -64,9 +65,19 @@ describe("billing-account-service", () => {
         interval: "monthly",
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
-        currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
       }),
       true,
+    );
+    assert.equal(
+      userHasActiveSubscription({
+        planId: "hosted",
+        interval: "monthly",
+        status: "active",
+        currentPeriodStart: "2026-06-01T00:00:00.000Z",
+        currentPeriodEnd: "2026-07-01T00:00:00.000Z",
+      }),
+      false,
     );
   });
 });

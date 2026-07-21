@@ -16,8 +16,9 @@ interface SubscriptionGateProps {
   children: ReactNode;
 }
 
-const POLL_ATTEMPTS = 8;
-const POLL_INTERVAL_MS = 750;
+/** ~20s budget covers Stripe webhook latency and API cold starts. */
+const POLL_ATTEMPTS = 20;
+const POLL_INTERVAL_MS = 1000;
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {

@@ -35,7 +35,7 @@ describe("hasActiveSubscription", () => {
         interval: "monthly",
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
-        currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
       }),
       true,
     );
@@ -45,9 +45,19 @@ describe("hasActiveSubscription", () => {
         interval: "annual",
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
-        currentPeriodEnd: "2027-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-07-01T00:00:00.000Z",
       }),
       true,
+    );
+    assert.equal(
+      hasActiveSubscription({
+        planId: "hosted",
+        interval: "monthly",
+        status: "active",
+        currentPeriodStart: "2026-06-01T00:00:00.000Z",
+        currentPeriodEnd: "2026-07-01T00:00:00.000Z",
+      }),
+      false,
     );
   });
 });

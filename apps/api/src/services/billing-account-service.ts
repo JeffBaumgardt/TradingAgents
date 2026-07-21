@@ -22,6 +22,7 @@ import {
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import { computeCredits } from "../lib/billable-units.js";
+import { ensureUser } from "./user-service.js";
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
@@ -361,6 +362,9 @@ export async function activatePaidSubscription(
   client: AppSupabaseClient,
   input: ActivatePaidSubscriptionInput,
 ): Promise<UserSubscription> {
+  // Ensure the Clerk user row exists before the FK upsert (webhook race).
+  await ensureUser(client, input.userId);
+
   const status = input.status ?? "active";
   const row = {
     user_id: input.userId,
@@ -506,23 +510,23 @@ async function loadStoredSubscription(
   client: AppSupabaseClient,
   userId: string,
 ): Promise<UserSubscription | null> {
-  try {
-    const { data, error } = await client
-      .from("user_subscriptions")
-      .select(
-        "plan_id, interval, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id",
-      )
-      .eq("user_id", userId)
-      .maybeSingle();
+  const { data, error } = await client
+    .from("user_subscriptions")
+    .select(
+      "plan_id, interval, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id",
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
 
-    if (error || !data) {
-      return null;
-    }
+  if (error) {
+    throw new Error(`user_subscriptions read failed: ${error.message}`);
+  }
 
-    return rowToUserSubscription(data as StoredSubscriptionRow);
-  } catch {
+  if (!data) {
     return null;
   }
+
+  return rowToUserSubscription(data as StoredSubscriptionRow);
 }
 
 export async function getBillingAccount(
@@ -566,8 +570,19 @@ export function listKnownPlanIds(): BillingPlanId[] {
 
 /** True when the user may start model runs. */
 export function userHasActiveSubscription(subscription: UserSubscription): boolean {
-  return (
-    subscription.status === "active" &&
-    (subscription.planId === "byok" || subscription.planId === "hosted")
-  );
+  if (
+    subscription.status !== "active" ||
+    (subscription.planId !== "byok" && subscription.planId !== "hosted")
+  ) {
+    return false;
+  }
+
+  if (subscription.currentPeriodEnd) {
+    const periodEndMs = Date.parse(subscription.currentPeriodEnd);
+    if (Number.isFinite(periodEndMs) && periodEndMs < Date.now()) {
+      return false;
+    }
+  }
+
+  return true;
 }

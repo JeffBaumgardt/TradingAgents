@@ -139,9 +139,12 @@ export async function handleCheckoutSessionCompleted(
         currentPeriodEnd = end;
       }
     } catch (error) {
-      console.warn(
-        "[stripe-webhook] failed to retrieve subscription for period dates:",
-        error instanceof Error ? error.message : error,
+      // Fail closed so Stripe retries instead of granting access without a
+      // confirmed subscription state.
+      throw new Error(
+        `Failed to retrieve Stripe subscription ${stripeSubscriptionId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }
