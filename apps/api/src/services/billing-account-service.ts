@@ -21,7 +21,7 @@ import {
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import { computeCredits } from "../lib/billable-units.js";
-import { ensureCreditPeriod, getPlanCreditConfig } from "./credit-service.js";
+import { ensureCreditPeriod, getPlanCreditConfig, resolveMonthlyCreditWindow } from "./credit-service.js";
 import { ensureUser } from "./user-service.js";
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -604,18 +604,33 @@ export async function getBillingAccount(
         blockedLowBalance: false,
       });
     } else if (stored) {
+      const monthly = resolveMonthlyCreditWindow({
+        subscriptionPeriodStart: periodStart,
+        subscriptionPeriodEnd: periodEnd,
+      });
       const period = await ensureCreditPeriod(client, userId, {
         plan_id: "hosted",
         current_period_start: periodStart,
         current_period_end: periodEnd,
       });
-      const events = await loadUsageEventsForPeriod(client, userId, periodStart, periodEnd);
-      usage = buildUsageSummary(events, periodStart, periodEnd, false, {
-        baseAllowance: period.base_allowance,
-        rolloverCredits: period.rollover_credits,
-        usedComputeCredits: period.used_credits,
-        blockedLowBalance: period.blocked_low_balance,
-      });
+      const events = await loadUsageEventsForPeriod(
+        client,
+        userId,
+        monthly.periodStart,
+        monthly.periodEnd,
+      );
+      usage = buildUsageSummary(
+        events,
+        period.period_start,
+        period.period_end,
+        false,
+        {
+          baseAllowance: period.base_allowance,
+          rolloverCredits: period.rollover_credits,
+          usedComputeCredits: period.used_credits,
+          blockedLowBalance: period.blocked_low_balance,
+        },
+      );
     } else {
       // No stored subscription and no scaffold seed — empty live usage shell.
       const config = await getPlanCreditConfig(client, "hosted");

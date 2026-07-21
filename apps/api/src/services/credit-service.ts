@@ -79,6 +79,71 @@ function usedRatioOf(period: UserCreditPeriodRow): number {
   return Math.min(1, period.used_credits / total);
 }
 
+function utcClampedDay(year: number, monthIndex: number, day: number): Date {
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, monthIndex, Math.min(day, lastDay), 0, 0, 0, 0));
+}
+
+/**
+ * Monthly credit window independent of Stripe billing interval.
+ * Annual subscriptions still receive a fresh monthly allowance each month,
+ * anchored to the subscription period start's UTC day-of-month.
+ */
+export function resolveMonthlyCreditWindow(input: {
+  subscriptionPeriodStart: string | null | undefined;
+  subscriptionPeriodEnd: string | null | undefined;
+  now?: Date;
+}): { periodStart: string; periodEnd: string } {
+  const now = input.now ?? new Date();
+  const hasStart = Boolean(input.subscriptionPeriodStart);
+  const hasEnd = Boolean(input.subscriptionPeriodEnd);
+  const subStart = hasStart
+    ? new Date(input.subscriptionPeriodStart as string)
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const subEnd = hasEnd
+    ? new Date(input.subscriptionPeriodEnd as string)
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+  if (!Number.isFinite(subStart.getTime()) || !Number.isFinite(subEnd.getTime()) || subEnd <= subStart) {
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    return { periodStart: start.toISOString(), periodEnd: end.toISOString() };
+  }
+
+  const anchorDay = subStart.getUTCDate();
+  let windowStart = utcClampedDay(now.getUTCFullYear(), now.getUTCMonth(), anchorDay);
+  if (windowStart.getTime() > now.getTime()) {
+    windowStart = utcClampedDay(now.getUTCFullYear(), now.getUTCMonth() - 1, anchorDay);
+  }
+  let windowEnd = utcClampedDay(
+    windowStart.getUTCFullYear(),
+    windowStart.getUTCMonth() + 1,
+    anchorDay,
+  );
+
+  if (windowStart.getTime() < subStart.getTime()) {
+    windowStart = subStart;
+  }
+  if (windowEnd.getTime() > subEnd.getTime()) {
+    windowEnd = subEnd;
+  }
+  if (windowEnd.getTime() <= windowStart.getTime()) {
+    windowEnd = new Date(windowStart.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return {
+    periodStart: windowStart.toISOString(),
+    periodEnd: windowEnd.toISOString(),
+  };
+}
+
+function allowNonAtomicCreditFallback(): boolean {
+  return (
+    process.env.NODE_ENV === "test" ||
+    process.env.CREDIT_ALLOW_NON_ATOMIC_FALLBACK === "true"
+  );
+}
+
 export async function getPlanCreditConfig(
   client: AppSupabaseClient,
   planId: string,
@@ -199,9 +264,13 @@ export async function ensureCreditPeriod(
     UserSubscriptionRow,
     "plan_id" | "current_period_start" | "current_period_end"
   >,
+  now = new Date(),
 ): Promise<UserCreditPeriodRow> {
-  const periodStart = subscription.current_period_start;
-  const periodEnd = subscription.current_period_end;
+  const { periodStart, periodEnd } = resolveMonthlyCreditWindow({
+    subscriptionPeriodStart: subscription.current_period_start,
+    subscriptionPeriodEnd: subscription.current_period_end,
+    now,
+  });
 
   const { data: existing, error: loadError } = await client
     .from("user_credit_periods")
@@ -220,7 +289,7 @@ export async function ensureCreditPeriod(
   const config = await getPlanCreditConfig(client, subscription.plan_id);
   const previous = await findPreviousPeriod(client, userId, periodStart);
   const rollover = computeRolloverCredits(previous, config.max_rollover_periods);
-  const now = new Date().toISOString();
+  const createdAt = new Date().toISOString();
 
   const insertRow = {
     user_id: userId,
@@ -230,8 +299,8 @@ export async function ensureCreditPeriod(
     rollover_credits: rollover,
     used_credits: 0,
     blocked_low_balance: false,
-    created_at: now,
-    updated_at: now,
+    created_at: createdAt,
+    updated_at: createdAt,
   };
 
   const { data: inserted, error: insertError } = await client
@@ -346,15 +415,23 @@ export async function assertHostedCreditsForNewRun(
   }
 
   const blockFloor = Math.ceil(totalAllowance * blockRatio);
-  if (remaining < blockFloor || remaining < estimatedCredits) {
+  if (remaining < blockFloor) {
     await markPeriodBlocked(client, period.id);
     return {
       allowed: false,
       code: "credits_insufficient",
-      message:
-        remaining < estimatedCredits
-          ? `This run is estimated to use about ${estimatedCredits.toLocaleString()} compute credits, but you only have ${remaining.toLocaleString()} remaining. New hosted runs are blocked for the rest of this billing period.`
-          : `You have less than ${Math.round(blockRatio * 100)}% of your compute credit allowance remaining (${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()}). New hosted runs are blocked for the rest of this billing period.`,
+      message: `You have less than ${Math.round(blockRatio * 100)}% of your compute credit allowance remaining (${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()}). New hosted runs are blocked for the rest of this credit period.`,
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  if (remaining < estimatedCredits) {
+    // Reject this run only — do not latch the period closed.
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `This run is estimated to use about ${estimatedCredits.toLocaleString()} compute credits, but you only have ${remaining.toLocaleString()} remaining. Try a cheaper model or lower research depth, or wait until your allowance resets.`,
       balance,
       estimatedCredits,
     };
@@ -432,7 +509,13 @@ async function chargeCredits(
     };
   }
 
-  // Fallback for in-memory tests / environments without the SQL function.
+  if (!allowNonAtomicCreditFallback()) {
+    throw new Error(
+      `charge_user_credits RPC unavailable: ${rpcError?.message ?? "unknown error"}`,
+    );
+  }
+
+  // Test-only fallback (in-memory). Production must use the SQL function.
   const { data, error } = await client
     .from("user_credit_periods")
     .select("*")
@@ -512,8 +595,8 @@ export async function initSessionUsageCursor(
 }
 
 /**
- * Meter a cumulative stats snapshot. Charges only the token delta since the
- * last cursor so repeated SSE frames do not double-bill.
+ * Meter a cumulative stats snapshot. Prefer the atomic SQL RPC so charge,
+ * usage_event insert, and cursor advance commit together (no double-bill).
  */
 export async function meterSessionStats(
   client: AppSupabaseClient,
@@ -557,8 +640,99 @@ export async function meterSessionStats(
 
   const tokensIn = Math.max(0, Math.floor(input.tokensIn));
   const tokensOut = Math.max(0, Math.floor(input.tokensOut));
-  const deltaIn = Math.max(0, tokensIn - cursor.last_tokens_in);
-  const deltaOut = Math.max(0, tokensOut - cursor.last_tokens_out);
+  const modelId = cursor.deep_model_id || cursor.quick_model_id;
+  const multiplier = await loadMultiplier(client, cursor.provider_id, modelId);
+
+  let periodId: number | null = null;
+  let warnRatio = 0.1;
+  if (costSource === "hosted") {
+    if (!input.subscription) {
+      throw new Error("hosted metering requires an active subscription period");
+    }
+    const balance = await getCreditBalance(client, input.userId, input.subscription);
+    periodId = balance.period.id;
+    warnRatio = balance.warnRatio;
+  }
+
+  const { data: rpcData, error: rpcError } = await client.rpc("meter_session_usage", {
+    p_session_id: input.sessionId,
+    p_user_id: input.userId,
+    p_tokens_in: tokensIn,
+    p_tokens_out: tokensOut,
+    p_period_id: periodId,
+    p_credit_multiplier: multiplier,
+    p_warn_ratio: warnRatio,
+  });
+
+  if (!rpcError && Array.isArray(rpcData) && rpcData[0]) {
+    const row = rpcData[0] as {
+      charged_credits: number;
+      session_credits: number;
+      remaining_credits: number | null;
+      total_allowance: number | null;
+      used_ratio: number | null;
+      exhausted: boolean;
+      should_warn: boolean;
+      warn_message: string | null;
+      cost_source: string;
+    };
+    return {
+      chargedCredits: asNumber(row.charged_credits),
+      sessionCredits: asNumber(row.session_credits),
+      remaining: row.remaining_credits == null ? null : asNumber(row.remaining_credits),
+      totalAllowance: row.total_allowance == null ? null : asNumber(row.total_allowance),
+      usedRatio: row.used_ratio == null ? null : asNumber(row.used_ratio),
+      exhausted: Boolean(row.exhausted),
+      shouldWarn: Boolean(row.should_warn),
+      warnMessage: row.warn_message ?? undefined,
+      costSource: row.cost_source === "hosted" ? "hosted" : "self_pay",
+    };
+  }
+
+  if (!allowNonAtomicCreditFallback()) {
+    throw new Error(
+      `meter_session_usage RPC unavailable: ${rpcError?.message ?? "unknown error"}`,
+    );
+  }
+
+  // Test-only non-atomic path (in-memory without the SQL function).
+  return meterSessionStatsLegacyFallback(client, {
+    cursor,
+    costSource,
+    tokensIn,
+    tokensOut,
+    multiplier,
+    periodId,
+    warnRatio,
+    userId: input.userId,
+    sessionId: input.sessionId,
+    subscription: input.subscription,
+  });
+}
+
+/** @internal Test-only fallback when meter_session_usage RPC is absent. */
+async function meterSessionStatsLegacyFallback(
+  client: AppSupabaseClient,
+  input: {
+    cursor: SessionUsageCursorRow;
+    costSource: ProviderCostSource;
+    tokensIn: number;
+    tokensOut: number;
+    multiplier: number;
+    periodId: number | null;
+    warnRatio: number;
+    userId: string;
+    sessionId: string;
+    subscription: Pick<
+      UserSubscriptionRow,
+      "plan_id" | "current_period_start" | "current_period_end"
+    > | null;
+  },
+): Promise<MeterStatsResult> {
+  const { cursor, costSource } = input;
+  const deltaIn = Math.max(0, input.tokensIn - cursor.last_tokens_in);
+  const deltaOut = Math.max(0, input.tokensOut - cursor.last_tokens_out);
+  const modelId = cursor.deep_model_id || cursor.quick_model_id;
 
   if (deltaIn === 0 && deltaOut === 0) {
     let remaining: number | null = null;
@@ -582,13 +756,8 @@ export async function meterSessionStats(
     };
   }
 
-  // Attribute deltas to the deep model when present (higher multiplier = safer billing).
-  const modelId = cursor.deep_model_id || cursor.quick_model_id;
-  const multiplier = await loadMultiplier(client, cursor.provider_id, modelId);
   const deltaCredits =
-    costSource === "hosted"
-      ? Math.round((deltaIn + deltaOut) * multiplier)
-      : 0;
+    costSource === "hosted" ? Math.round((deltaIn + deltaOut) * input.multiplier) : 0;
 
   let remaining: number | null = null;
   let totalAllowance: number | null = null;
@@ -597,33 +766,50 @@ export async function meterSessionStats(
   let shouldWarn = false;
   let warnMessage: string | undefined;
   let chargedCredits = 0;
-  let periodId: number | null = null;
 
-  if (costSource === "hosted" && input.subscription) {
-    const balance = await getCreditBalance(client, input.userId, input.subscription);
-    periodId = balance.period.id;
-    const charge = await chargeCredits(client, periodId, deltaCredits);
+  if (costSource === "hosted" && input.periodId != null) {
+    const charge = await chargeCredits(client, input.periodId, deltaCredits);
     remaining = charge.remaining_credits;
     totalAllowance = charge.total_allowance;
     usedRatio =
       charge.total_allowance > 0
         ? Math.min(1, charge.used_credits / charge.total_allowance)
         : 1;
-    chargedCredits = charge.allowed ? deltaCredits : 0;
-    exhausted = !charge.allowed || charge.remaining_credits <= 0;
+    chargedCredits = charge.allowed
+      ? deltaCredits
+      : Math.max(0, charge.total_allowance - (charge.used_credits - 0));
+    // Soft overshoot: if not allowed, charge remaining via a second call of 0 — already rejected.
+    if (!charge.allowed) {
+      const leftover = charge.remaining_credits;
+      if (leftover > 0) {
+        const partial = await chargeCredits(client, input.periodId, leftover);
+        chargedCredits = partial.allowed ? leftover : 0;
+        remaining = partial.remaining_credits;
+        totalAllowance = partial.total_allowance;
+        usedRatio =
+          partial.total_allowance > 0
+            ? Math.min(1, partial.used_credits / partial.total_allowance)
+            : 1;
+      } else {
+        chargedCredits = 0;
+      }
+      exhausted = true;
+    } else {
+      exhausted = charge.remaining_credits <= 0;
+    }
 
     if (exhausted) {
-      await markPeriodBlocked(client, periodId);
+      await markPeriodBlocked(client, input.periodId);
     } else if (
       !cursor.low_credit_warned &&
-      charge.total_allowance > 0 &&
-      charge.remaining_credits / charge.total_allowance <= balance.warnRatio
+      totalAllowance != null &&
+      totalAllowance > 0 &&
+      remaining != null &&
+      remaining / totalAllowance <= input.warnRatio
     ) {
       shouldWarn = true;
-      warnMessage = `Compute credits are running low — ${charge.remaining_credits.toLocaleString()} of ${charge.total_allowance.toLocaleString()} remaining this period.`;
+      warnMessage = `Compute credits are running low — ${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()} remaining this period.`;
     }
-  } else {
-    chargedCredits = 0;
   }
 
   const { error: eventError } = await client.from("usage_events").insert({
@@ -635,7 +821,7 @@ export async function meterSessionStats(
     tokens_out: deltaOut,
     billable_units: costSource === "hosted" ? chargedCredits : 0,
     cost_source: costSource,
-    credit_period_id: periodId,
+    credit_period_id: input.periodId,
     created_at: new Date().toISOString(),
   });
 
@@ -647,8 +833,8 @@ export async function meterSessionStats(
   const { error: cursorUpdateError } = await client
     .from("session_usage_cursors")
     .update({
-      last_tokens_in: tokensIn,
-      last_tokens_out: tokensOut,
+      last_tokens_in: input.tokensIn,
+      last_tokens_out: input.tokensOut,
       credits_charged: nextCharged,
       low_credit_warned: cursor.low_credit_warned || shouldWarn,
       updated_at: new Date().toISOString(),

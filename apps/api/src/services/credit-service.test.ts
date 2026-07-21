@@ -67,25 +67,108 @@ describe("credit-service", () => {
       updated_at: new Date().toISOString(),
     });
 
-    await ensureCreditPeriod(client, userId, {
-      plan_id: "hosted",
-      current_period_start: "2026-06-01T00:00:00.000Z",
-      current_period_end: "2026-07-01T00:00:00.000Z",
-    });
+    const june = await ensureCreditPeriod(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: "2026-01-01T00:00:00.000Z",
+        current_period_end: "2027-01-01T00:00:00.000Z",
+      },
+      new Date("2026-06-15T12:00:00.000Z"),
+    );
+    assert.equal(june.period_start, "2026-06-01T00:00:00.000Z");
     await client
       .from("user_credit_periods")
       .update({ used_credits: 1_000_000 })
-      .eq("id", 1);
+      .eq("id", june.id);
 
-    const next = await ensureCreditPeriod(client, userId, {
-      plan_id: "hosted",
-      current_period_start: "2026-07-01T00:00:00.000Z",
-      current_period_end: "2026-08-01T00:00:00.000Z",
-    });
+    const next = await ensureCreditPeriod(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: "2026-01-01T00:00:00.000Z",
+        current_period_end: "2027-01-01T00:00:00.000Z",
+      },
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
 
+    assert.equal(next.period_start, "2026-07-01T00:00:00.000Z");
     assert.equal(next.base_allowance, 10_000_000);
     assert.equal(next.rollover_credits, 9_000_000);
     assert.equal(next.used_credits, 0);
+  });
+
+  it("uses monthly credit windows inside an annual Stripe period", async () => {
+    const { resolveMonthlyCreditWindow } = await import("./credit-service.js");
+    const window = resolveMonthlyCreditWindow({
+      subscriptionPeriodStart: "2026-01-15T00:00:00.000Z",
+      subscriptionPeriodEnd: "2027-01-15T00:00:00.000Z",
+      now: new Date("2026-07-20T12:00:00.000Z"),
+    });
+    assert.equal(window.periodStart, "2026-07-15T00:00:00.000Z");
+    assert.equal(window.periodEnd, "2026-08-15T00:00:00.000Z");
+  });
+
+  it("rejects an oversized run without latching the period closed", async () => {
+    const client = createInMemorySupabase();
+    const userId = "user-credit-estimate";
+    await client.from("users").insert({
+      id: userId,
+      email: null,
+      first_name: null,
+      last_name: null,
+      image_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const period = await ensureCreditPeriod(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: "2026-07-01T00:00:00.000Z",
+        current_period_end: "2026-08-01T00:00:00.000Z",
+      },
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
+    // Plenty of room above 3%, but not enough for a huge frontier estimate.
+    await client
+      .from("user_credit_periods")
+      .update({ used_credits: period.base_allowance - 500_000 })
+      .eq("id", period.id);
+
+    const gate = await assertHostedCreditsForNewRun(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: "2026-07-01T00:00:00.000Z",
+        current_period_end: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        ticker: "AAPL",
+        analysisDate: "2026-07-01",
+        analysts: ["market", "news", "social", "fundamentals"],
+        researchDepth: 5,
+        llmProvider: "openai",
+        quickThinkLlm: "gpt-5.4-mini",
+        deepThinkLlm: "gpt-5.5",
+        outputLanguage: "English",
+      },
+      "hosted",
+    );
+
+    assert.equal(gate.allowed, false);
+    assert.equal(gate.code, "credits_insufficient");
+    const { data } = await client
+      .from("user_credit_periods")
+      .select("blocked_low_balance")
+      .eq("id", period.id)
+      .maybeSingle();
+    assert.equal((data as { blocked_low_balance: boolean }).blocked_low_balance, false);
   });
 
   it("blocks new hosted runs below the 3% remaining threshold", async () => {
@@ -101,11 +184,16 @@ describe("credit-service", () => {
       updated_at: new Date().toISOString(),
     });
 
-    const period = await ensureCreditPeriod(client, userId, {
-      plan_id: "hosted",
-      current_period_start: "2026-07-01T00:00:00.000Z",
-      current_period_end: "2026-08-01T00:00:00.000Z",
-    });
+    const period = await ensureCreditPeriod(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: "2026-07-01T00:00:00.000Z",
+        current_period_end: "2026-08-01T00:00:00.000Z",
+      },
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
     await client
       .from("user_credit_periods")
       .update({ used_credits: period.base_allowance - 100_000 })
@@ -178,11 +266,16 @@ describe("credit-service", () => {
       updated_at: new Date().toISOString(),
     });
 
-    await ensureCreditPeriod(client, userId, {
-      plan_id: "hosted",
-      current_period_start: "2026-07-01T00:00:00.000Z",
-      current_period_end: "2026-08-01T00:00:00.000Z",
-    });
+    await ensureCreditPeriod(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: "2026-07-01T00:00:00.000Z",
+        current_period_end: "2026-08-01T00:00:00.000Z",
+      },
+      new Date("2026-07-15T12:00:00.000Z"),
+    );
     await initSessionUsageCursor(client, {
       sessionId,
       userId,

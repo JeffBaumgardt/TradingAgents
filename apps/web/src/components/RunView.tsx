@@ -52,6 +52,7 @@ import {
   subscribeToSessionStream,
   ApiClientError,
 } from "@/lib/api-client";
+import { formatComputeCredits } from "@/lib/billing-display";
 import RunSettingsPanel from "@/components/RunSettingsPanel";
 import AgentProgressCard from "@/components/AgentProgressCard";
 import ReportModal from "@/components/ReportModal";
@@ -1401,10 +1402,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           <span>Tokens in: {formatTokens(stats.tokensIn)}</span>
           <span>Tokens out: {formatTokens(stats.tokensOut)}</span>
           {stats.computeCredits != null ? (
-            <span>Credits used: {formatTokens(stats.computeCredits)}</span>
+            <span>Credits used: {formatComputeCredits(stats.computeCredits)}</span>
           ) : null}
           {stats.remainingComputeCredits != null ? (
-            <span>Credits left: {formatTokens(stats.remainingComputeCredits)}</span>
+            <span>Credits left: {formatComputeCredits(stats.remainingComputeCredits)}</span>
           ) : null}
           <span>Elapsed: {formatElapsed(stats.elapsedSeconds)}</span>
         </footer>

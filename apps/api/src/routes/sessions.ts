@@ -138,8 +138,23 @@ async function relayAgentsFrame(
       }
 
       return false;
-    } catch {
-      // Fall through to default relay if metering fails closed for hosted only below.
+    } catch (error) {
+      // Fail closed for hosted metering — do not keep spending platform keys.
+      const isHosted = Boolean(options?.subscription);
+      if (isHosted) {
+        const message = "Run stopped because credit metering failed.";
+        const hint = error instanceof Error ? error.message : "Unknown metering error";
+        if (options?.runId) {
+          try {
+            await cancelRun(options.runId, { message, hint });
+          } catch {
+            // Best-effort.
+          }
+        }
+        await relayRunError(stream, client, sessionId, message, hint);
+        return true;
+      }
+      // Self-pay: relay the raw stats frame without enrichment.
     }
   }
 

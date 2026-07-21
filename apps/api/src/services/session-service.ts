@@ -33,6 +33,7 @@ import {
 } from "./credit-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 import { resolveRunProviderCredentials } from "./platform-keys-service.js";
+import { startBackgroundRunMetering } from "./run-metering-service.js";
 
 export class SessionServiceError extends Error {
   readonly status: number;
@@ -192,14 +193,20 @@ export async function createSession(
     selectedProviderId: body.llmProvider,
   });
 
-  if (isHostedPlan && billing.subscription.currentPeriodStart && billing.subscription.currentPeriodEnd) {
+  if (isHostedPlan) {
+    // Fail closed: hosted always requires a resolvable credit window.
+    const periodStart =
+      billing.subscription.currentPeriodStart ?? new Date().toISOString();
+    const periodEnd =
+      billing.subscription.currentPeriodEnd ??
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const gate = await assertHostedCreditsForNewRun(
       client,
       userId,
       {
         plan_id: "hosted",
-        current_period_start: billing.subscription.currentPeriodStart,
-        current_period_end: billing.subscription.currentPeriodEnd,
+        current_period_start: periodStart,
+        current_period_end: periodEnd,
       },
       body,
       resolved.costSource,
@@ -259,6 +266,27 @@ export async function createSession(
   if (updateError) {
     throw new Error(updateError.message);
   }
+
+  const meterSubscription =
+    isHostedPlan
+      ? {
+          plan_id: "hosted",
+          current_period_start:
+            billing.subscription.currentPeriodStart ?? new Date().toISOString(),
+          current_period_end:
+            billing.subscription.currentPeriodEnd ??
+            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        }
+      : null;
+
+  startBackgroundRunMetering({
+    client,
+    sessionId: id,
+    runId,
+    userId,
+    subscription: meterSubscription,
+    costSource: resolved.costSource,
+  });
 
   const session = await getSession(client, id, userId);
   if (!session) {

@@ -1,8 +1,12 @@
 # Platform API keys & compute credits (manual ops)
 
-Apply migration:
+Apply migrations in order:
 
-`packages/supabase/supabase/migrations/20260722000000_credits_platform_keys.sql`
+1. `packages/supabase/supabase/migrations/20260722000000_credits_platform_keys.sql`
+2. `packages/supabase/supabase/migrations/20260722010000_hosted_providers_openai_anthropic_google_xai.sql`
+3. `packages/supabase/supabase/migrations/20260722120000_expand_hosted_model_catalog.sql` (if present)
+4. `packages/supabase/supabase/migrations/20260722130000_credit_margin_5_percent.sql` (if present)
+5. `packages/supabase/supabase/migrations/20260722140000_meter_atomic_and_hardening.sql`
 
 Do **not** paste plaintext provider keys into SQL. Keys must be stored as `enc:v1:` AES-GCM ciphertext using the same `CREDENTIALS_ENCRYPTION_KEY` as user credentials.
 
@@ -83,17 +87,19 @@ resolve are left unchanged and logged.
 
 Real-world AI apps get drained by bots and “power users” reselling inference ([Vercel on token theft](https://vercel.com/blog/protecting-against-token-theft), [WorkOS on LLM token theft](https://workos.com/blog/llm-token-theft)). Takeaways we encode here:
 
-1. **Meter on every stats frame**, not only at session start — session-only checks amortize across thousands of LLM calls.
-2. **Hard stop mid-run** when credits hit zero; keep partial output but mark the run failed.
-3. **Block the rest of the period** when remaining credits fall under ~3% of allowance (or below the estimated cost of a new run).
+1. **Meter on the server for every hosted run**, not only when a browser is watching the SSE stream — session-only / UI-only checks amortize across thousands of LLM calls.
+2. **Hard stop mid-run** when credits hit zero; keep partial output but mark the run failed. Metering errors fail closed (cancel the run).
+3. **Block the rest of the credit period** when remaining credits fall under ~3% of allowance. Rejecting a single oversized estimate does **not** latch the period.
 4. **Platform keys never leave the service role path** — RLS with no client policies; revoked from `anon`/`authenticated`; encrypted at rest; no public list API.
 5. **BYOK does not grant hosted credits** — user keys are `self_pay` (tokens tracked, credits = 0).
 6. **Provider-side spend caps** are still required (OpenAI/Anthropic/Google/xAI dashboards). App metering contains abuse through your product; provider caps contain a leaked key used directly against the vendor.
 
 ## Rollover rule
 
-Each new billing period:
+Each **monthly credit window** (independent of Stripe annual vs monthly billing):
 
 `rollover = max(0, previous.base_allowance - previous.used_credits)`
 
 Prior rollover is **not** included, so unused credits cannot accumulate across many months.
+
+Annual Stripe subscriptions still receive a fresh monthly allowance each month, anchored to the subscription period start’s UTC day-of-month.

@@ -4,7 +4,11 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getModelCreditMultiplier } from "@tradingagents/api-types";
+import {
+  creditMultiplierFromOutputUsdPer1M,
+  getHostedModelCostEntry,
+  getModelCreditMultiplier,
+} from "@tradingagents/api-types";
 import { computeCredits } from "./billable-units.js";
 
 describe("billable-units / compute credits", () => {
@@ -12,12 +16,16 @@ describe("billable-units / compute credits", () => {
     const mini = getModelCreditMultiplier("openai", "gpt-4o-mini");
     const haiku = getModelCreditMultiplier("anthropic", "claude-haiku-4-5");
     const opus = getModelCreditMultiplier("anthropic", "claude-opus-4-8");
-    assert.equal(mini, 2.1);
+    const expectedMini = creditMultiplierFromOutputUsdPer1M(
+      getHostedModelCostEntry("openai", "gpt-4o-mini")!.outputUsdPer1M,
+    );
+    assert.equal(mini, expectedMini);
     assert.ok(haiku > mini);
     assert.ok(opus > haiku);
   });
 
   it("charges hosted traffic and zeroes self-pay compute credits", () => {
+    const miniMultiplier = getModelCreditMultiplier("openai", "gpt-4o-mini");
     assert.equal(
       computeCredits({
         tokensIn: 100,
@@ -26,7 +34,7 @@ describe("billable-units / compute credits", () => {
         modelId: "gpt-4o-mini",
         costSource: "hosted",
       }),
-      420,
+      Math.round(200 * miniMultiplier),
     );
     assert.equal(
       computeCredits({

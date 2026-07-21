@@ -526,47 +526,209 @@ export function createInMemorySupabase(): AppSupabaseClient {
       };
     },
     rpc(fn: string, args?: Record<string, unknown>) {
-      if (fn !== "charge_user_credits") {
-        return Promise.resolve(err(`unknown rpc ${fn}`));
-      }
-      const periodId = Number(args?.p_period_id);
-      const credits = Number(args?.p_credits ?? 0);
-      const period = creditPeriods.get(periodId);
-      if (!period) {
-        return Promise.resolve(err("credit period not found"));
-      }
-      const total = period.base_allowance + period.rollover_credits;
-      const nextUsed = period.used_credits + credits;
-      if (credits > 0 && nextUsed > total) {
+      if (fn === "charge_user_credits") {
+        const periodId = Number(args?.p_period_id);
+        const credits = Number(args?.p_credits ?? 0);
+        const period = creditPeriods.get(periodId);
+        if (!period) {
+          return Promise.resolve(err("credit period not found"));
+        }
+        const total = period.base_allowance + period.rollover_credits;
+        const nextUsed = period.used_credits + credits;
+        if (credits > 0 && nextUsed > total) {
+          return Promise.resolve(
+            ok([
+              {
+                allowed: false,
+                used_credits: period.used_credits,
+                remaining_credits: Math.max(0, total - period.used_credits),
+                total_allowance: total,
+                blocked_low_balance: period.blocked_low_balance,
+              },
+            ]),
+          );
+        }
+        const updated = {
+          ...period,
+          used_credits: nextUsed,
+          updated_at: new Date().toISOString(),
+        };
+        creditPeriods.set(periodId, updated);
         return Promise.resolve(
           ok([
             {
-              allowed: false,
-              used_credits: period.used_credits,
-              remaining_credits: Math.max(0, total - period.used_credits),
+              allowed: true,
+              used_credits: updated.used_credits,
+              remaining_credits: Math.max(0, total - updated.used_credits),
               total_allowance: total,
-              blocked_low_balance: period.blocked_low_balance,
+              blocked_low_balance: updated.blocked_low_balance,
             },
           ]),
         );
       }
-      const updated = {
-        ...period,
-        used_credits: nextUsed,
-        updated_at: new Date().toISOString(),
-      };
-      creditPeriods.set(periodId, updated);
-      return Promise.resolve(
-        ok([
-          {
-            allowed: true,
-            used_credits: updated.used_credits,
-            remaining_credits: Math.max(0, total - updated.used_credits),
-            total_allowance: total,
-            blocked_low_balance: updated.blocked_low_balance,
-          },
-        ]),
-      );
+
+      if (fn === "meter_session_usage") {
+        const sessionId = String(args?.p_session_id ?? "");
+        const userId = String(args?.p_user_id ?? "");
+        const tokensIn = Math.max(0, Math.floor(Number(args?.p_tokens_in ?? 0)));
+        const tokensOut = Math.max(0, Math.floor(Number(args?.p_tokens_out ?? 0)));
+        const periodId =
+          args?.p_period_id == null || args.p_period_id === ""
+            ? null
+            : Number(args.p_period_id);
+        const multiplier = Math.max(0, Number(args?.p_credit_multiplier ?? 1));
+        const warnRatio = Number(args?.p_warn_ratio ?? 0.1);
+        const cursor = usageCursors.get(sessionId);
+        if (!cursor) {
+          return Promise.resolve(
+            ok([
+              {
+                charged_credits: 0,
+                session_credits: 0,
+                remaining_credits: null,
+                total_allowance: null,
+                used_ratio: null,
+                exhausted: false,
+                should_warn: false,
+                warn_message: null,
+                cost_source: "self_pay",
+                delta_tokens_in: 0,
+                delta_tokens_out: 0,
+              },
+            ]),
+          );
+        }
+        if (cursor.user_id !== userId) {
+          return Promise.resolve(err("session_usage_cursors user mismatch"));
+        }
+
+        const deltaIn = Math.max(0, tokensIn - cursor.last_tokens_in);
+        const deltaOut = Math.max(0, tokensOut - cursor.last_tokens_out);
+        const modelId = cursor.deep_model_id || cursor.quick_model_id;
+
+        if (deltaIn === 0 && deltaOut === 0) {
+          let remaining: number | null = null;
+          let total: number | null = null;
+          let usedRatio: number | null = null;
+          if (cursor.cost_source === "hosted" && periodId != null) {
+            const period = creditPeriods.get(periodId);
+            if (period) {
+              total = period.base_allowance + period.rollover_credits;
+              remaining = Math.max(0, total - period.used_credits);
+              usedRatio = total > 0 ? Math.min(1, period.used_credits / total) : 1;
+            }
+          }
+          return Promise.resolve(
+            ok([
+              {
+                charged_credits: 0,
+                session_credits: cursor.credits_charged,
+                remaining_credits: remaining,
+                total_allowance: total,
+                used_ratio: usedRatio,
+                exhausted: false,
+                should_warn: false,
+                warn_message: null,
+                cost_source: cursor.cost_source,
+                delta_tokens_in: 0,
+                delta_tokens_out: 0,
+              },
+            ]),
+          );
+        }
+
+        let charge = 0;
+        let remaining: number | null = null;
+        let total: number | null = null;
+        let usedRatio: number | null = null;
+        let exhausted = false;
+        let shouldWarn = false;
+        let warnMessage: string | null = null;
+
+        if (cursor.cost_source === "hosted") {
+          if (periodId == null) {
+            return Promise.resolve(err("hosted metering requires p_period_id"));
+          }
+          const period = creditPeriods.get(periodId);
+          if (!period) {
+            return Promise.resolve(err("credit period not found"));
+          }
+          total = period.base_allowance + period.rollover_credits;
+          const deltaCredits = Math.round((deltaIn + deltaOut) * multiplier);
+          const nextUsed = period.used_credits + deltaCredits;
+          if (deltaCredits > 0 && nextUsed > total) {
+            charge = Math.max(0, total - period.used_credits);
+            exhausted = true;
+          } else {
+            charge = deltaCredits;
+            exhausted = total - (period.used_credits + charge) <= 0;
+          }
+          const updatedPeriod = {
+            ...period,
+            used_credits: period.used_credits + charge,
+            blocked_low_balance: period.blocked_low_balance || exhausted,
+            updated_at: new Date().toISOString(),
+          };
+          creditPeriods.set(periodId, updatedPeriod);
+          total = updatedPeriod.base_allowance + updatedPeriod.rollover_credits;
+          remaining = Math.max(0, total - updatedPeriod.used_credits);
+          usedRatio = total > 0 ? Math.min(1, updatedPeriod.used_credits / total) : 1;
+          if (
+            !cursor.low_credit_warned &&
+            !exhausted &&
+            total > 0 &&
+            remaining / total <= warnRatio
+          ) {
+            shouldWarn = true;
+            warnMessage = `Compute credits are running low — ${remaining.toLocaleString()} of ${total.toLocaleString()} remaining this period.`;
+          }
+        }
+
+        const event = {
+          id: nextUsageEventId++,
+          user_id: userId,
+          session_id: sessionId,
+          provider_id: cursor.provider_id,
+          model_id: modelId,
+          tokens_in: deltaIn,
+          tokens_out: deltaOut,
+          billable_units: cursor.cost_source === "hosted" ? charge : 0,
+          cost_source: cursor.cost_source,
+          credit_period_id: periodId,
+          created_at: new Date().toISOString(),
+        };
+        usageEvents.push(event);
+
+        const updatedCursor = {
+          ...cursor,
+          last_tokens_in: tokensIn,
+          last_tokens_out: tokensOut,
+          credits_charged: cursor.credits_charged + charge,
+          low_credit_warned: cursor.low_credit_warned || shouldWarn,
+          updated_at: new Date().toISOString(),
+        };
+        usageCursors.set(sessionId, updatedCursor);
+
+        return Promise.resolve(
+          ok([
+            {
+              charged_credits: charge,
+              session_credits: updatedCursor.credits_charged,
+              remaining_credits: remaining,
+              total_allowance: total,
+              used_ratio: usedRatio,
+              exhausted,
+              should_warn: shouldWarn,
+              warn_message: warnMessage,
+              cost_source: cursor.cost_source,
+              delta_tokens_in: deltaIn,
+              delta_tokens_out: deltaOut,
+            },
+          ]),
+        );
+      }
+
+      return Promise.resolve(err(`unknown rpc ${fn}`));
     },
   } as unknown as AppSupabaseClient;
 }
