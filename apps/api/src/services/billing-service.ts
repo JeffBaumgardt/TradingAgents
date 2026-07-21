@@ -195,6 +195,7 @@ async function createManagedPaymentsCheckoutSession(
     metadata,
     subscription_data: { metadata },
     managed_payments: { enabled: true },
+    allow_promotion_codes: true,
     ...(existingCustomerId ? { customer: existingCustomerId } : {}),
   };
 
