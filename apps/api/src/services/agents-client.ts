@@ -117,7 +117,7 @@ export async function fetchConfigOptions(): Promise<ConfigOptions> {
 
 export async function fetchProviderModels(
   provider: string,
-  mode: "quick" | "deep",
+  mode: "all" | "quick" | "deep" = "all",
   providerCredentials: ProviderCredentials = {},
 ): Promise<ProviderModelsResponse> {
   return request<ProviderModelsResponse>(
@@ -126,6 +126,16 @@ export async function fetchProviderModels(
       method: "POST",
       body: JSON.stringify({ mode, providerCredentials }),
     },
+  );
+}
+
+/** Static model catalog — no user/platform credentials required. */
+export async function fetchProviderModelsPublic(
+  provider: string,
+  mode: "all" | "quick" | "deep" = "all",
+): Promise<ProviderModelsResponse> {
+  return request<ProviderModelsResponse>(
+    `/internal/config/providers/${encodeURIComponent(provider)}/models?mode=${encodeURIComponent(mode)}`,
   );
 }
 

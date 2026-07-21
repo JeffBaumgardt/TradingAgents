@@ -12,6 +12,7 @@ import type {
   BillingAccountResponse,
   ConfigOptions,
   CreateSessionRequest,
+  ModelOption,
   ProviderCostSource,
   ResearchDepth,
 } from "@tradingagents/api-types";
@@ -22,7 +23,7 @@ import {
   validateAnalysisDateForWizard,
 } from "@tradingagents/utils";
 import ProviderCostBadge from "@/components/ProviderCostBadge";
-import UpgradePlanNudge from "@/components/UpgradePlanNudge";
+import ModelPicker from "@/components/ModelPicker";
 import {
   ApiClientError,
   createSession,
@@ -31,6 +32,14 @@ import {
   fetchCredentialsSchema,
   fetchProviderModels,
 } from "@/lib/api-client";
+import {
+  creditSpendTierFromMultiplier,
+  creditSpendTierLabel,
+  estimateTypicalRunsPerMonth,
+  formatCreditMultiplier,
+  formatCreditSpendDollars,
+  formatTokenCount,
+} from "@/lib/billing-display";
 import { useUserSession } from "@/context/UserSessionContext";
 import styles from "./Wizard.module.css";
 
@@ -43,7 +52,7 @@ const STEP_TITLES: Record<number, string> = {
   4: "Select analyst agents",
   5: "Set research depth",
   6: "Choose an LLM provider",
-  7: "Configure thinking models",
+  7: "Choose a model",
   8: "Fine-tune provider settings",
 };
 
@@ -54,7 +63,7 @@ const STEP_DESCRIPTIONS: Record<number, string> = {
   4: "Each analyst focuses on a different angle — market trends, news, sentiment, or fundamentals.",
   5: "Higher depth runs more debate rounds between agents. Deeper runs take longer and use more tokens.",
   6: "Pick a provider. Your key stays on your bill; Hosted providers use platform keys and count toward your allowance.",
-  7: "Quick models handle routine steps; deep models power the final investment debate. Expensive models consume more billable units on Hosted.",
+  7: "One model powers every agent in the run. Sorted lightest → heaviest effort.",
   8: "Optional provider-specific settings that affect reasoning quality and speed.",
 };
 
@@ -66,10 +75,8 @@ interface WizardFormState {
   researchDepth: ResearchDepth;
   llmProvider: string;
   backendUrl: string | null;
-  quickThinkLlm: string;
-  deepThinkLlm: string;
-  customQuickModel: string;
-  customDeepModel: string;
+  thinkLlm: string;
+  customThinkModel: string;
   googleThinkingLevel: "high" | "minimal" | "";
   openaiReasoningEffort: "low" | "medium" | "high" | "";
   anthropicEffort: "low" | "medium" | "high" | "";
@@ -83,10 +90,8 @@ const DEFAULT_FORM: WizardFormState = {
   researchDepth: 1,
   llmProvider: "openai",
   backendUrl: null,
-  quickThinkLlm: "",
-  deepThinkLlm: "",
-  customQuickModel: "",
-  customDeepModel: "",
+  thinkLlm: "",
+  customThinkModel: "",
   googleThinkingLevel: "high",
   openaiReasoningEffort: "medium",
   anthropicEffort: "high",
@@ -125,8 +130,7 @@ export default function Wizard() {
   const [billingAccount, setBillingAccount] = useState<BillingAccountResponse | null>(null);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [billingRetryKey, setBillingRetryKey] = useState(0);
-  const [quickModels, setQuickModels] = useState<{ id: string; label: string }[]>([]);
-  const [deepModels, setDeepModels] = useState<{ id: string; label: string }[]>([]);
+  const [thinkModels, setThinkModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +251,6 @@ export default function Wizard() {
   const selectedProviderChoice = providerChoices.find(
     (provider) => provider.id === form.llmProvider,
   );
-  const lockedProviders = providerChoices.filter((provider) => !provider.selectable);
 
   useEffect(() => {
     if (!options) {
@@ -285,16 +288,21 @@ export default function Wizard() {
     async (provider: string) => {
       setLoadingModels(true);
       try {
-        const [quick, deep] = await Promise.all([
-          fetchProviderModels(provider, "quick"),
-          fetchProviderModels(provider, "deep"),
-        ]);
-        setQuickModels(quick.models);
-        setDeepModels(deep.models);
+        const response = await fetchProviderModels(provider, "all");
+        const sorted = [...response.models].sort((a, b) => {
+          const aMult = a.creditMultiplier;
+          const bMult = b.creditMultiplier;
+          const aRank = a.id === "custom" ? Number.POSITIVE_INFINITY : (aMult ?? Number.POSITIVE_INFINITY);
+          const bRank = b.id === "custom" ? Number.POSITIVE_INFINITY : (bMult ?? Number.POSITIVE_INFINITY);
+          if (aRank !== bRank) {
+            return aRank - bRank;
+          }
+          return a.label.localeCompare(b.label);
+        });
+        setThinkModels(sorted);
         setForm((prev) => ({
           ...prev,
-          quickThinkLlm: quick.models[0]?.id ?? "",
-          deepThinkLlm: deep.models[0]?.id ?? "",
+          thinkLlm: sorted[0]?.id ?? "",
         }));
       } catch (err) {
         setError(
@@ -317,23 +325,42 @@ export default function Wizard() {
     () =>
       shouldShowProviderConfigStep(
         form.llmProvider,
-        quickModels,
-        deepModels,
-        form.quickThinkLlm,
-        form.deepThinkLlm,
-        form.customQuickModel,
-        form.customDeepModel,
+        thinkModels,
+        form.thinkLlm,
+        form.customThinkModel,
       ),
-    [
-      form.llmProvider,
-      form.quickThinkLlm,
-      form.deepThinkLlm,
-      form.customQuickModel,
-      form.customDeepModel,
-      quickModels,
-      deepModels,
-    ],
+    [form.llmProvider, form.thinkLlm, form.customThinkModel, thinkModels],
   );
+
+  const selectedThinkModel = useMemo(
+    () => thinkModels.find((model) => model.id === form.thinkLlm) ?? null,
+    [form.thinkLlm, thinkModels],
+  );
+  const isHostedCost = selectedProviderChoice?.costSource === "hosted";
+  const selectedSpendHint = useMemo(() => {
+    if (!isHostedCost) {
+      return null;
+    }
+    const multiplier = selectedThinkModel?.creditMultiplier;
+    if (multiplier == null || !Number.isFinite(multiplier)) {
+      return null;
+    }
+    const tier = creditSpendTierFromMultiplier(multiplier);
+    const runs = estimateTypicalRunsPerMonth(multiplier);
+    return {
+      dollars: formatCreditSpendDollars(multiplier),
+      multiplierLabel: formatCreditMultiplier(multiplier),
+      tierLabel: creditSpendTierLabel(tier),
+      runsLabel: formatTokenCount(runs),
+      title: `${creditSpendTierLabel(tier)} spend · ${formatCreditMultiplier(multiplier)} · ~${formatTokenCount(runs)} typical Hosted analyses / month`,
+    };
+  }, [isHostedCost, selectedThinkModel]);
+  const stepDescription =
+    step === 7 && isHostedCost
+      ? "One model powers every agent. Spend guide: 💵 budget → 💵💵💵💵💵 frontier — lower spend means more Hosted analyses per month."
+      : step === 7
+        ? "One model powers every agent. Billed by your provider — this run does not use Hosted compute credits."
+        : STEP_DESCRIPTIONS[step];
   const effectiveTotalSteps = showProviderConfig ? TOTAL_STEPS : 7;
   const progressPercent = Math.round((step / effectiveTotalSteps) * 100);
 
@@ -372,10 +399,9 @@ export default function Wizard() {
       return false;
     }
     if (step === 7) {
-      const quick = resolveModelId(form.quickThinkLlm, form.customQuickModel);
-      const deep = resolveModelId(form.deepThinkLlm, form.customDeepModel);
-      if (!quick || !deep) {
-        setFieldError("Select or enter both quick and deep thinking models.");
+      const model = resolveModelId(form.thinkLlm, form.customThinkModel);
+      if (!model) {
+        setFieldError("Select or enter a model.");
         return false;
       }
     }
@@ -426,8 +452,7 @@ export default function Wizard() {
       researchDepth: form.researchDepth,
       llmProvider: form.llmProvider,
       backendUrl: form.backendUrl,
-      quickThinkLlm: resolveModelId(form.quickThinkLlm, form.customQuickModel),
-      deepThinkLlm: resolveModelId(form.deepThinkLlm, form.customDeepModel),
+      thinkLlm: resolveModelId(form.thinkLlm, form.customThinkModel),
     };
 
     if (form.llmProvider === "google" && showProviderConfig && form.googleThinkingLevel) {
@@ -500,7 +525,7 @@ export default function Wizard() {
           <h3 id="wizard-step-title" className={styles.stepTitle}>
             Step {step} of {effectiveTotalSteps}: {STEP_TITLES[step]}
           </h3>
-          <p className={styles.stepDescription}>{STEP_DESCRIPTIONS[step]}</p>
+          <p className={styles.stepDescription}>{stepDescription}</p>
         </div>
         <div className={styles.stepMeta}>
           <span className={styles.stepIndicator} aria-hidden>
@@ -714,23 +739,6 @@ export default function Wizard() {
                 </button>
               </p>
             ) : null}
-            {lockedProviders.length > 0 ? (
-              <div className={styles.lockedProviders}>
-                <p className={styles.hint}>
-                  Want a provider you do not have a key for?
-                </p>
-                <UpgradePlanNudge
-                  providerLabel={lockedProviders[0]?.label ?? "another provider"}
-                  compact
-                />
-                {isHostedPlan ? (
-                  <p className={styles.hint}>
-                    Or <a href="/settings/credentials">add your own API key</a> to run that
-                    provider as Your key (self-pay).
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         )}
 
@@ -741,67 +749,61 @@ export default function Wizard() {
                 Loading available models…
               </p>
             ) : (
-              <>
-                <div className={styles.field}>
-                  <div className={styles.fieldLabelRow}>
-                    <label htmlFor="quickModel">Quick-thinking model</label>
+              <div className={styles.field}>
+                <div className={styles.fieldLabelRow}>
+                  <label id="think-model-label" htmlFor="thinkModelList">
+                    Model
+                  </label>
+                  <div className={styles.modelMeta}>
+                    {selectedSpendHint ? (
+                      <span
+                        className={styles.multiplierChip}
+                        title={selectedSpendHint.title}
+                        aria-label={selectedSpendHint.title}
+                      >
+                        {selectedSpendHint.dollars}
+                      </span>
+                    ) : null}
                     {selectedProviderChoice?.costSource ? (
                       <ProviderCostBadge source={selectedProviderChoice.costSource} />
                     ) : null}
                   </div>
-                  <select
-                    id="quickModel"
-                    value={form.quickThinkLlm}
-                    onChange={(e) => patchForm({ quickThinkLlm: e.target.value })}
-                    aria-describedby="quick-model-hint"
-                  >
-                    {quickModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.label}
-                      </option>
-                    ))}
-                  </select>
-                  {form.quickThinkLlm === "custom" && (
-                    <input
-                      className={styles.customModelRow}
-                      placeholder="Enter model ID"
-                      value={form.customQuickModel}
-                      onChange={(e) => patchForm({ customQuickModel: e.target.value })}
-                      aria-label="Custom quick-thinking model ID"
-                    />
-                  )}
-                  <p id="quick-model-hint" className={styles.hint}>
-                    Used for faster steps like data gathering and initial summaries.
-                  </p>
                 </div>
-                <div className={styles.field}>
-                  <label htmlFor="deepModel">Deep-thinking model</label>
-                  <select
-                    id="deepModel"
-                    value={form.deepThinkLlm}
-                    onChange={(e) => patchForm({ deepThinkLlm: e.target.value })}
-                    aria-describedby="deep-model-hint"
-                  >
-                    {deepModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.label}
-                      </option>
-                    ))}
-                  </select>
-                  {form.deepThinkLlm === "custom" && (
-                    <input
-                      className={styles.customModelRow}
-                      placeholder="Enter model ID"
-                      value={form.customDeepModel}
-                      onChange={(e) => patchForm({ customDeepModel: e.target.value })}
-                      aria-label="Custom deep-thinking model ID"
-                    />
+                <ModelPicker
+                  id="thinkModelList"
+                  models={thinkModels}
+                  value={form.thinkLlm}
+                  onChange={(modelId) => patchForm({ thinkLlm: modelId })}
+                  showCreditSpend={isHostedCost}
+                  labelledBy="think-model-label"
+                  describedBy="think-model-hint"
+                />
+                {form.thinkLlm === "custom" && (
+                  <input
+                    className={styles.customModelRow}
+                    placeholder="Enter model ID"
+                    value={form.customThinkModel}
+                    onChange={(e) => patchForm({ customThinkModel: e.target.value })}
+                    aria-label="Custom model ID"
+                  />
+                )}
+                <p id="think-model-hint" className={styles.hint}>
+                  {isHostedCost ? (
+                    <>
+                      Used by every agent in this run. Spend guide: 💵 budget → 💵💵💵💵💵 frontier.
+                      {selectedSpendHint
+                        ? ` ${selectedSpendHint.dollars} (${selectedSpendHint.tierLabel}) is about ~${selectedSpendHint.runsLabel} typical Hosted analyses per month at this depth — exact burn uses ${selectedSpendHint.multiplierLabel} on real tokens.`
+                        : " Lower spend means more Hosted analyses from your monthly credit allowance."}
+                    </>
+                  ) : (
+                    <>
+                      Used by every agent in this run. With your own key, usage is billed by your
+                      provider and does not consume Hosted compute credits. Models are still sorted
+                      lightest → heaviest effort.
+                    </>
                   )}
-                  <p id="deep-model-hint" className={styles.hint}>
-                    Powers the investment debate and final trade recommendation.
-                  </p>
-                </div>
-              </>
+                </p>
+              </div>
             )}
           </>
         )}

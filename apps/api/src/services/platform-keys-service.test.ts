@@ -9,6 +9,7 @@ import { ENCRYPTED_VALUE_PREFIX } from "../lib/credentials-encryption.js";
 import { TEST_CREDENTIALS_ENCRYPTION_KEY } from "../lib/test-credentials-encryption-key.js";
 import {
   getPlatformApiKeyPlaintext,
+  mergeHostedPlatformCredentials,
   resolveRunProviderCredentials,
   upsertPlatformApiKey,
 } from "./platform-keys-service.js";
@@ -93,5 +94,30 @@ describe("platform-keys-service", () => {
     assert.equal(resolved.costSource, "hosted");
     assert.equal(resolved.usedPlatformKey, true);
     assert.equal(resolved.credentials.openai?.apiKey, "sk-platform-openai");
+  });
+
+  it("merges platform keys across hosted providers for config resolve", async () => {
+    const client = createInMemorySupabase();
+    await upsertPlatformApiKey(client, {
+      providerId: "openai",
+      apiKey: "sk-platform-openai",
+    });
+    await upsertPlatformApiKey(client, {
+      providerId: "anthropic",
+      apiKey: "sk-platform-anthropic",
+    });
+
+    const merged = await mergeHostedPlatformCredentials(
+      client,
+      { openai: { apiKey: "sk-user-openai" } },
+      {
+        isHostedPlan: true,
+        hostedProviderIds: ["openai", "anthropic", "google"],
+      },
+    );
+
+    assert.equal(merged.openai?.apiKey, "sk-user-openai");
+    assert.equal(merged.anthropic?.apiKey, "sk-platform-anthropic");
+    assert.equal(merged.google, undefined);
   });
 });

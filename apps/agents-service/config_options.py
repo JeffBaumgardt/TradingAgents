@@ -133,11 +133,11 @@ def get_provider_models(
     ):
         raise PermissionError(f"No credentials provided for provider: {provider}")
 
-    if mode not in ("quick", "deep"):
-        raise ValueError("mode must be quick or deep")
+    if mode not in ("all", "quick", "deep"):
+        raise ValueError("mode must be all, quick, or deep")
 
     creds = (provider_credentials or {}).get(provider_key, {})
-    models: list[dict[str, str]] = []
+    models: list[dict[str, Any]] = []
 
     if provider_key == "openrouter" and creds.get("apiKey"):
         live = _fetch_openrouter_models(creds["apiKey"])
@@ -155,9 +155,10 @@ def get_provider_models(
         else:
             models = [_model_entry(provider_key, "custom", "Custom deployment name")]
     else:
+        catalog_mode = mode if mode in ("quick", "deep") else "all"
         models = [
             _model_entry(provider_key, model_id, label)
-            for label, model_id in get_model_options(provider_key, mode)
+            for label, model_id in get_model_options(provider_key, catalog_mode)
         ]
 
     return {"provider": provider_key, "mode": mode, "models": models}

@@ -37,8 +37,7 @@ class TestCliSkipsPromptsFromEnv(unittest.TestCase):
 
         env = {
             "TRADINGAGENTS_LLM_PROVIDER": "openai",
-            "TRADINGAGENTS_DEEP_THINK_LLM": "kimi-k2.5",
-            "TRADINGAGENTS_QUICK_THINK_LLM": "deepseek-v4-pro",
+            "TRADINGAGENTS_THINK_LLM": "deepseek-v4-pro",
             "TRADINGAGENTS_LLM_BACKEND_URL": "https://opencode.ai/zen/go/v1",
             "TRADINGAGENTS_OUTPUT_LANGUAGE": "Japanese",
         }
@@ -46,8 +45,9 @@ class TestCliSkipsPromptsFromEnv(unittest.TestCase):
         fake_cfg.update({
             "llm_provider": "openai",
             "backend_url": "https://opencode.ai/zen/go/v1",
+            "think_llm": "deepseek-v4-pro",
             "quick_think_llm": "deepseek-v4-pro",
-            "deep_think_llm": "kimi-k2.5",
+            "deep_think_llm": "deepseek-v4-pro",
             "output_language": "Japanese",
         })
 
@@ -63,23 +63,22 @@ class TestCliSkipsPromptsFromEnv(unittest.TestCase):
              mock.patch.object(m, "ensure_api_key") as ensure_key, \
              mock.patch.object(m, "select_llm_provider") as prompt_provider, \
              mock.patch.object(m, "ask_output_language") as prompt_lang, \
-             mock.patch.object(m, "select_shallow_thinking_agent") as prompt_quick, \
-             mock.patch.object(m, "select_deep_thinking_agent") as prompt_deep:
+             mock.patch.object(m, "select_thinking_agent") as prompt_think:
             sel = m.get_user_selections()
 
         # None of the LLM selection prompts should have been shown.
         prompt_provider.assert_not_called()
         prompt_lang.assert_not_called()
-        prompt_quick.assert_not_called()
-        prompt_deep.assert_not_called()
+        prompt_think.assert_not_called()
         # API key is still verified for the env-configured provider.
         ensure_key.assert_called_once()
 
         # The env values flow into the returned selections.
         self.assertEqual(sel["llm_provider"], "openai")
         self.assertEqual(sel["backend_url"], "https://opencode.ai/zen/go/v1")
+        self.assertEqual(sel["thinker"], "deepseek-v4-pro")
         self.assertEqual(sel["shallow_thinker"], "deepseek-v4-pro")
-        self.assertEqual(sel["deep_thinker"], "kimi-k2.5")
+        self.assertEqual(sel["deep_thinker"], "deepseek-v4-pro")
         self.assertEqual(sel["output_language"], "Japanese")
 
 
@@ -107,8 +106,7 @@ class TestResearchDepthSkippedFromEnv(unittest.TestCase):
              mock.patch.object(m, "ensure_api_key"), \
              mock.patch.object(m, "select_llm_provider", return_value=("openai", None)), \
              mock.patch.object(m, "ask_output_language", return_value="English"), \
-             mock.patch.object(m, "select_shallow_thinking_agent", return_value="gpt-5.4-mini"), \
-             mock.patch.object(m, "select_deep_thinking_agent", return_value="gpt-5.5"), \
+             mock.patch.object(m, "select_thinking_agent", return_value="gpt-5.4-mini"), \
              mock.patch.object(m, "ask_openai_reasoning_effort", return_value=None):
             sel = m.get_user_selections()
 
@@ -138,8 +136,7 @@ class TestReasoningEffortSkippedFromEnv(unittest.TestCase):
              mock.patch.object(m, "ensure_api_key"), \
              mock.patch.object(m, "select_llm_provider", return_value=("openai", None)), \
              mock.patch.object(m, "ask_output_language", return_value="English"), \
-             mock.patch.object(m, "select_shallow_thinking_agent", return_value="gpt-5.4-mini"), \
-             mock.patch.object(m, "select_deep_thinking_agent", return_value="gpt-5.5"), \
+             mock.patch.object(m, "select_thinking_agent", return_value="gpt-5.4-mini"), \
              mock.patch.object(m, "ask_openai_reasoning_effort") as prompt_effort:
             sel = m.get_user_selections()
 

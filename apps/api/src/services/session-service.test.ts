@@ -38,8 +38,7 @@ async function insertSession(
       analysts: ["market"],
       researchDepth: 1,
       llmProvider: "openai",
-      quickThinkLlm: "gpt-4o-mini",
-      deepThinkLlm: "gpt-4o",
+      thinkLlm: "gpt-4o-mini",
     },
     created_at: now,
     updated_at: now,
@@ -126,8 +125,7 @@ describe("validateCreateRequest userContext", () => {
     analysts: ["market"] as ["market"],
     researchDepth: 1 as const,
     llmProvider: "openai",
-    quickThinkLlm: "gpt-4o-mini",
-    deepThinkLlm: "gpt-4o",
+    thinkLlm: "gpt-4o-mini",
   };
   const credentials = {
     openai: { apiKey: "sk-test" },
@@ -158,8 +156,7 @@ describe("validateCreateRequest hosted providers", () => {
     analysts: ["market"] as ["market"],
     researchDepth: 1 as const,
     llmProvider: "anthropic",
-    quickThinkLlm: "claude-sonnet-4",
-    deepThinkLlm: "claude-opus-4",
+    thinkLlm: "claude-sonnet-4",
   };
 
   it("rejects a provider without a stored key when hosted is not allowed", () => {

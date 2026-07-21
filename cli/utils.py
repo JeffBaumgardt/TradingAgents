@@ -313,18 +313,21 @@ def _prompt_custom_model_id() -> str:
 
 
 def _select_model(provider: str, mode: str) -> str:
-    """Select a model for the given provider and mode (quick/deep)."""
+    """Select a model for the given provider and mode (all/quick/deep)."""
     if provider.lower() == "openrouter":
-        return select_openrouter_model(mode)
+        # OpenRouter picker still uses quick/deep lists; prefer deep then quick.
+        picker_mode = "deep" if mode == "all" else mode
+        return select_openrouter_model(picker_mode)
 
     if provider.lower() == "azure":
         return _require_text(
-            f"Enter Azure deployment name ({mode}-thinking):",
+            "Enter Azure deployment name:",
             "Please enter a deployment name.",
         )
 
+    title = "LLM" if mode == "all" else f"{mode.title()}-Thinking LLM"
     choice = questionary.select(
-        f"Select Your [{mode.title()}-Thinking LLM Engine]:",
+        f"Select Your [{title} Engine]:",
         choices=[
             questionary.Choice(display, value=value)
             for display, value in get_model_options(provider, mode)
@@ -340,7 +343,7 @@ def _select_model(provider: str, mode: str) -> str:
     ).ask()
 
     if choice is None:
-        console.print(f"\n[red]No {mode} thinking llm engine selected. Exiting...[/red]")
+        console.print("\n[red]No LLM engine selected. Exiting...[/red]")
         exit(1)
 
     if choice == "custom":
@@ -350,13 +353,24 @@ def _select_model(provider: str, mode: str) -> str:
 
 
 def select_shallow_thinking_agent(provider) -> str:
-    """Select shallow thinking llm engine using an interactive selection."""
+    """Select shallow thinking llm engine using an interactive selection.
+
+    Deprecated: prefer {@link select_thinking_agent}. Kept for tests/callers.
+    """
     return _select_model(provider, "quick")
 
 
 def select_deep_thinking_agent(provider) -> str:
-    """Select deep thinking llm engine using an interactive selection."""
+    """Select deep thinking llm engine using an interactive selection.
+
+    Deprecated: prefer {@link select_thinking_agent}. Kept for tests/callers.
+    """
     return _select_model(provider, "deep")
+
+
+def select_thinking_agent(provider) -> str:
+    """Select the single LLM used for every agent in the run."""
+    return _select_model(provider, "all")
 
 def _llm_provider_table() -> list[tuple[str, str, str | None]]:
     """(display_name, provider_key, base_url) for every supported provider.

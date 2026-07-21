@@ -25,7 +25,7 @@ class ProviderCredentialsBody(BaseModel):
 
 
 class ProviderModelsBody(BaseModel):
-    mode: str = Field(..., pattern="^(quick|deep)$")
+    mode: str = Field(default="all", pattern="^(all|quick|deep)$")
     providerCredentials: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
@@ -56,7 +56,7 @@ def read_provider_models_with_credentials(provider: str, body: ProviderModelsBod
 
 
 @router.get("/providers/{provider}/models")
-def read_provider_models(provider: str, mode: str = Query(..., pattern="^(quick|deep)$")):
+def read_provider_models(provider: str, mode: str = Query("all", pattern="^(all|quick|deep)$")):
     try:
         # Public catalog used by the hosted wizard when the user has no personal key.
         return get_provider_models(provider, mode, require_credentials=False)

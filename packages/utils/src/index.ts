@@ -158,15 +158,12 @@ export function modelSupportsCapability(
   return model?.capabilities?.[capability] === true;
 }
 
-/** Whether step 9 should appear for the current provider and model picks. */
+/** Whether the provider-config step should appear for the current provider and model. */
 export function shouldShowProviderConfigStep(
   provider: string,
-  quickModels: ModelWithCapabilities[],
-  deepModels: ModelWithCapabilities[],
-  quickSelectedId: string,
-  deepSelectedId: string,
-  customQuickModel: string,
-  customDeepModel: string,
+  models: ModelWithCapabilities[],
+  selectedId: string,
+  customModel: string = "",
 ): boolean {
   const providerKey = provider.toLowerCase();
   if (!PROVIDERS_WITH_STEP9.has(providerKey)) {
@@ -174,53 +171,29 @@ export function shouldShowProviderConfigStep(
   }
 
   if (providerKey === "google") {
-    return (
-      modelSupportsCapability(
-        quickModels,
-        quickSelectedId,
-        customQuickModel,
-        "googleThinkingLevel",
-      ) ||
-      modelSupportsCapability(
-        deepModels,
-        deepSelectedId,
-        customDeepModel,
-        "googleThinkingLevel",
-      )
+    return modelSupportsCapability(
+      models,
+      selectedId,
+      customModel,
+      "googleThinkingLevel",
     );
   }
 
   if (providerKey === "openai") {
-    return (
-      modelSupportsCapability(
-        quickModels,
-        quickSelectedId,
-        customQuickModel,
-        "openaiReasoningEffort",
-      ) ||
-      modelSupportsCapability(
-        deepModels,
-        deepSelectedId,
-        customDeepModel,
-        "openaiReasoningEffort",
-      )
+    return modelSupportsCapability(
+      models,
+      selectedId,
+      customModel,
+      "openaiReasoningEffort",
     );
   }
 
   if (providerKey === "anthropic") {
-    return (
-      modelSupportsCapability(
-        quickModels,
-        quickSelectedId,
-        customQuickModel,
-        "anthropicEffort",
-      ) ||
-      modelSupportsCapability(
-        deepModels,
-        deepSelectedId,
-        customDeepModel,
-        "anthropicEffort",
-      )
+    return modelSupportsCapability(
+      models,
+      selectedId,
+      customModel,
+      "anthropicEffort",
     );
   }
 

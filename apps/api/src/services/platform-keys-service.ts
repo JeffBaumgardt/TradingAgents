@@ -41,6 +41,51 @@ export async function getPlatformApiKeyPlaintext(
 }
 
 /**
+ * Inject platform API keys for hosted-plan providers the user did not supply.
+ * User BYOK keys always win. Used by config resolve / model catalog routes.
+ */
+export async function mergeHostedPlatformCredentials(
+  client: AppSupabaseClient,
+  userCredentials: ProviderCredentials,
+  options: {
+    isHostedPlan: boolean;
+    hostedProviderIds: readonly string[];
+    /** Limit injection to these providers; defaults to all hostedProviderIds. */
+    providerIds?: readonly string[];
+  },
+): Promise<ProviderCredentials> {
+  if (!options.isHostedPlan) {
+    return userCredentials;
+  }
+
+  const hostedSet = new Set(
+    options.hostedProviderIds.map((id) => id.toLowerCase().trim()).filter(Boolean),
+  );
+  const targets = (options.providerIds ?? options.hostedProviderIds)
+    .map((id) => id.toLowerCase().trim())
+    .filter((id) => id && hostedSet.has(id));
+
+  let merged: ProviderCredentials = userCredentials;
+  for (const providerId of targets) {
+    if (merged[providerId]?.apiKey?.trim()) {
+      continue;
+    }
+    const platformKey = await getPlatformApiKeyPlaintext(client, providerId);
+    if (!platformKey) {
+      continue;
+    }
+    merged = {
+      ...merged,
+      [providerId]: {
+        ...(merged[providerId] ?? {}),
+        apiKey: platformKey,
+      },
+    };
+  }
+  return merged;
+}
+
+/**
  * Merge user BYOK credentials with platform keys for hosted providers the user
  * did not supply. User keys always win (self_pay path).
  */
@@ -86,26 +131,19 @@ export async function resolveRunProviderCredentials(
     };
   }
 
-  const platformKey = await getPlatformApiKeyPlaintext(client, selected);
-  if (!platformKey) {
-    // Fall back to process env inside agents-service if present; still hosted.
-    return {
-      credentials: userCredentials,
-      costSource: "hosted",
-      usedPlatformKey: false,
-    };
-  }
+  const credentials = await mergeHostedPlatformCredentials(client, userCredentials, {
+    isHostedPlan: true,
+    hostedProviderIds: options.hostedProviderIds,
+    providerIds: [selected],
+  });
+  const usedPlatformKey = Boolean(credentials[selected]?.apiKey?.trim());
 
   return {
-    credentials: {
-      ...userCredentials,
-      [selected]: {
-        ...(userCredentials[selected] ?? {}),
-        apiKey: platformKey,
-      },
-    },
+    credentials,
+    // Hosted plan + no user key: still hosted even if platform row is missing
+    // (agents-service may fall back to process env).
     costSource: "hosted",
-    usedPlatformKey: true,
+    usedPlatformKey,
   };
 }
 

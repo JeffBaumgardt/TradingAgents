@@ -252,8 +252,15 @@ class RunManager:
             config = DEFAULT_CONFIG.copy()
             config["max_debate_rounds"] = payload["researchDepth"]
             config["max_risk_discuss_rounds"] = payload["researchDepth"]
-            config["quick_think_llm"] = payload["quickThinkLlm"]
-            config["deep_think_llm"] = payload["deepThinkLlm"]
+            think_llm = (
+                payload.get("thinkLlm")
+                or payload.get("deepThinkLlm")
+                or payload.get("quickThinkLlm")
+            )
+            config["think_llm"] = think_llm
+            # Legacy keys kept in sync for any leftover dual-model readers.
+            config["quick_think_llm"] = think_llm
+            config["deep_think_llm"] = think_llm
             config["backend_url"] = payload.get("backendUrl")
             config["llm_provider"] = payload["llmProvider"].lower()
             config["google_thinking_level"] = payload.get("googleThinkingLevel")

@@ -8,11 +8,6 @@ export const PROVIDER_API_KEY_URLS = {
   google: "https://aistudio.google.com/apikey",
   anthropic: "https://console.anthropic.com/settings/keys",
   xai: "https://console.x.ai/team/default/api-keys",
-  deepseek: "https://platform.deepseek.com/api_keys",
-  qwen: "https://dashscope.console.aliyun.com/apiKey",
-  glm: "https://open.bigmodel.cn/usercenter/apikeys",
-  openrouter: "https://openrouter.ai/keys",
-  azure: "https://portal.azure.com/#create/Microsoft.CognitiveServicesOpenAI",
 } as const;
 
 export type ProviderApiKeyUrlId = keyof typeof PROVIDER_API_KEY_URLS;
@@ -43,18 +38,10 @@ export function resolveProviderApiKeyLink(
   return null;
 }
 
-export function getProviderApiKeyLinkLabel(providerId: string): string {
-  if (providerId === "azure") {
-    return "Set up in Azure portal";
-  }
-
+export function getProviderApiKeyLinkLabel(_providerId: string): string {
   return "Get an API key";
 }
 
-export function getProviderApiKeyLinkHint(providerId: string): string | null {
-  if (providerId === "azure") {
-    return "Create a resource, then copy the key, endpoint, and deployment name below.";
-  }
-
+export function getProviderApiKeyLinkHint(_providerId: string): string | null {
   return null;
 }

@@ -8,6 +8,7 @@
 import {
   HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   getModelCreditMultiplier,
+  resolveThinkLlm,
   type CreateSessionRequest,
   type ProviderCostSource,
 } from "@tradingagents/api-types";
@@ -376,12 +377,10 @@ export async function estimateRunCredits(
   const baseTokens = asNumber(tokensByDepth[depthKey], DEFAULT_ESTIMATED_TOKENS[depthKey] ?? 250_000);
   const analystFactor = Math.max(1, (body.analysts?.length ?? 4) / 4);
 
-  const quickMult = await loadMultiplier(client, body.llmProvider, body.quickThinkLlm);
-  const deepMult = await loadMultiplier(client, body.llmProvider, body.deepThinkLlm);
-  // Weight deep models higher — research/risk rounds dominate cost.
-  const blended = quickMult * 0.35 + deepMult * 0.65;
+  const thinkLlm = resolveThinkLlm(body);
+  const thinkMult = await loadMultiplier(client, body.llmProvider, thinkLlm);
 
-  return Math.round(baseTokens * analystFactor * blended);
+  return Math.round(baseTokens * analystFactor * thinkMult);
 }
 
 export async function assertHostedCreditsForNewRun(

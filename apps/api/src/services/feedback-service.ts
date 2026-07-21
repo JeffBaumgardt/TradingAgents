@@ -16,6 +16,7 @@ import type {
   FeedbackSource,
   Session,
 } from "@tradingagents/api-types";
+import { resolveThinkLlm } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import { ensureUser } from "./user-service.js";
 import { getSession } from "./session-service.js";
@@ -224,7 +225,7 @@ export function buildFeedbackEmailContent(input: {
       `Created: ${session.createdAt}`,
       `Updated: ${session.updatedAt}`,
       `Provider: ${session.config.llmProvider}`,
-      `Models: quick=${session.config.quickThinkLlm} deep=${session.config.deepThinkLlm}`,
+      `Models: ${resolveThinkLlm(session.config) || "(none)"}`,
       `Research depth: ${session.config.researchDepth}`,
       `Analysts: ${formatAnalysts(session)}`,
       `Language: ${session.config.outputLanguage}`,
@@ -260,7 +261,7 @@ export function buildFeedbackEmailContent(input: {
       `<li>Created: ${escapeHtml(session.createdAt)}</li>`,
       `<li>Updated: ${escapeHtml(session.updatedAt)}</li>`,
       `<li>Provider: ${escapeHtml(session.config.llmProvider)}</li>`,
-      `<li>Models: quick=${escapeHtml(session.config.quickThinkLlm)} deep=${escapeHtml(session.config.deepThinkLlm)}</li>`,
+      `<li>Model: ${escapeHtml(resolveThinkLlm(session.config) || "(none)")}</li>`,
       `<li>Research depth: ${escapeHtml(String(session.config.researchDepth))}</li>`,
       `<li>Analysts: ${escapeHtml(formatAnalysts(session))}</li>`,
       `<li>Language: ${escapeHtml(session.config.outputLanguage)}</li>`,

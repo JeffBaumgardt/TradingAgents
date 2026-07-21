@@ -80,21 +80,21 @@ class TradingAgentsGraph:
         if self.callbacks:
             llm_kwargs["callbacks"] = self.callbacks
 
-        deep_client = create_llm_client(
+        think_llm = (
+            self.config.get("think_llm")
+            or self.config.get("deep_think_llm")
+            or self.config.get("quick_think_llm")
+        )
+        llm_client = create_llm_client(
             provider=self.config["llm_provider"],
-            model=self.config["deep_think_llm"],
+            model=think_llm,
             base_url=self.config.get("backend_url"),
             **llm_kwargs,
         )
-        quick_client = create_llm_client(
-            provider=self.config["llm_provider"],
-            model=self.config["quick_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
-        )
-
-        self.deep_thinking_llm = deep_client.get_llm()
-        self.quick_thinking_llm = quick_client.get_llm()
+        self.llm = llm_client.get_llm()
+        # Legacy aliases — every agent uses the same model.
+        self.deep_thinking_llm = self.llm
+        self.quick_thinking_llm = self.llm
 
         self.memory_log = TradingMemoryLog(self.config)
 
@@ -107,8 +107,7 @@ class TradingAgentsGraph:
             max_risk_discuss_rounds=self.config["max_risk_discuss_rounds"],
         )
         self.graph_setup = GraphSetup(
-            self.quick_thinking_llm,
-            self.deep_thinking_llm,
+            self.llm,
             self.tool_nodes,
             self.conditional_logic,
         )
@@ -116,8 +115,8 @@ class TradingAgentsGraph:
         self.propagator = Propagator(
             max_recur_limit=self.config.get("max_recur_limit", 100),
         )
-        self.reflector = Reflector(self.quick_thinking_llm)
-        self.signal_processor = SignalProcessor(self.quick_thinking_llm)
+        self.reflector = Reflector(self.llm)
+        self.signal_processor = SignalProcessor(self.llm)
 
         # State tracking
         self.curr_state = None

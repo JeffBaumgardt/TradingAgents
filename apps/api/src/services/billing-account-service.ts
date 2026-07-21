@@ -29,9 +29,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic",
   google: "Google",
   xai: "xAI",
-  openrouter: "OpenRouter",
-  ollama: "Ollama",
-  deepseek: "DeepSeek",
 };
 
 /** Providers available through platform keys on the hosted plan. */

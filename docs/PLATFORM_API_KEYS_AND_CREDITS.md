@@ -36,6 +36,10 @@ Repeat for each hosted provider you support:
 
 Hosted providers are limited to OpenAI, Anthropic, Google, and xAI.
 
+Each hosted run uses a **single model** (`thinkLlm`) for every agent. Compute
+credits are `tokens × that model’s credit_multiplier` — there is no quick/deep
+blend.
+
 Verify (ciphertext only — never select expecting plaintext):
 
 ```sql

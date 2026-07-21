@@ -15,6 +15,7 @@ import type {
   SessionTradeCheckResponse,
   TradeCheckReport,
 } from "@tradingagents/api-types";
+import { resolveThinkLlm } from "@tradingagents/api-types";
 import {
   normalizeTicker,
   sanitizeUserContext,
@@ -145,8 +146,8 @@ export function validateCreateRequest(
   if (!validateResearchDepth(body.researchDepth)) {
     return "researchDepth must be 1, 3, or 5";
   }
-  if (!body.llmProvider || !body.quickThinkLlm || !body.deepThinkLlm) {
-    return "LLM provider and model selections are required";
+  if (!body.llmProvider || !resolveThinkLlm(body)) {
+    return "LLM provider and model selection are required";
   }
   const providerKey = body.llmProvider.toLowerCase();
   const hostedAllowed =
@@ -225,10 +226,12 @@ export async function createSession(
     }
   }
 
+  const thinkLlm = resolveThinkLlm(body);
   const normalized: CreateSessionRequest = {
     ...body,
     ticker: normalizeTicker(body.ticker),
     userContext: sanitizeUserContext(body.userContext),
+    thinkLlm,
     providerCredentials: resolved.credentials,
   };
 
@@ -256,8 +259,8 @@ export async function createSession(
     sessionId: id,
     userId,
     providerId: body.llmProvider,
-    quickModelId: body.quickThinkLlm,
-    deepModelId: body.deepThinkLlm,
+    quickModelId: thinkLlm,
+    deepModelId: thinkLlm,
     costSource: resolved.costSource,
   });
 
