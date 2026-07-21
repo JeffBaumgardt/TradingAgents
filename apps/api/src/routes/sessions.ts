@@ -62,6 +62,7 @@ async function relayAgentsFrame(
   dataLine: string,
   options?: {
     runId?: string | null;
+    costSource?: "hosted" | "self_pay" | null;
     subscription?: {
       plan_id: string;
       current_period_start: string;
@@ -139,9 +140,9 @@ async function relayAgentsFrame(
 
       return false;
     } catch (error) {
-      // Fail closed for hosted metering — do not keep spending platform keys.
-      const isHosted = Boolean(options?.subscription);
-      if (isHosted) {
+      // Fail closed only when this run is spending platform credits.
+      const isHostedSpend = options?.costSource === "hosted";
+      if (isHostedSpend) {
         const message = "Run stopped because credit metering failed.";
         const hint = error instanceof Error ? error.message : "Unknown metering error";
         if (options?.runId) {
@@ -369,6 +370,16 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
           }
         : null;
 
+    const { data: cursorRow } = await client
+      .from("session_usage_cursors")
+      .select("cost_source")
+      .eq("session_id", id)
+      .maybeSingle();
+    const costSource =
+      (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
+        ? ("hosted" as const)
+        : ("self_pay" as const);
+
     if (!liveOnly) {
       const stored = await sessionService.getStoredEvents(client, id);
       for (const event of stored) {
@@ -425,7 +436,8 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
     let buffer = "";
     const frameOptions = {
       runId: session.runId,
-      subscription: creditSubscription,
+      costSource,
+      subscription: costSource === "hosted" ? creditSubscription : null,
     };
 
     while (true) {

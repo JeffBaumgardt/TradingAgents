@@ -33,7 +33,7 @@ import {
 } from "./credit-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
 import { resolveRunProviderCredentials } from "./platform-keys-service.js";
-import { startBackgroundRunMetering } from "./run-metering-service.js";
+import { startBackgroundRunMetering, stopBackgroundRunMetering } from "./run-metering-service.js";
 
 export class SessionServiceError extends Error {
   readonly status: number;
@@ -194,19 +194,20 @@ export async function createSession(
   });
 
   if (isHostedPlan) {
-    // Fail closed: hosted always requires a resolvable credit window.
-    const periodStart =
-      billing.subscription.currentPeriodStart ?? new Date().toISOString();
-    const periodEnd =
-      billing.subscription.currentPeriodEnd ??
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    if (!billing.subscription.currentPeriodStart || !billing.subscription.currentPeriodEnd) {
+      throw new SessionServiceError(
+        "Your hosted subscription is missing billing period dates. Please refresh billing or contact support before starting a run.",
+        402,
+        "credits_period_missing",
+      );
+    }
     const gate = await assertHostedCreditsForNewRun(
       client,
       userId,
       {
         plan_id: "hosted",
-        current_period_start: periodStart,
-        current_period_end: periodEnd,
+        current_period_start: billing.subscription.currentPeriodStart,
+        current_period_end: billing.subscription.currentPeriodEnd,
       },
       body,
       resolved.costSource,
@@ -268,14 +269,13 @@ export async function createSession(
   }
 
   const meterSubscription =
-    isHostedPlan
+    isHostedPlan &&
+    billing.subscription.currentPeriodStart &&
+    billing.subscription.currentPeriodEnd
       ? {
           plan_id: "hosted",
-          current_period_start:
-            billing.subscription.currentPeriodStart ?? new Date().toISOString(),
-          current_period_end:
-            billing.subscription.currentPeriodEnd ??
-            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          current_period_start: billing.subscription.currentPeriodStart,
+          current_period_end: billing.subscription.currentPeriodEnd,
         }
       : null;
 
@@ -377,6 +377,7 @@ export async function cancelSession(
   }
 
   if (sessionRow.run_id && sessionRow.status === "running") {
+    stopBackgroundRunMetering(id);
     await agentsClient.cancelRun(sessionRow.run_id);
   }
 
@@ -417,6 +418,7 @@ export async function deleteSession(
 
   if (sessionRow.run_id && sessionRow.status === "running") {
     try {
+      stopBackgroundRunMetering(id);
       await agentsClient.cancelRun(sessionRow.run_id);
     } catch {
       // Best-effort cancel before removing persisted data.
