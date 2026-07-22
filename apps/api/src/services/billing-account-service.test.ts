@@ -63,6 +63,27 @@ describe("billing-account-service", () => {
     assert.equal(again.subscription.cancelAtPeriodEnd, true);
   });
 
+  it("allows past_due subscribers to schedule cancellation", async () => {
+    const client = createInMemorySupabase();
+    const userId = `user-past-due-${Date.now()}`;
+    await activatePaidSubscription(client, {
+      userId,
+      planId: "hosted",
+      interval: "monthly",
+      status: "past_due",
+      currentPeriodStart: "2026-07-01T00:00:00.000Z",
+      currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripeCheckoutSessionId: null,
+    });
+
+    const result = await cancelSubscriptionAtPeriodEnd(client, userId);
+    assert.equal(result.subscription.cancelAtPeriodEnd, true);
+    assert.equal(result.subscription.status, "past_due");
+    assert.equal(userHasActiveSubscription(result.subscription), false);
+  });
+
   it("returns empty subscription for unknown users", async () => {
     const account = await getBillingAccount(createInMemorySupabase(), "missing-user");
     assert.equal(account.subscription.status, "none");

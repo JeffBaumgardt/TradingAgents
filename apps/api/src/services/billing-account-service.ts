@@ -63,6 +63,31 @@ interface UsageEventRow {
 
 type StoredSubscriptionStatus = "active" | "past_due" | "canceled";
 
+function mapStripeStatusToStored(
+  status: string,
+): StoredSubscriptionStatus | null {
+  switch (status) {
+    case "active":
+    case "trialing":
+      return "active";
+    case "past_due":
+      return "past_due";
+    case "canceled":
+    case "unpaid":
+    case "incomplete_expired":
+    case "paused":
+      return "canceled";
+    default:
+      return null;
+  }
+}
+
+function isCancellableSubscriptionStatus(
+  status: string | undefined,
+): status is "active" | "past_due" {
+  return status === "active" || status === "past_due";
+}
+
 interface ScaffoldSubscription {
   planId: BillingPlanId;
   interval: BillingInterval;
@@ -727,7 +752,7 @@ export async function cancelSubscriptionAtPeriodEnd(
   }
 
   const status = row?.status ?? scaffold?.status;
-  if (status !== "active") {
+  if (!isCancellableSubscriptionStatus(status)) {
     throw new BillingAccountError("No active subscription to cancel", 400);
   }
 
@@ -759,6 +784,8 @@ export async function cancelSubscriptionAtPeriodEnd(
       );
     }
 
+    const mappedStatus =
+      mapStripeStatusToStored(stripeSubscription.status) ?? status;
     const item = stripeSubscription.items?.data?.[0];
     const periodStart =
       item?.current_period_start != null
@@ -769,9 +796,9 @@ export async function cancelSubscriptionAtPeriodEnd(
         ? new Date(item.current_period_end * 1000).toISOString()
         : row?.current_period_end ?? scaffold?.currentPeriodEnd ?? null;
 
-    await syncStripeSubscription(client, {
+    const syncResult = await syncStripeSubscription(client, {
       stripeSubscriptionId,
-      status: "active",
+      status: mappedStatus,
       cancelAtPeriodEnd: true,
       currentPeriodStart: periodStart,
       currentPeriodEnd: periodEnd,
@@ -780,6 +807,13 @@ export async function cancelSubscriptionAtPeriodEnd(
           ? stripeSubscription.customer
           : stripeSubscription.customer?.id ?? row?.stripe_customer_id ?? null,
     });
+
+    if (!syncResult.updated) {
+      throw new BillingAccountError(
+        `Subscription was canceled in Stripe but local sync failed (${syncResult.reason ?? "unknown"})`,
+        502,
+      );
+    }
   } else if (row) {
     // Local / scaffold subscription without a live Stripe id.
     if (isStripeConfigured() && !isBillingScaffoldEnabled()) {

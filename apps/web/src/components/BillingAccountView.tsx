@@ -36,14 +36,15 @@ export default function BillingAccountView({
 }: BillingAccountViewProps) {
   const { subscription, usage } = account;
   const plan =
-    subscription.planId && subscription.status === "active"
+    subscription.planId &&
+    (subscription.status === "active" || subscription.status === "past_due")
       ? getBillingPlan(subscription.planId)
       : null;
   const isHosted = plan?.id === "hosted";
   const canCancel =
     Boolean(onAccountChange) &&
     Boolean(plan) &&
-    subscription.status === "active" &&
+    (subscription.status === "active" || subscription.status === "past_due") &&
     !subscription.cancelAtPeriodEnd;
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -104,9 +105,11 @@ export default function BillingAccountView({
               {plan ? plan.name : "No active subscription"}
             </h2>
             <p className={styles.planMeta}>
-              {plan
-                ? `${formatUsdFromCents(plan.monthlyPriceCents)}/mo · billed ${subscription.interval ?? "monthly"}`
-                : "Start with Bring your own key for infrastructure, or Hosted models for a wide catalog."}
+              {subscription.status === "past_due" && plan
+                ? "Payment past due — update billing or cancel to stop retries."
+                : plan
+                  ? `${formatUsdFromCents(plan.monthlyPriceCents)}/mo · billed ${subscription.interval ?? "monthly"}`
+                  : "Start with Bring your own key for infrastructure, or Hosted models for a wide catalog."}
             </p>
           </div>
           <div className={styles.planActions}>

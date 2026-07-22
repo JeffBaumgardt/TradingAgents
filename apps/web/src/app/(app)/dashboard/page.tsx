@@ -24,7 +24,10 @@ async function DashboardBody() {
     <>
       <RecentSessionsPanel sessions={sessions} loadError={loadError} />
       <Suspense fallback={<RecentSessionsSkeleton />}>
-        <DashboardNewAnalysisSection hasExistingReports={sessions.length > 0} />
+        <DashboardNewAnalysisSection
+          hasExistingReports={sessions.length > 0}
+          sessionsLoadError={loadError}
+        />
       </Suspense>
     </>
   );

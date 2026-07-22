@@ -16,6 +16,9 @@ import {
 import { formatPeriodEnd } from "@/lib/billing-display";
 import styles from "./CancelSubscriptionDialog.module.css";
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 interface CancelSubscriptionDialogProps {
   open: boolean;
   periodEnd: string | null;
@@ -59,6 +62,36 @@ export default function CancelSubscriptionDialog({
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape" && !submitting) {
         onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((element) => !element.hasAttribute("disabled"));
+
+      if (focusable.length === 0) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
@@ -109,8 +142,8 @@ export default function CancelSubscriptionDialog({
         </h2>
         <div id={descriptionId} className={styles.body}>
           <p>
-            Your plan stays active until <strong>{endsLabel}</strong>. After that you
-            will not be charged again.
+            Billing stops after <strong>{endsLabel}</strong>. You will not be charged
+            again for this plan.
           </p>
           <p>
             Existing analyses and any shared links keep working. You can still read

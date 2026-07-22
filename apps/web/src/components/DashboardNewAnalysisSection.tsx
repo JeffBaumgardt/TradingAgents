@@ -19,6 +19,8 @@ import styles from "./DashboardNewAnalysisSection.module.css";
 interface DashboardNewAnalysisSectionProps {
   /** True when the user already has at least one saved analysis. */
   hasExistingReports: boolean;
+  /** True when the recent-sessions fetch failed (do not show empty-state CTA). */
+  sessionsLoadError?: boolean;
 }
 
 /** ~20s budget covers Stripe webhook latency after Checkout. */
@@ -33,6 +35,7 @@ function wait(ms: number): Promise<void> {
 
 export default function DashboardNewAnalysisSection({
   hasExistingReports,
+  sessionsLoadError = false,
 }: DashboardNewAnalysisSectionProps) {
   const searchParams = useSearchParams();
   const fromCheckout = searchParams.get("checkout") === "1";
@@ -147,6 +150,23 @@ export default function DashboardNewAnalysisSection({
         <p className={styles.copy}>
           Your past reports stay available here. Subscribe again whenever you want to run a new
           one.
+        </p>
+        <Link href="/pricing" className={styles.primaryLink} aria-label="View subscription plans">
+          View plans
+        </Link>
+      </section>
+    );
+  }
+
+  if (sessionsLoadError) {
+    return (
+      <section className={styles.notice} aria-labelledby="resubscribe-heading">
+        <h2 id="resubscribe-heading" className={styles.title}>
+          Subscribe to run analyses
+        </h2>
+        <p className={styles.copy}>
+          We could not load your recent analyses. You can still pick a plan to start a new one,
+          or refresh the page to try loading reports again.
         </p>
         <Link href="/pricing" className={styles.primaryLink} aria-label="View subscription plans">
           View plans

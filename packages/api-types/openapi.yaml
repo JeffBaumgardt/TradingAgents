@@ -179,6 +179,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid checkout payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /billing/subscription/cancel:
     post:
       tags: [billing]
@@ -186,7 +192,8 @@ paths:
       description: |
         Schedules cancellation at the end of the current billing period
         (`cancel_at_period_end`). Existing runs and shared links are kept.
-        New analyses remain available until `accessEndsAt`.
+        New analyses remain available until `accessEndsAt` when status is still
+        `active`. Past-due subscribers can also schedule cancel to stop renewals.
       operationId: cancelSubscription
       parameters:
         - $ref: "#/components/parameters/UserIdHeader"
@@ -211,12 +218,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: Stripe API failure
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Invalid checkout payload
           content:
             application/json:
               schema:
