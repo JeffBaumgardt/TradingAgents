@@ -249,7 +249,7 @@ export default function CheckoutScaffold() {
           {subscriptionActivated ? (
             <div className={styles.actions}>
               <Link
-                href="/dashboard"
+                href="/dashboard?checkout=1"
                 className={styles.primaryButton}
                 aria-label="Go to dashboard"
               >

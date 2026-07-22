@@ -7,7 +7,9 @@ import { describe, it } from "node:test";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import { HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE } from "@tradingagents/api-types";
 import {
+  activatePaidSubscription,
   activateScaffoldSubscription,
+  cancelSubscriptionAtPeriodEnd,
   getBillingAccount,
   userHasActiveSubscription,
 } from "./billing-account-service.js";
@@ -22,6 +24,7 @@ describe("billing-account-service", () => {
 
     assert.equal(account.subscription.planId, "hosted");
     assert.equal(account.subscription.status, "active");
+    assert.equal(account.subscription.cancelAtPeriodEnd, false);
     assert.ok(account.subscription.currentPeriodEnd);
     assert.ok(account.usage);
     assert.equal(account.usage?.isSample, true);
@@ -33,6 +36,31 @@ describe("billing-account-service", () => {
     assert.ok((account.usage?.selfPayTokens ?? 0) > 0);
     assert.ok((account.usage?.usedComputeCredits ?? 0) > 0);
     assert.ok((account.usage?.byModel[0]?.creditMultiplier ?? 0) > 0);
+  });
+
+  it("schedules cancel at period end for a paid subscription without calling Stripe when unset", async () => {
+    const client = createInMemorySupabase();
+    const userId = `user-cancel-${Date.now()}`;
+    await activatePaidSubscription(client, {
+      userId,
+      planId: "byok",
+      interval: "monthly",
+      status: "active",
+      currentPeriodStart: "2026-07-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripeCheckoutSessionId: null,
+    });
+
+    const result = await cancelSubscriptionAtPeriodEnd(client, userId);
+    assert.equal(result.subscription.cancelAtPeriodEnd, true);
+    assert.equal(result.subscription.status, "active");
+    assert.equal(result.accessEndsAt, "2026-08-01T00:00:00.000Z");
+    assert.equal(userHasActiveSubscription(result.subscription), true);
+
+    const again = await cancelSubscriptionAtPeriodEnd(client, userId);
+    assert.equal(again.subscription.cancelAtPeriodEnd, true);
   });
 
   it("returns empty subscription for unknown users", async () => {
@@ -49,6 +77,7 @@ describe("billing-account-service", () => {
         status: "none",
         currentPeriodStart: null,
         currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
       }),
       false,
     );
@@ -59,6 +88,7 @@ describe("billing-account-service", () => {
         status: "canceled",
         currentPeriodStart: null,
         currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
       }),
       false,
     );
@@ -69,6 +99,7 @@ describe("billing-account-service", () => {
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
         currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
       }),
       true,
     );
@@ -79,6 +110,7 @@ describe("billing-account-service", () => {
         status: "active",
         currentPeriodStart: "2026-06-01T00:00:00.000Z",
         currentPeriodEnd: "2026-07-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
       }),
       false,
     );

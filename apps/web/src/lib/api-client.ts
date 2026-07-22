@@ -5,6 +5,7 @@
 
 import type {
   BillingAccountResponse,
+  CancelSubscriptionResponse,
   CheckoutRequest,
   CheckoutResponse,
   ConfigOptions,
@@ -248,6 +249,19 @@ export async function fetchBillingAccount(): Promise<BillingAccountResponse> {
     cache: "no-store",
   });
   return parseJson<BillingAccountResponse>(response);
+}
+
+/**
+ * Schedule subscription cancellation at the end of the current billing period.
+ * Existing runs and shared links are kept.
+ */
+export async function cancelSubscription(): Promise<CancelSubscriptionResponse> {
+  const response = await fetch(`${API_BASE}/billing/subscription/cancel`, {
+    method: "POST",
+    headers: await buildUserHeaders(),
+    cache: "no-store",
+  });
+  return parseJson<CancelSubscriptionResponse>(response);
 }
 
 /**

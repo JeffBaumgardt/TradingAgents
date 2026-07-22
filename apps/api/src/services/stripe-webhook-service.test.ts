@@ -112,6 +112,7 @@ describe("stripe-webhook-service", () => {
           object: "subscription",
           status: "canceled",
           customer: "cus_abc",
+          cancel_at_period_end: false,
           metadata: { planId: "byok", interval: "monthly" },
           items: { data: [] },
         },
@@ -121,7 +122,56 @@ describe("stripe-webhook-service", () => {
     assert.equal(result.handled, true);
     const account = await getBillingAccount(client, "user_abc");
     assert.equal(account.subscription.status, "canceled");
+    assert.equal(account.subscription.cancelAtPeriodEnd, false);
     assert.equal(userHasActiveSubscription(account.subscription), false);
+  });
+
+  it("syncs cancel_at_period_end from customer.subscription.updated", async () => {
+    const client = createInMemorySupabase();
+    await activatePaidSubscription(client, {
+      userId: "user_abc",
+      planId: "byok",
+      interval: "monthly",
+      status: "active",
+      currentPeriodStart: "2026-07-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-08-01T00:00:00.000Z",
+      stripeCustomerId: "cus_abc",
+      stripeSubscriptionId: "sub_sched",
+      stripeCheckoutSessionId: "cs_test_789",
+    });
+
+    const result = await processStripeEvent(client, {
+      id: "evt_updated",
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_sched",
+          object: "subscription",
+          status: "active",
+          customer: "cus_abc",
+          cancel_at_period_end: true,
+          metadata: { planId: "byok", interval: "monthly" },
+          items: {
+            data: [
+              {
+                current_period_start: Math.floor(
+                  Date.parse("2099-07-01T00:00:00.000Z") / 1000,
+                ),
+                current_period_end: Math.floor(
+                  Date.parse("2099-08-01T00:00:00.000Z") / 1000,
+                ),
+              },
+            ],
+          },
+        },
+      },
+    } as unknown as Stripe.Event);
+
+    assert.equal(result.handled, true);
+    const account = await getBillingAccount(client, "user_abc");
+    assert.equal(account.subscription.status, "active");
+    assert.equal(account.subscription.cancelAtPeriodEnd, true);
+    assert.equal(userHasActiveSubscription(account.subscription), true);
   });
 
   it("marks a subscription past_due on invoice.payment_failed", async () => {

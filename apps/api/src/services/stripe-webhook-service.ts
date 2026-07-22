@@ -180,6 +180,10 @@ async function handleSubscriptionLifecycle(
   const { currentPeriodStart, currentPeriodEnd } =
     periodDatesFromSubscription(subscription);
 
+  // When Stripe ends the subscription, clear the scheduled-cancel flag.
+  const cancelAtPeriodEnd =
+    forceStatus === "canceled" ? false : Boolean(subscription.cancel_at_period_end);
+
   const result = await syncStripeSubscription(client, {
     stripeSubscriptionId,
     status: mapped,
@@ -188,6 +192,7 @@ async function handleSubscriptionLifecycle(
     currentPeriodStart,
     currentPeriodEnd,
     stripeCustomerId: asStringId(subscription.customer),
+    cancelAtPeriodEnd,
   });
 
   return {

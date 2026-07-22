@@ -179,6 +179,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /billing/subscription/cancel:
+    post:
+      tags: [billing]
+      summary: Cancel subscription at period end
+      description: |
+        Schedules cancellation at the end of the current billing period
+        (`cancel_at_period_end`). Existing runs and shared links are kept.
+        New analyses remain available until `accessEndsAt`.
+      operationId: cancelSubscription
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Cancellation scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelSubscriptionResponse"
+        "400":
+          description: No cancellable subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Stripe API failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Invalid checkout payload
           content:
@@ -798,6 +834,18 @@ components:
           type: array
           items:
             type: string
+    CancelSubscriptionResponse:
+      type: object
+      required: [subscription, accessEndsAt]
+      properties:
+        subscription:
+          type: object
+          additionalProperties: true
+        accessEndsAt:
+          type: string
+          nullable: true
+          format: date-time
+          description: When new-run access ends (current period end).
     AnalystType:
       type: string
       enum: [market, social, news, fundamentals]

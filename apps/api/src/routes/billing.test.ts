@@ -69,6 +69,13 @@ describe("billing routes", () => {
     assert.equal(response.status, 401);
   });
 
+  it("requires auth for subscription cancel", async () => {
+    const response = await app.request("/billing/subscription/cancel", {
+      method: "POST",
+    });
+    assert.equal(response.status, 401);
+  });
+
   it("returns 400 for invalid checkout JSON body", async () => {
     const response = await app.request("/billing/checkout", {
       method: "POST",

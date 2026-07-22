@@ -13,7 +13,7 @@ import {
   requireUserId,
 } from "../middleware/user-context.js";
 import { listHostedModelsFromDb } from "../services/model-catalog-service.js";
-import { getBillingAccount } from "../services/billing-account-service.js";
+import { getBillingAccount, cancelSubscriptionAtPeriodEnd, BillingAccountError } from "../services/billing-account-service.js";
 import {
   BillingServiceError,
   createCheckoutSession,
@@ -43,6 +43,24 @@ billingRoutes.get("/billing/account", async (c) => {
   const client = getSupabaseAdmin(c);
   const account = await getBillingAccount(client, userId);
   return c.json(account);
+});
+
+billingRoutes.use("/billing/subscription/cancel", requireUserId());
+billingRoutes.post("/billing/subscription/cancel", async (c) => {
+  const userId = getRequestUserId(c);
+  const client = getSupabaseAdmin(c);
+  try {
+    const result = await cancelSubscriptionAtPeriodEnd(client, userId);
+    return c.json(result);
+  } catch (error) {
+    if (error instanceof BillingAccountError) {
+      return c.json(
+        { error: error.message },
+        error.status as 400 | 502,
+      );
+    }
+    throw error;
+  }
 });
 
 billingRoutes.use("/billing/checkout", optionalUserId());

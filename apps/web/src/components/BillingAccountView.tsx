@@ -3,16 +3,21 @@
  * Presentational subscription + usage profile (data provided by parent).
  */
 
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import type { BillingAccountResponse } from "@tradingagents/api-types";
 import {
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,
   getBillingPlan,
 } from "@tradingagents/api-types";
+import CancelSubscriptionDialog from "@/components/CancelSubscriptionDialog";
 import HostedModelCostGuide from "@/components/HostedModelCostGuide";
 import ProviderCostBadge from "@/components/ProviderCostBadge";
 import UsageProviderTree from "@/components/UsageProviderTree";
+import { ApiClientError, cancelSubscription } from "@/lib/api-client";
 import { formatComputeCredits, formatPeriodEnd } from "@/lib/billing-display";
 import { formatUsdFromCents } from "@/lib/pricing-content";
 import styles from "./BillingPageContent.module.css";
@@ -20,11 +25,14 @@ import styles from "./BillingPageContent.module.css";
 interface BillingAccountViewProps {
   account: BillingAccountResponse;
   previewBanner?: string;
+  /** When set, cancel updates live account state after a successful API call. */
+  onAccountChange?: (account: BillingAccountResponse) => void;
 }
 
 export default function BillingAccountView({
   account,
   previewBanner,
+  onAccountChange,
 }: BillingAccountViewProps) {
   const { subscription, usage } = account;
   const plan =
@@ -32,6 +40,53 @@ export default function BillingAccountView({
       ? getBillingPlan(subscription.planId)
       : null;
   const isHosted = plan?.id === "hosted";
+  const canCancel =
+    Boolean(onAccountChange) &&
+    Boolean(plan) &&
+    subscription.status === "active" &&
+    !subscription.cancelAtPeriodEnd;
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function handleConfirmCancel() {
+    if (!onAccountChange) {
+      return;
+    }
+
+    setSubmitting(true);
+    setCancelError(null);
+    try {
+      const result = await cancelSubscription();
+      onAccountChange({
+        ...account,
+        subscription: result.subscription,
+      });
+      setConfirmOpen(false);
+    } catch (caught) {
+      setCancelError(
+        caught instanceof ApiClientError
+          ? caught.message
+          : "Could not cancel subscription. Try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleOpenCancel() {
+    setCancelError(null);
+    setConfirmOpen(true);
+  }
+
+  function handleCloseCancel() {
+    if (submitting) {
+      return;
+    }
+    setConfirmOpen(false);
+    setCancelError(null);
+  }
 
   return (
     <div className={styles.page}>
@@ -76,9 +131,26 @@ export default function BillingAccountView({
                 Start BYOK plan
               </Link>
             ) : null}
+            {canCancel ? (
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={handleOpenCancel}
+                aria-label="Cancel subscription"
+              >
+                Cancel subscription
+              </button>
+            ) : null}
           </div>
         </div>
-        {subscription.currentPeriodEnd ? (
+        {subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd ? (
+          <p className={styles.periodNote} role="status">
+            Cancellation scheduled. Access continues until{" "}
+            <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>. After
+            that you can still open existing reports; new analyses require a new
+            subscription.
+          </p>
+        ) : subscription.currentPeriodEnd ? (
           <p className={styles.periodNote}>
             Current billing period ends{" "}
             <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>
@@ -208,6 +280,17 @@ export default function BillingAccountView({
           Manage API keys
         </Link>
       </section>
+
+      <CancelSubscriptionDialog
+        open={confirmOpen}
+        periodEnd={subscription.currentPeriodEnd}
+        submitting={submitting}
+        error={cancelError}
+        onClose={handleCloseCancel}
+        onConfirm={() => {
+          void handleConfirmCancel();
+        }}
+      />
     </div>
   );
 }
