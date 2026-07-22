@@ -52,9 +52,9 @@
 
 .card,
 .cardFeatured {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.85rem;
-  align-content: start;
   border: 1px solid var(--color-border-subtle);
   border-radius: 1rem;
   background: var(--color-bg-surface);
@@ -123,6 +123,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-top: auto;
   border-radius: 999px;
   font-size: 0.95rem;
   font-weight: 600;
