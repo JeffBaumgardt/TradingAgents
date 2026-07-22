@@ -23,18 +23,23 @@ Webhooks → your endpoint → “Select events”):
 ## Cancel subscription flow
 
 In-app cancel (`POST /billing/subscription/cancel`) sets Stripe
-`cancel_at_period_end: true`. That keeps Stripe status `active` until the
-current period ends. The app:
+`cancel_at_period_end: true`. That keeps Stripe status `active` or `past_due`
+until the current period ends (it does **not** void open invoices). The app:
 
 1. Updates local `cancel_at_period_end` immediately from the API response.
-2. Relies on `customer.subscription.updated` as the durable sync signal.
+2. Relies on `customer.subscription.updated` as the durable sync signal
+   (including status + `cancel_at_period_end`).
 3. Relies on `customer.subscription.deleted` to set `status = canceled` when
    the period actually ends (no more renewals).
 
-**Access policy after cancel is scheduled:** users keep starting new analyses
-until `current_period_end`. After that, they can still open existing runs and
-shared `/run/{sessionId}` links; they cannot create new sessions until they
-subscribe again. Sessions are **not** soft-deleted on cancel.
+**Access policy after cancel is scheduled:**
+
+- `active` + within period: users keep starting new analyses until
+  `current_period_end`.
+- `past_due`: new analyses stay blocked; cancel only stops renewals.
+- After period end / `canceled`: users can still open existing runs and shared
+  `/run/{sessionId}` links; they cannot create new sessions until they
+  subscribe again. Sessions are **not** soft-deleted on cancel.
 
 ## Optional / not handled
 

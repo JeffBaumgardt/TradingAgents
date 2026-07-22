@@ -106,7 +106,7 @@ export default function BillingAccountView({
             </h2>
             <p className={styles.planMeta}>
               {subscription.status === "past_due" && plan
-                ? "Payment past due — update billing or cancel to stop retries."
+                ? "Payment past due — new analyses are paused until payment succeeds. You can still cancel to stop renewals."
                 : plan
                   ? `${formatUsdFromCents(plan.monthlyPriceCents)}/mo · billed ${subscription.interval ?? "monthly"}`
                   : "Start with Bring your own key for infrastructure, or Hosted models for a wide catalog."}
@@ -148,10 +148,21 @@ export default function BillingAccountView({
         </div>
         {subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd ? (
           <p className={styles.periodNote} role="status">
-            Cancellation scheduled. Access continues until{" "}
-            <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>. After
-            that you can still open existing reports; new analyses require a new
-            subscription.
+            {subscription.status === "active" ? (
+              <>
+                Cancellation scheduled. Access continues until{" "}
+                <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>. After
+                that you can still open existing reports; new analyses require a new
+                subscription.
+              </>
+            ) : (
+              <>
+                Cancellation scheduled. Renewals stop after{" "}
+                <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>.
+                Outstanding invoices may still be collected. Existing reports stay
+                available; new analyses require an active subscription.
+              </>
+            )}
           </p>
         ) : subscription.currentPeriodEnd ? (
           <p className={styles.periodNote}>
@@ -287,6 +298,7 @@ export default function BillingAccountView({
       <CancelSubscriptionDialog
         open={confirmOpen}
         periodEnd={subscription.currentPeriodEnd}
+        pastDue={subscription.status === "past_due"}
         submitting={submitting}
         error={cancelError}
         onClose={handleCloseCancel}

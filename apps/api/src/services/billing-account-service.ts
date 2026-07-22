@@ -810,7 +810,7 @@ export async function cancelSubscriptionAtPeriodEnd(
 
     if (!syncResult.updated) {
       throw new BillingAccountError(
-        `Subscription was canceled in Stripe but local sync failed (${syncResult.reason ?? "unknown"})`,
+        `Subscription was updated in Stripe but local sync failed (${syncResult.reason ?? "unknown"})`,
         502,
       );
     }

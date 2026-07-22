@@ -22,6 +22,7 @@ const FOCUSABLE_SELECTOR =
 interface CancelSubscriptionDialogProps {
   open: boolean;
   periodEnd: string | null;
+  pastDue?: boolean;
   submitting: boolean;
   error: string | null;
   onClose: () => void;
@@ -31,6 +32,7 @@ interface CancelSubscriptionDialogProps {
 export default function CancelSubscriptionDialog({
   open,
   periodEnd,
+  pastDue = false,
   submitting,
   error,
   onClose,
@@ -43,7 +45,9 @@ export default function CancelSubscriptionDialog({
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const previousOverflowRef = useRef<string | null>(null);
   const onCloseRef = useRef(onClose);
+  const submittingRef = useRef(submitting);
   onCloseRef.current = onClose;
+  submittingRef.current = submitting;
 
   useEffect(() => {
     if (!open) {
@@ -60,7 +64,7 @@ export default function CancelSubscriptionDialog({
     keepButtonRef.current?.focus();
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape" && !submitting) {
+      if (event.key === "Escape" && !submittingRef.current) {
         onCloseRef.current();
         return;
       }
@@ -71,9 +75,11 @@ export default function CancelSubscriptionDialog({
 
       const focusable = Array.from(
         dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      ).filter((element) => !element.hasAttribute("disabled"));
+      ).filter((element) => !(element as HTMLButtonElement).disabled);
 
       if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
         return;
       }
 
@@ -101,6 +107,14 @@ export default function CancelSubscriptionDialog({
       document.body.style.overflow = previousOverflowRef.current ?? "";
       previouslyFocusedRef.current?.focus();
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !submitting) {
+      return;
+    }
+    // Buttons disable while submitting — park focus on the dialog root.
+    dialogRef.current?.focus();
   }, [open, submitting]);
 
   if (!open) {
@@ -141,15 +155,31 @@ export default function CancelSubscriptionDialog({
           Cancel subscription?
         </h2>
         <div id={descriptionId} className={styles.body}>
-          <p>
-            Billing stops after <strong>{endsLabel}</strong>. You will not be charged
-            again for this plan.
-          </p>
-          <p>
-            Existing analyses and any shared links keep working. You can still read
-            your reports anytime — you just will not be able to start new ones unless
-            you subscribe again.
-          </p>
+          {pastDue ? (
+            <>
+              <p>
+                Canceling stops renewals after <strong>{endsLabel}</strong>. Any
+                open invoices may still be collected until they are paid or
+                settled in Stripe.
+              </p>
+              <p>
+                Existing analyses and shared links keep working. New analyses
+                stay paused until you have an active subscription again.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Your plan stays available until <strong>{endsLabel}</strong>. After
+                that you will not be renewed.
+              </p>
+              <p>
+                Existing analyses and any shared links keep working. You can still
+                read your reports anytime — you just will not be able to start new
+                ones unless you subscribe again.
+              </p>
+            </>
+          )}
         </div>
         {error ? (
           <p className={styles.error} role="alert">
