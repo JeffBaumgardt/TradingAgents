@@ -36,7 +36,7 @@ export default function CancelSubscriptionDialog({
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const keepButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const previousOverflowRef = useRef<string | null>(null);
   const onCloseRef = useRef(onClose);
@@ -53,7 +53,8 @@ export default function CancelSubscriptionDialog({
         : null;
     previousOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    confirmButtonRef.current?.focus();
+    // Focus the safe default (keep plan), not the destructive confirm.
+    keepButtonRef.current?.focus();
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape" && !submitting) {
@@ -124,6 +125,7 @@ export default function CancelSubscriptionDialog({
         ) : null}
         <div className={styles.actions}>
           <button
+            ref={keepButtonRef}
             type="button"
             className={styles.keepButton}
             onClick={onClose}
@@ -133,7 +135,6 @@ export default function CancelSubscriptionDialog({
             Keep plan
           </button>
           <button
-            ref={confirmButtonRef}
             type="button"
             className={styles.confirmButton}
             onClick={onConfirm}
