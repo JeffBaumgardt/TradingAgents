@@ -3,18 +3,22 @@
  * Server-rendered recent sessions list.
  */
 
-import { fetchSessionsServer } from "@/lib/api-server";
+import type { Session } from "@tradingagents/api-types";
 import RecentSessionItem from "@/components/RecentSessionItem";
 import styles from "./RecentSessions.module.css";
 
 const sectionStyle = { marginBottom: "2rem" } as const;
 
-export default async function RecentSessionsPanel() {
-  let sessions;
-  try {
-    const response = await fetchSessionsServer(15, 0);
-    sessions = response.items;
-  } catch {
+interface RecentSessionsPanelProps {
+  sessions: Session[];
+  loadError?: boolean;
+}
+
+export default function RecentSessionsPanel({
+  sessions,
+  loadError = false,
+}: RecentSessionsPanelProps) {
+  if (loadError) {
     return (
       <section style={sectionStyle} aria-labelledby="recent-sessions-heading">
         <h1 id="recent-sessions-heading" className="pageTitle">

@@ -14,6 +14,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
   type BillingUsageSummary,
+  type CancelSubscriptionResponse,
   type ProviderCostSource,
   type UsageModelBreakdown,
   type UsageProviderBreakdown,
@@ -21,8 +22,20 @@ import {
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import { computeCredits } from "../lib/billable-units.js";
+import { isBillingScaffoldEnabled } from "../lib/billing-scaffold.js";
+import { getStripeClient, isStripeConfigured } from "../lib/stripe.js";
 import { ensureCreditPeriod, getPlanCreditConfig, resolveMonthlyCreditWindow } from "./credit-service.js";
 import { ensureUser } from "./user-service.js";
+
+export class BillingAccountError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "BillingAccountError";
+    this.status = status;
+  }
+}
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
@@ -50,12 +63,38 @@ interface UsageEventRow {
 
 type StoredSubscriptionStatus = "active" | "past_due" | "canceled";
 
+function mapStripeStatusToStored(
+  status: string,
+): StoredSubscriptionStatus | null {
+  switch (status) {
+    case "active":
+    case "trialing":
+      return "active";
+    case "past_due":
+      return "past_due";
+    case "canceled":
+    case "unpaid":
+    case "incomplete_expired":
+    case "paused":
+      return "canceled";
+    default:
+      return null;
+  }
+}
+
+function isCancellableSubscriptionStatus(
+  status: string | undefined,
+): status is "active" | "past_due" {
+  return status === "active" || status === "past_due";
+}
+
 interface ScaffoldSubscription {
   planId: BillingPlanId;
   interval: BillingInterval;
   status: StoredSubscriptionStatus;
   currentPeriodStart: string;
   currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
 }
 
 const scaffoldSubscriptions = new Map<string, ScaffoldSubscription>();
@@ -87,6 +126,7 @@ function emptySubscription(): UserSubscription {
     status: "none",
     currentPeriodStart: null,
     currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
   };
 }
 
@@ -315,6 +355,7 @@ interface StoredSubscriptionRow {
   status: string;
   current_period_start: string;
   current_period_end: string;
+  cancel_at_period_end: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   stripe_checkout_session_id: string | null;
@@ -340,6 +381,7 @@ export interface SyncStripeSubscriptionInput {
   currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   stripeCustomerId?: string | null;
+  cancelAtPeriodEnd?: boolean | null;
 }
 
 function rowToUserSubscription(row: StoredSubscriptionRow): UserSubscription {
@@ -356,6 +398,7 @@ function rowToUserSubscription(row: StoredSubscriptionRow): UserSubscription {
     status: planId ? status : "none",
     currentPeriodStart: row.current_period_start,
     currentPeriodEnd: row.current_period_end,
+    cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
   };
 }
 
@@ -375,6 +418,7 @@ export async function activateScaffoldSubscription(
     status: "active",
     currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: false,
   };
   scaffoldSubscriptions.set(userId, subscription);
 
@@ -389,6 +433,7 @@ export async function activateScaffoldSubscription(
     status: "active",
     currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: false,
   };
 }
 
@@ -408,6 +453,7 @@ export async function activatePaidSubscription(
     status,
     current_period_start: input.currentPeriodStart,
     current_period_end: input.currentPeriodEnd,
+    cancel_at_period_end: false,
     stripe_customer_id: input.stripeCustomerId,
     stripe_subscription_id: input.stripeSubscriptionId,
     stripe_checkout_session_id: input.stripeCheckoutSessionId,
@@ -430,6 +476,7 @@ export async function activatePaidSubscription(
     status,
     currentPeriodStart: input.currentPeriodStart,
     currentPeriodEnd: input.currentPeriodEnd,
+    cancelAtPeriodEnd: false,
   });
   if (input.planId === "hosted" && status === "active" && !scaffoldUsage.has(input.userId)) {
     scaffoldUsage.set(input.userId, sampleUsageEvents());
@@ -441,6 +488,7 @@ export async function activatePaidSubscription(
     status,
     currentPeriodStart: input.currentPeriodStart,
     currentPeriodEnd: input.currentPeriodEnd,
+    cancelAtPeriodEnd: false,
   };
 }
 
@@ -455,7 +503,7 @@ export async function syncStripeSubscription(
   const { data, error: loadError } = await client
     .from("user_subscriptions")
     .select(
-      "user_id, plan_id, interval, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id",
+      "user_id, plan_id, interval, status, current_period_start, current_period_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id",
     )
     .eq("stripe_subscription_id", input.stripeSubscriptionId)
     .maybeSingle();
@@ -488,6 +536,8 @@ export async function syncStripeSubscription(
     input.currentPeriodEnd ?? existing.current_period_end;
   const stripeCustomerId =
     input.stripeCustomerId ?? existing.stripe_customer_id ?? null;
+  const cancelAtPeriodEnd =
+    input.cancelAtPeriodEnd ?? Boolean(existing.cancel_at_period_end);
 
   const { error } = await client.from("user_subscriptions").upsert(
     {
@@ -497,6 +547,7 @@ export async function syncStripeSubscription(
       status: input.status,
       current_period_start: currentPeriodStart,
       current_period_end: currentPeriodEnd,
+      cancel_at_period_end: cancelAtPeriodEnd,
       stripe_customer_id: stripeCustomerId,
       stripe_subscription_id: input.stripeSubscriptionId,
       updated_at: new Date().toISOString(),
@@ -514,6 +565,7 @@ export async function syncStripeSubscription(
     status: input.status,
     currentPeriodStart,
     currentPeriodEnd,
+    cancelAtPeriodEnd,
   });
 
   return { updated: true };
@@ -548,7 +600,7 @@ async function loadStoredSubscription(
   const { data, error } = await client
     .from("user_subscriptions")
     .select(
-      "plan_id, interval, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id",
+      "plan_id, interval, status, current_period_start, current_period_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -579,6 +631,7 @@ export async function getBillingAccount(
           status: scaffold.status,
           currentPeriodStart: scaffold.currentPeriodStart,
           currentPeriodEnd: scaffold.currentPeriodEnd,
+          cancelAtPeriodEnd: scaffold.cancelAtPeriodEnd,
         }
       : emptySubscription();
 
@@ -668,4 +721,151 @@ export function userHasActiveSubscription(subscription: UserSubscription): boole
   }
 
   return true;
+}
+
+/**
+ * Schedule cancellation at the end of the current billing period.
+ * Keeps status active until period end so paid time is honored.
+ * Does not delete sessions or invalidate shared run links.
+ */
+export async function cancelSubscriptionAtPeriodEnd(
+  client: AppSupabaseClient,
+  userId: string,
+): Promise<CancelSubscriptionResponse> {
+  const { data, error } = await client
+    .from("user_subscriptions")
+    .select(
+      "user_id, plan_id, interval, status, current_period_start, current_period_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id",
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`user_subscriptions read failed: ${error.message}`);
+  }
+
+  const scaffold = scaffoldSubscriptions.get(userId);
+  const row = data as (StoredSubscriptionRow & { user_id: string }) | null;
+
+  if (!row && !scaffold) {
+    throw new BillingAccountError("No active subscription to cancel", 400);
+  }
+
+  const status = row?.status ?? scaffold?.status;
+  if (!isCancellableSubscriptionStatus(status)) {
+    throw new BillingAccountError("No active subscription to cancel", 400);
+  }
+
+  const alreadyScheduled =
+    Boolean(row?.cancel_at_period_end) || Boolean(scaffold?.cancelAtPeriodEnd);
+  if (alreadyScheduled) {
+    const account = await getBillingAccount(client, userId);
+    return {
+      subscription: account.subscription,
+      accessEndsAt: account.subscription.currentPeriodEnd,
+    };
+  }
+
+  const stripeSubscriptionId = row?.stripe_subscription_id?.trim() || null;
+
+  if (stripeSubscriptionId && isStripeConfigured()) {
+    let stripeSubscription;
+    try {
+      stripeSubscription = await getStripeClient().subscriptions.update(
+        stripeSubscriptionId,
+        { cancel_at_period_end: true },
+      );
+    } catch (caught) {
+      throw new BillingAccountError(
+        `Stripe could not schedule cancellation: ${
+          caught instanceof Error ? caught.message : String(caught)
+        }`,
+        502,
+      );
+    }
+
+    const mappedStatus =
+      mapStripeStatusToStored(stripeSubscription.status) ?? status;
+    const item = stripeSubscription.items?.data?.[0];
+    const periodStart =
+      item?.current_period_start != null
+        ? new Date(item.current_period_start * 1000).toISOString()
+        : row?.current_period_start ?? scaffold?.currentPeriodStart ?? null;
+    const periodEnd =
+      item?.current_period_end != null
+        ? new Date(item.current_period_end * 1000).toISOString()
+        : row?.current_period_end ?? scaffold?.currentPeriodEnd ?? null;
+
+    const syncResult = await syncStripeSubscription(client, {
+      stripeSubscriptionId,
+      status: mappedStatus,
+      cancelAtPeriodEnd: true,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      stripeCustomerId:
+        typeof stripeSubscription.customer === "string"
+          ? stripeSubscription.customer
+          : stripeSubscription.customer?.id ?? row?.stripe_customer_id ?? null,
+    });
+
+    if (!syncResult.updated) {
+      throw new BillingAccountError(
+        `Subscription was updated in Stripe but local sync failed (${syncResult.reason ?? "unknown"})`,
+        502,
+      );
+    }
+  } else if (row) {
+    // Local / scaffold subscription without a live Stripe id.
+    if (isStripeConfigured() && !isBillingScaffoldEnabled()) {
+      throw new BillingAccountError(
+        "Subscription is missing a Stripe id and cannot be canceled",
+        400,
+      );
+    }
+
+    const { error: updateError } = await client.from("user_subscriptions").upsert(
+      {
+        user_id: userId,
+        plan_id: row.plan_id,
+        interval: row.interval,
+        status: row.status,
+        current_period_start: row.current_period_start,
+        current_period_end: row.current_period_end,
+        cancel_at_period_end: true,
+        stripe_customer_id: row.stripe_customer_id,
+        stripe_subscription_id: row.stripe_subscription_id,
+        stripe_checkout_session_id: row.stripe_checkout_session_id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (updateError) {
+      throw new Error(
+        `user_subscriptions cancel update failed: ${updateError.message}`,
+      );
+    }
+
+    if (isBillingPlanId(row.plan_id) && isBillingInterval(row.interval)) {
+      scaffoldSubscriptions.set(userId, {
+        planId: row.plan_id,
+        interval: row.interval,
+        status: row.status as StoredSubscriptionStatus,
+        currentPeriodStart: row.current_period_start,
+        currentPeriodEnd: row.current_period_end,
+        cancelAtPeriodEnd: true,
+      });
+    }
+  } else if (scaffold) {
+    scaffold.cancelAtPeriodEnd = true;
+    scaffoldSubscriptions.set(userId, scaffold);
+  } else {
+    throw new BillingAccountError("No active subscription to cancel", 400);
+  }
+
+  const account = await getBillingAccount(client, userId);
+  return {
+    subscription: account.subscription,
+    accessEndsAt: account.subscription.currentPeriodEnd,
+  };
 }

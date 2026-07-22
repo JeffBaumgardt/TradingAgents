@@ -32,7 +32,7 @@ export default function CheckoutSuccessContent() {
 
       <div className={styles.actions}>
         <Link
-          href="/dashboard"
+          href="/dashboard?checkout=1"
           className={styles.primaryButton}
           aria-label="Go to dashboard"
         >

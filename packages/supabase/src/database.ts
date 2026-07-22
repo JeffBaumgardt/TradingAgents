@@ -59,6 +59,7 @@ export interface UserSubscriptionRow {
   status: string;
   current_period_start: string;
   current_period_end: string;
+  cancel_at_period_end: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   stripe_checkout_session_id: string | null;

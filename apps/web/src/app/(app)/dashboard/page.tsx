@@ -1,35 +1,42 @@
 /**
  * @file apps/web/src/app/(app)/dashboard/page.tsx
- * Authenticated home — recent sessions and the analysis wizard.
+ * Authenticated home — recent sessions always; new analysis only when subscribed.
  */
 
 import { Suspense } from "react";
-import CredentialsGate from "@/components/CredentialsGate";
+import type { Session } from "@tradingagents/api-types";
+import DashboardNewAnalysisSection from "@/components/DashboardNewAnalysisSection";
 import RecentSessionsPanel from "@/components/RecentSessionsPanel";
 import RecentSessionsSkeleton from "@/components/RecentSessionsSkeleton";
-import SubscriptionGate from "@/components/SubscriptionGate";
-import Wizard from "@/components/Wizard";
+import { fetchSessionsServer } from "@/lib/api-server";
+
+async function DashboardBody() {
+  let sessions: Session[] = [];
+  let loadError = false;
+  try {
+    const response = await fetchSessionsServer(15, 0);
+    sessions = response.items;
+  } catch {
+    loadError = true;
+  }
+
+  return (
+    <>
+      <RecentSessionsPanel sessions={sessions} loadError={loadError} />
+      <Suspense fallback={<RecentSessionsSkeleton />}>
+        <DashboardNewAnalysisSection
+          hasExistingReports={sessions.length > 0}
+          sessionsLoadError={loadError}
+        />
+      </Suspense>
+    </>
+  );
+}
 
 export default function DashboardPage() {
   return (
-    <SubscriptionGate>
-      <CredentialsGate>
-        <Suspense fallback={<RecentSessionsSkeleton />}>
-          <RecentSessionsPanel />
-        </Suspense>
-
-        <section aria-labelledby="new-analysis-heading">
-          <h2 id="new-analysis-heading" className="pageTitle">
-            Start a new analysis
-          </h2>
-          <p className="muted pageIntro">
-            Walk through a short setup to choose a ticker, optional personal context, and which
-            AI agents should collaborate. When you are ready, the run page streams live progress
-            and finished reports — no refresh needed.
-          </p>
-          <Wizard />
-        </section>
-      </CredentialsGate>
-    </SubscriptionGate>
+    <Suspense fallback={<RecentSessionsSkeleton />}>
+      <DashboardBody />
+    </Suspense>
   );
 }

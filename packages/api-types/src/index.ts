@@ -509,6 +509,18 @@ export interface UserSubscription {
   status: SubscriptionStatus;
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
+  /**
+   * True when Stripe (or scaffold) has scheduled cancellation at period end.
+   * Status stays `active` until the period ends; new runs remain allowed until then.
+   */
+  cancelAtPeriodEnd: boolean;
+}
+
+/** Response from POST /billing/subscription/cancel. */
+export interface CancelSubscriptionResponse {
+  subscription: UserSubscription;
+  /** ISO timestamp when access for new runs ends (current period end). */
+  accessEndsAt: string | null;
 }
 
 export interface UsageModelBreakdown {

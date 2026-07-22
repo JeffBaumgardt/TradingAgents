@@ -62,5 +62,5 @@ export default function BillingPageContent() {
     return <p className="muted">No billing account found.</p>;
   }
 
-  return <BillingAccountView account={account} />;
+  return <BillingAccountView account={account} onAccountChange={setAccount} />;
 }

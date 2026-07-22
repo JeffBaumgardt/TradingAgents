@@ -16,6 +16,7 @@ describe("hasActiveSubscription", () => {
         status: "none",
         currentPeriodStart: null,
         currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
       }),
       false,
     );
@@ -26,6 +27,7 @@ describe("hasActiveSubscription", () => {
         status: "canceled",
         currentPeriodStart: null,
         currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
       }),
       false,
     );
@@ -36,6 +38,7 @@ describe("hasActiveSubscription", () => {
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
         currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
       }),
       true,
     );
@@ -46,6 +49,7 @@ describe("hasActiveSubscription", () => {
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
         currentPeriodEnd: "2099-07-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
       }),
       true,
     );
@@ -56,6 +60,7 @@ describe("hasActiveSubscription", () => {
         status: "active",
         currentPeriodStart: "2026-06-01T00:00:00.000Z",
         currentPeriodEnd: "2026-07-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
       }),
       false,
     );

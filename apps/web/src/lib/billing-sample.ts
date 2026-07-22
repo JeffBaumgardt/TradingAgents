@@ -101,6 +101,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       status: "active",
       currentPeriodStart: periodStart.toISOString(),
       currentPeriodEnd: periodEnd.toISOString(),
+      cancelAtPeriodEnd: false,
     },
     usage: {
       isSample: true,
