@@ -383,6 +383,87 @@ export async function estimateRunCredits(
   return Math.round(baseTokens * analystFactor * thinkMult);
 }
 
+/** Typical follow-up chat turn (~8k tokens) × model multiplier. */
+const DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE = 8_000;
+
+export async function estimateFollowUpCredits(
+  client: AppSupabaseClient,
+  input: {
+    llmProvider: string;
+    thinkLlm: string;
+    costSource: ProviderCostSource;
+  },
+): Promise<number> {
+  if (input.costSource === "self_pay") {
+    return 0;
+  }
+  const thinkMult = await loadMultiplier(client, input.llmProvider, input.thinkLlm);
+  return Math.round(DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE * thinkMult);
+}
+
+/**
+ * Gate a hosted follow-up chat turn. Uses a small turn estimate (not full-run depth).
+ */
+export async function assertHostedCreditsForFollowUp(
+  client: AppSupabaseClient,
+  userId: string,
+  subscription: Pick<
+    UserSubscriptionRow,
+    "plan_id" | "current_period_start" | "current_period_end"
+  >,
+  input: {
+    llmProvider: string;
+    thinkLlm: string;
+    costSource: ProviderCostSource;
+  },
+): Promise<CreditGateResult> {
+  if (subscription.plan_id !== "hosted" || input.costSource !== "hosted") {
+    return { allowed: true, code: "not_hosted" };
+  }
+
+  const balance = await getCreditBalance(client, userId, subscription);
+  const estimatedCredits = await estimateFollowUpCredits(client, input);
+  const inFlightReserved = await sumInFlightHostedCreditReservations(client, userId);
+  const { period, remaining, totalAllowance, blockRatio } = balance;
+  const available = Math.max(0, remaining - inFlightReserved);
+
+  if (period.blocked_low_balance) {
+    return {
+      allowed: false,
+      code: "credits_blocked",
+      message:
+        "Your hosted compute credits are too low to continue chatting this billing period. " +
+        "Usage resets at the start of your next period.",
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  const blockFloor = Math.ceil(totalAllowance * blockRatio);
+  if (remaining < blockFloor) {
+    await markPeriodBlocked(client, period.id);
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `You have less than ${Math.round(blockRatio * 100)}% of your compute credit allowance remaining (${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()}). Follow-up chat is blocked for the rest of this credit period.`,
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  if (estimatedCredits > available) {
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `Not enough compute credits for another chat turn (need ~${estimatedCredits.toLocaleString()}, ~${available.toLocaleString()} available after in-flight runs).`,
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  return { allowed: true, balance, estimatedCredits };
+}
+
 /**
  * Remaining estimate still committed to in-flight hosted runs for this user.
  * Prevents concurrent session creates from each passing the same balance gate.
@@ -686,6 +767,7 @@ export async function initSessionUsageCursor(
     quickModelId: string;
     deepModelId: string;
     costSource: ProviderCostSource;
+    usageKind?: "analysis_run" | "follow_up";
   },
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -697,6 +779,7 @@ export async function initSessionUsageCursor(
       quick_model_id: input.quickModelId,
       deep_model_id: input.deepModelId,
       cost_source: input.costSource,
+      usage_kind: input.usageKind ?? "analysis_run",
       last_tokens_in: 0,
       last_tokens_out: 0,
       credits_charged: 0,
@@ -942,6 +1025,7 @@ async function meterSessionStatsLegacyFallback(
     tokens_out: deltaOut,
     billable_units: costSource === "hosted" ? chargedCredits : 0,
     cost_source: costSource,
+    usage_kind: cursor.usage_kind ?? "analysis_run",
     credit_period_id: input.periodId,
     created_at: new Date().toISOString(),
   });

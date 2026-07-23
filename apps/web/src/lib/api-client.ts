@@ -14,10 +14,13 @@ import type {
   FeedbackRequest,
   FeedbackResponse,
   ModelMode,
+  PostChatMessageRequest,
+  PostChatMessageResponse,
   ProviderCredentials,
   ProviderModelsResponse,
   ResolvedConfigResponse,
   Session,
+  SessionChatResponse,
   SessionEventsResponse,
   SessionListResponse,
   SessionReport,
@@ -389,11 +392,17 @@ const SSE_EVENT_TYPES: SseEventType[] = [
   "agent.status",
   "message",
   "tool.call",
+  "thinking",
   "report.section",
   "stats",
+  "credit.warning",
+  "credit.exhausted",
   "trade.check",
   "run.completed",
   "run.error",
+  "chat.started",
+  "chat.completed",
+  "chat.error",
 ];
 
 function buildStreamUrl(sessionId: string, liveOnly: boolean): string {
@@ -602,3 +611,99 @@ export function subscribeToSessionStream(
 }
 
 export { API_BASE };
+
+/** Fetch follow-up chat transcript (public for share links). */
+export async function fetchSessionChat(sessionId: string): Promise<SessionChatResponse> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/chat`,
+    {
+      headers: await buildAuthHeaders(),
+      cache: "no-store",
+    },
+  );
+  return parseJson<SessionChatResponse>(response);
+}
+
+/** Owner: post a follow-up message to the Portfolio Manager. */
+export async function postSessionChatMessage(
+  sessionId: string,
+  body: PostChatMessageRequest,
+): Promise<PostChatMessageResponse> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/chat/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await buildUserHeaders()),
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+  );
+  return parseJson<PostChatMessageResponse>(response);
+}
+
+export interface ChatStreamCallbacks {
+  onEvent: <T extends SseEventType>(event: T, data: SseEventMap[T]) => void;
+  onOpen?: () => void;
+  onStreamEnd?: () => void;
+  onError?: (error: Error) => void;
+}
+
+/** Subscribe to a follow-up chat turn SSE (owner only; proxied for auth). */
+export function subscribeToChatStream(
+  sessionId: string,
+  turnId: string,
+  callbacks: ChatStreamCallbacks,
+): () => void {
+  let eventSource: EventSource | null = null;
+  let closed = false;
+  let terminal = false;
+
+  const url = `/api/sessions/${encodeURIComponent(sessionId)}/chat/stream?turnId=${encodeURIComponent(turnId)}`;
+  eventSource = new EventSource(url);
+
+  eventSource.onopen = () => {
+    callbacks.onOpen?.();
+  };
+
+  for (const eventType of SSE_EVENT_TYPES) {
+    eventSource.addEventListener(eventType, (event: MessageEvent<string>) => {
+      if (closed) {
+        return;
+      }
+      try {
+        const data = JSON.parse(event.data) as SseEventMap[typeof eventType];
+        callbacks.onEvent(eventType, data);
+        if (eventType === "chat.completed" || eventType === "chat.error") {
+          terminal = true;
+          eventSource?.close();
+          callbacks.onStreamEnd?.();
+        }
+      } catch (error) {
+        callbacks.onError?.(
+          error instanceof Error ? error : new Error("Failed to parse chat stream event"),
+        );
+      }
+    });
+  }
+
+  eventSource.onerror = () => {
+    if (closed || terminal) {
+      return;
+    }
+    callbacks.onError?.(new Error("Chat stream connection error"));
+  };
+
+  return () => {
+    closed = true;
+    eventSource?.close();
+    eventSource = null;
+  };
+}
+
+/** Absolute URL for downloading the full research + chat markdown export. */
+export function getSessionExportMarkdownUrl(sessionId: string): string {
+  return `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/export.md`;
+}

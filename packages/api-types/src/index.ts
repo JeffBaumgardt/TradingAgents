@@ -47,13 +47,114 @@ export type SseEventType =
   | "agent.status"
   | "message"
   | "tool.call"
+  | "thinking"
   | "report.section"
   | "stats"
   | "credit.warning"
   | "credit.exhausted"
   | "trade.check"
   | "run.completed"
-  | "run.error";
+  | "run.error"
+  | "chat.started"
+  | "chat.completed"
+  | "chat.error";
+
+/** Follow-up Portfolio Manager chat (post-analysis). */
+export type ChatMessageRole = "user" | "assistant" | "system";
+
+export type ChatMessageStatus =
+  | "pending"
+  | "streaming"
+  | "completed"
+  | "error"
+  | "cancelled";
+
+export type ChatMessagePartType =
+  | "text"
+  | "thinking"
+  | "tool_call"
+  | "tool_result"
+  | "image"
+  | "html";
+
+export interface ChatMessagePart {
+  type: ChatMessagePartType;
+  /** Markdown / plain text / HTML source depending on type. */
+  content?: string;
+  toolName?: string;
+  args?: Record<string, unknown>;
+  /** Image URL or data URI for chart/PNG outputs. */
+  src?: string;
+  alt?: string;
+  /** True when HTML was sanitized server-side before persist. */
+  sanitized?: boolean;
+}
+
+export interface SessionChatMessage {
+  id: string;
+  sessionId: string;
+  role: ChatMessageRole;
+  status: ChatMessageStatus;
+  contentMarkdown: string;
+  parts: ChatMessagePart[];
+  decisionExcerpt: string | null;
+  tokensIn: number;
+  tokensOut: number;
+  creditsCharged: number;
+  turnId: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SessionChatResponse {
+  messages: SessionChatMessage[];
+  /** Owner may compose; viewers always false. */
+  canChat: boolean;
+  /** Why chat is disabled when canChat is false (owner-facing). */
+  chatBlockedReason?:
+    | "not_owner"
+    | "subscription_required"
+    | "session_not_completed"
+    | "credits_blocked"
+    | null;
+}
+
+export interface PostChatMessageRequest {
+  content: string;
+}
+
+export interface PostChatMessageResponse {
+  userMessage: SessionChatMessage;
+  assistantMessage: SessionChatMessage;
+  turnId: string;
+}
+
+export interface StreamThinkingEvent {
+  content: string;
+  timestamp: string;
+}
+
+export interface ChatStartedEvent {
+  turnId: string;
+  sessionId: string;
+  assistantMessageId: string;
+}
+
+export interface ChatCompletedEvent {
+  turnId: string;
+  sessionId: string;
+  assistantMessageId: string;
+  decisionExcerpt?: string | null;
+}
+
+export interface ChatErrorEvent {
+  turnId: string;
+  sessionId: string;
+  assistantMessageId?: string;
+  message: string;
+  hint?: string;
+}
 
 export interface ConfigOption {
   value: string;
@@ -689,6 +790,7 @@ export interface SseEventMap {
   "agent.status": AgentStatusEvent;
   message: StreamMessageEvent;
   "tool.call": StreamToolCallEvent;
+  thinking: StreamThinkingEvent;
   "report.section": StreamReportSectionEvent;
   stats: StreamStatsEvent;
   "credit.warning": CreditWarningEvent;
@@ -696,6 +798,9 @@ export interface SseEventMap {
   "trade.check": TradeCheckEvent;
   "run.completed": RunCompletedEvent;
   "run.error": RunErrorEvent;
+  "chat.started": ChatStartedEvent;
+  "chat.completed": ChatCompletedEvent;
+  "chat.error": ChatErrorEvent;
 }
 
 /** Human-readable titles for report sections (mirrors CLI). */

@@ -4,6 +4,7 @@ export type {
   ModelCreditMultiplierRow,
   PlanCreditConfigRow,
   PlatformApiKeyRow,
+  SessionChatMessageRow,
   SessionRow,
   SessionUsageCursorRow,
   UsageEventRow,

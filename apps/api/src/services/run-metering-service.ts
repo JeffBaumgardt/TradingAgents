@@ -1,12 +1,18 @@
 /**
  * apps/api/src/services/run-metering-service.ts
  *
- * Server-side metering consumer for hosted runs. Independent of the browser
- * SSE connection so closing the tab cannot leave platform keys unmetered.
+ * Server-side metering consumer for hosted analysis runs and follow-up chat.
+ * Independent of the browser SSE connection so closing the tab cannot leave
+ * platform keys unmetered.
  */
 
 import type { AppSupabaseClient } from "@tradingagents/supabase";
-import { cancelRun, getRunStreamUrl } from "./agents-client.js";
+import {
+  cancelChatTurn,
+  cancelRun,
+  getChatTurnStreamUrl,
+  getRunStreamUrl,
+} from "./agents-client.js";
 import { meterSessionStats } from "./credit-service.js";
 import * as sessionService from "./session-service.js";
 
@@ -18,6 +24,10 @@ export type MeterSubscription = {
 
 const activeMeters = new Map<string, AbortController>();
 
+function meterKey(kind: "run" | "chat", id: string): string {
+  return `${kind}:${id}`;
+}
+
 export function startBackgroundRunMetering(input: {
   client: AppSupabaseClient;
   sessionId: string;
@@ -26,17 +36,39 @@ export function startBackgroundRunMetering(input: {
   subscription: MeterSubscription | null;
   costSource: "hosted" | "self_pay";
 }): void {
-  // Always meter so self_pay tokens are tracked; hosted also enforces exhaustion.
-  if (activeMeters.has(input.sessionId)) {
+  const key = meterKey("run", input.sessionId);
+  if (activeMeters.has(key)) {
     return;
   }
 
   const controller = new AbortController();
-  activeMeters.set(input.sessionId, controller);
+  activeMeters.set(key, controller);
 
   void (async () => {
     try {
-      await consumeRunStreamForMetering(input, controller.signal);
+      await consumeSseForMetering(
+        {
+          ...input,
+          streamUrl: getRunStreamUrl(input.runId),
+          terminalEvents: ["run.completed", "run.error"],
+          onExhausted: async (meter) => {
+            await cancelRun(input.runId, {
+              message: "Compute credits exhausted — this run has been stopped.",
+              hint: "Partial results may still be available. Hosted runs resume when your allowance resets.",
+            });
+            await sessionService.markSessionError(
+              input.client,
+              input.sessionId,
+              "Compute credits exhausted — this run has been stopped.",
+            );
+            await sessionService.persistEvent(input.client, input.sessionId, "credit.exhausted", {
+              remainingComputeCredits: meter.remaining ?? 0,
+              message: "Compute credits exhausted — this run has been stopped.",
+            });
+          },
+        },
+        controller.signal,
+      );
     } catch (error) {
       if (input.costSource === "hosted" && !controller.signal.aborted) {
         const message =
@@ -64,32 +96,116 @@ export function startBackgroundRunMetering(input: {
         }
       }
     } finally {
-      activeMeters.delete(input.sessionId);
+      activeMeters.delete(key);
+    }
+  })();
+}
+
+export function startBackgroundChatMetering(input: {
+  client: AppSupabaseClient;
+  sessionId: string;
+  turnId: string;
+  assistantMessageId: string;
+  userId: string;
+  subscription: MeterSubscription | null;
+  costSource: "hosted" | "self_pay";
+  onTerminal?: (event: {
+    type: "chat.completed" | "chat.error";
+    payload: Record<string, unknown>;
+  }) => Promise<void>;
+}): void {
+  const key = meterKey("chat", input.turnId);
+  if (activeMeters.has(key)) {
+    return;
+  }
+
+  const controller = new AbortController();
+  activeMeters.set(key, controller);
+
+  void (async () => {
+    try {
+      await consumeSseForMetering(
+        {
+          client: input.client,
+          sessionId: input.sessionId,
+          userId: input.userId,
+          subscription: input.subscription,
+          costSource: input.costSource,
+          streamUrl: getChatTurnStreamUrl(input.turnId),
+          terminalEvents: ["chat.completed", "chat.error"],
+          onExhausted: async (meter) => {
+            await cancelChatTurn(input.turnId, {
+              message: "Compute credits exhausted — this chat turn has been stopped.",
+              hint: "Prior research and chat history remain available.",
+            });
+            await sessionService.persistEvent(input.client, input.sessionId, "credit.exhausted", {
+              remainingComputeCredits: meter.remaining ?? 0,
+              message: "Compute credits exhausted — this chat turn has been stopped.",
+              turnId: input.turnId,
+              assistantMessageId: input.assistantMessageId,
+            });
+          },
+          onTerminal: input.onTerminal,
+        },
+        controller.signal,
+      );
+    } catch (error) {
+      if (input.costSource === "hosted" && !controller.signal.aborted) {
+        const message =
+          error instanceof Error ? error.message : "Credit metering failed";
+        try {
+          await cancelChatTurn(input.turnId, {
+            message: "Chat stopped because credit metering failed.",
+            hint: message,
+          });
+        } catch {
+          // Best-effort.
+        }
+      }
+    } finally {
+      activeMeters.delete(key);
     }
   })();
 }
 
 export function stopBackgroundRunMetering(sessionId: string): void {
-  const controller = activeMeters.get(sessionId);
+  const controller = activeMeters.get(meterKey("run", sessionId));
   if (!controller) {
     return;
   }
   controller.abort();
-  activeMeters.delete(sessionId);
+  activeMeters.delete(meterKey("run", sessionId));
 }
 
-async function consumeRunStreamForMetering(
+export function stopBackgroundChatMetering(turnId: string): void {
+  const controller = activeMeters.get(meterKey("chat", turnId));
+  if (!controller) {
+    return;
+  }
+  controller.abort();
+  activeMeters.delete(meterKey("chat", turnId));
+}
+
+async function consumeSseForMetering(
   input: {
     client: AppSupabaseClient;
     sessionId: string;
-    runId: string;
     userId: string;
     subscription: MeterSubscription | null;
     costSource: "hosted" | "self_pay";
+    streamUrl: string;
+    terminalEvents: string[];
+    onExhausted: (meter: {
+      remaining: number | null;
+    }) => Promise<void>;
+    onTerminal?: (event: {
+      type: "chat.completed" | "chat.error";
+      payload: Record<string, unknown>;
+    }) => Promise<void>;
   },
   signal: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(getRunStreamUrl(input.runId), { signal });
+  const response = await fetch(input.streamUrl, { signal });
   if (!response.ok || !response.body) {
     throw new Error(`Metering stream unavailable (${response.status})`);
   }
@@ -137,36 +253,44 @@ async function consumeRunStreamForMetering(
         });
 
         if (meter.exhausted && meter.costSource === "hosted") {
-          await cancelRun(input.runId, {
-            message: "Compute credits exhausted — this run has been stopped.",
-            hint: "Partial results may still be available. Hosted runs resume when your allowance resets.",
-          });
-          await sessionService.markSessionError(
-            input.client,
-            input.sessionId,
-            "Compute credits exhausted — this run has been stopped.",
-          );
-          await sessionService.persistEvent(input.client, input.sessionId, "credit.exhausted", {
-            remainingComputeCredits: meter.remaining ?? 0,
-            message: "Compute credits exhausted — this run has been stopped.",
-          });
+          await input.onExhausted(meter);
           try {
             await reader.cancel();
           } catch {
             // Ignore.
           }
+          try {
+            await input.client
+              .from("session_usage_cursors")
+              .delete()
+              .eq("session_id", input.sessionId);
+          } catch {
+            // Best-effort.
+          }
           return;
         }
       }
 
-      if (eventType === "run.completed" || eventType === "run.error") {
+      if (input.terminalEvents.includes(eventType)) {
+        if (
+          input.onTerminal &&
+          (eventType === "chat.completed" || eventType === "chat.error")
+        ) {
+          try {
+            const payload = JSON.parse(dataLine) as Record<string, unknown>;
+            await input.onTerminal({
+              type: eventType,
+              payload,
+            });
+          } catch {
+            // Best-effort persist from stream.
+          }
+        }
         try {
           await reader.cancel();
         } catch {
           // Ignore.
         }
-        // Release any remaining in-flight reservation once the run is terminal
-        // (especially after soft-delete, which keeps the cursor until here).
         try {
           await input.client
             .from("session_usage_cursors")

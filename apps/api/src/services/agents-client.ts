@@ -149,6 +149,49 @@ export async function startRun(
   });
 }
 
+export type StartChatTurnPayload = {
+  sessionId: string;
+  assistantMessageId: string;
+  userMessage: string;
+  ticker: string;
+  analysisDate: string;
+  userContext?: string | null;
+  decision?: string | null;
+  reportSections: Record<string, string | null>;
+  tradeCheck?: Record<string, unknown> | null;
+  priorMessages: Array<{ role: string; content: string }>;
+  llmProvider: string;
+  backendUrl?: string | null;
+  thinkLlm: string;
+  googleThinkingLevel?: string | null;
+  openaiReasoningEffort?: string | null;
+  anthropicEffort?: string | null;
+  providerCredentials?: ProviderCredentials;
+};
+
+export async function startChatTurn(
+  payload: StartChatTurnPayload,
+): Promise<{ turnId: string }> {
+  return request<{ turnId: string }>("/internal/chat/turns", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelChatTurn(
+  turnId: string,
+  reason?: { message?: string; hint?: string },
+): Promise<void> {
+  await request<{ ok: boolean }>(`/internal/chat/turns/${encodeURIComponent(turnId)}`, {
+    method: "DELETE",
+    body: reason ? JSON.stringify(reason) : undefined,
+  });
+}
+
+export function getChatTurnStreamUrl(turnId: string): string {
+  return `${AGENTS_SERVICE_URL}/internal/chat/turns/${encodeURIComponent(turnId)}/stream`;
+}
+
 export async function cancelRun(
   runId: string,
   reason?: { message?: string; hint?: string },

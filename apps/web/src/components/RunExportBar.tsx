@@ -5,7 +5,9 @@
 
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { useState } from "react";
+import { getSessionExportMarkdownUrl } from "@/lib/api-client";
 import { shareTradeCheckPng } from "@/lib/trade-check-share";
 import styles from "./RunExportBar.module.css";
 
@@ -20,8 +22,10 @@ export default function RunExportBar({
   ticker,
   canShareDigest = false,
 }: RunExportBarProps) {
+  const { getToken } = useAuth();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   function showFeedback(message: string) {
     setFeedback(message);
@@ -35,6 +39,37 @@ export default function RunExportBar({
       showFeedback("Link copied");
     } catch {
       showFeedback("Could not copy link");
+    }
+  }
+
+  async function handleDownloadMarkdown() {
+    if (isDownloading) {
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const token = await getToken();
+      const response = await fetch(getSessionExportMarkdownUrl(sessionId), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("Could not download export");
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `${ticker.toLowerCase()}-tradingagents-export.md`;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+      showFeedback("Markdown downloaded");
+    } catch (error) {
+      showFeedback(
+        error instanceof Error ? error.message : "Could not download export",
+      );
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -73,6 +108,16 @@ export default function RunExportBar({
         </button>
         <button
           type="button"
+          className={styles.secondaryButton}
+          onClick={() => void handleDownloadMarkdown()}
+          disabled={isDownloading}
+          aria-busy={isDownloading}
+          aria-label="Download research and chat as markdown"
+        >
+          {isDownloading ? "Preparing…" : "Download .md"}
+        </button>
+        <button
+          type="button"
           className={styles.primaryButton}
           onClick={handleShare}
           disabled={!canShareDigest || isSharing}
@@ -87,7 +132,8 @@ export default function RunExportBar({
         </p>
       ) : (
         <p className={styles.hint}>
-          Share PNG copies or downloads the Trade Check digest for Discord.
+          Download .md for a full prompt-ready export (research + chat). Share PNG
+          for the Trade Check digest.
         </p>
       )}
     </div>

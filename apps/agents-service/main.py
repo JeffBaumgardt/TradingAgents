@@ -14,6 +14,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from routes_chat import router as chat_router
 from routes_config import router as config_router
 from routes_runs import router as runs_router
 from routes_trade_check import router as trade_check_router
@@ -36,6 +37,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(config_router)
 app.include_router(runs_router)
 app.include_router(trade_check_router)
+app.include_router(chat_router)
 
 
 @app.get("/health")

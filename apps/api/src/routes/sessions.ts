@@ -12,17 +12,19 @@
 
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { CreateSessionRequest } from "@tradingagents/api-types";
+import type { CreateSessionRequest, PostChatMessageRequest } from "@tradingagents/api-types";
 import { formatSseEvent } from "@tradingagents/utils";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUserId } from "../middleware/user-context.js";
-import { cancelRun, getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
+import { cancelChatTurn, cancelRun, getChatTurnStreamUrl, getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
 import {
   getBillingAccount,
   userHasActiveSubscription,
 } from "../services/billing-account-service.js";
+import * as chatService from "../services/chat-service.js";
 import { meterSessionStats } from "../services/credit-service.js";
 import * as sessionService from "../services/session-service.js";
+import { SessionServiceError } from "../services/session-service.js";
 
 export const sessionRoutes = new Hono();
 
@@ -546,5 +548,249 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
         runStatus.status === "cancelled" ? "This analysis was cancelled." : undefined,
       );
     }
+  });
+});
+
+/** Public share-by-link: follow-up chat transcript (read-only for non-owners). */
+sessionRoutes.get("/sessions/:id/chat", optionalUserId(), async (c) => {
+  const client = getSupabaseAdmin(c);
+  const requesterId = getOptionalRequestUserId(c);
+  const result = await chatService.listChatMessages(client, sessionIdParam(c), {
+    requesterId: requesterId ?? null,
+  });
+  if (result === "not_found") {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  return c.json(result);
+});
+
+sessionRoutes.post("/sessions/:id/chat/messages", requireUserId(), async (c) => {
+  const userId = getRequestUserId(c);
+  const client = getSupabaseAdmin(c);
+  const body = (await c.req.json()) as PostChatMessageRequest;
+  try {
+    const result = await chatService.postChatMessage(
+      client,
+      sessionIdParam(c),
+      userId,
+      body.content ?? "",
+    );
+    return c.json(result, 201);
+  } catch (error) {
+    if (error instanceof SessionServiceError) {
+      return c.json(
+        { error: error.message, code: error.code },
+        error.status as 400 | 402 | 404 | 409 | 503,
+      );
+    }
+    const message = error instanceof Error ? error.message : "Invalid request";
+    return c.json({ error: message }, 400);
+  }
+});
+
+sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
+  const userId = getRequestUserId(c);
+  const id = sessionIdParam(c);
+  const turnId = c.req.query("turnId");
+  if (!turnId) {
+    return c.json({ error: "turnId query parameter is required" }, 400);
+  }
+
+  const client = getSupabaseAdmin(c);
+  const session = await sessionService.getSession(client, id, userId);
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const account = await getBillingAccount(client, userId);
+  const creditSubscription =
+    account.subscription.planId === "hosted" &&
+    account.subscription.currentPeriodStart &&
+    account.subscription.currentPeriodEnd
+      ? {
+          plan_id: "hosted",
+          current_period_start: account.subscription.currentPeriodStart,
+          current_period_end: account.subscription.currentPeriodEnd,
+        }
+      : null;
+
+  const { data: cursorRow } = await client
+    .from("session_usage_cursors")
+    .select("cost_source")
+    .eq("session_id", id)
+    .maybeSingle();
+  const costSource =
+    (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
+      ? ("hosted" as const)
+      : ("self_pay" as const);
+
+  return streamSSE(c, async (stream) => {
+    let response: Response;
+    try {
+      response = await fetch(getChatTurnStreamUrl(turnId));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to connect to chat stream";
+      await stream.writeSSE({
+        event: "chat.error",
+        data: JSON.stringify({
+          turnId,
+          sessionId: id,
+          message,
+        }),
+      });
+      return;
+    }
+
+    if (!response.ok || !response.body) {
+      await stream.writeSSE({
+        event: "chat.error",
+        data: JSON.stringify({
+          turnId,
+          sessionId: id,
+          message: `Chat stream unavailable (${response.status})`,
+        }),
+      });
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+
+      for (const frame of frames) {
+        if (!frame.trim()) {
+          continue;
+        }
+        let eventType = "message";
+        let dataLine = "";
+        for (const line of frame.split("\n")) {
+          if (line.startsWith("event:")) {
+            eventType = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            dataLine = line.slice(5).trim();
+          }
+        }
+        if (!dataLine) {
+          continue;
+        }
+
+        let outboundData = dataLine;
+        if (eventType === "stats") {
+          try {
+            const payload = JSON.parse(dataLine) as Record<string, unknown>;
+            const tokensIn = typeof payload.tokens_in === "number" ? payload.tokens_in : 0;
+            const tokensOut = typeof payload.tokens_out === "number" ? payload.tokens_out : 0;
+            const meter = await meterSessionStats(client, {
+              sessionId: id,
+              userId,
+              tokensIn,
+              tokensOut,
+              subscription: creditSubscription,
+            });
+            outboundData = JSON.stringify({
+              ...payload,
+              compute_credits: meter.sessionCredits,
+              ...(meter.remaining != null
+                ? { remaining_compute_credits: meter.remaining }
+                : {}),
+            });
+
+            await stream.writeSSE({ event: eventType, data: outboundData });
+
+            if (meter.shouldWarn && meter.warnMessage && meter.remaining != null && meter.totalAllowance != null) {
+              await stream.writeSSE({
+                event: "credit.warning",
+                data: JSON.stringify({
+                  remainingComputeCredits: meter.remaining,
+                  totalAllowanceComputeCredits: meter.totalAllowance,
+                  usedRatio: meter.usedRatio ?? 0,
+                  message: meter.warnMessage,
+                }),
+              });
+            }
+
+            if (meter.exhausted && costSource === "hosted") {
+              const exhausted = {
+                remainingComputeCredits: meter.remaining ?? 0,
+                message: "Compute credits exhausted — this chat turn has been stopped.",
+                hint: "Prior research and chat history remain available.",
+              };
+              await stream.writeSSE({
+                event: "credit.exhausted",
+                data: JSON.stringify(exhausted),
+              });
+              try {
+                await cancelChatTurn(turnId, {
+                  message: exhausted.message,
+                  hint: exhausted.hint,
+                });
+              } catch {
+                // Best-effort.
+              }
+              return;
+            }
+            continue;
+          } catch {
+            // Fall through and relay raw stats for self-pay.
+          }
+        }
+
+        await stream.writeSSE({ event: eventType, data: outboundData });
+
+        if (eventType === "chat.completed" || eventType === "chat.error") {
+          try {
+            const payload = JSON.parse(outboundData) as Record<string, unknown>;
+            const assistantMessageId =
+              typeof payload.assistantMessageId === "string"
+                ? payload.assistantMessageId
+                : null;
+            if (assistantMessageId) {
+              await chatService.finalizeAssistantFromStream(
+                client,
+                assistantMessageId,
+                id,
+                payload,
+                eventType === "chat.completed" ? "completed" : "error",
+              );
+            }
+          } catch {
+            // Background meter also finalizes; this is a belt-and-suspenders path.
+          }
+          return;
+        }
+      }
+    }
+  });
+});
+
+/** Public: download research + chat as markdown (clipboard-limit workaround). */
+sessionRoutes.get("/sessions/:id/export.md", optionalUserId(), async (c) => {
+  const client = getSupabaseAdmin(c);
+  const markdown = await chatService.buildSessionExportMarkdown(client, sessionIdParam(c));
+  if (markdown === "not_found") {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const session = await sessionService.getSession(client, sessionIdParam(c));
+  const ticker = session?.ticker ?? "session";
+  const filename = `${ticker.toLowerCase()}-tradingagents-export.md`;
+
+  return new Response(markdown, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
   });
 });

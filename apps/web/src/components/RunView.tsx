@@ -59,6 +59,7 @@ import ReportModal from "@/components/ReportModal";
 import RunExportBar from "@/components/RunExportBar";
 import FeedbackPrompt from "@/components/FeedbackPrompt";
 import TradeCheckChart from "@/components/TradeCheckChart";
+import SessionChatPanel from "@/components/chat/SessionChatPanel";
 import { TRADE_CHECK_SHARE_ROOT_ID } from "@/lib/trade-check-share";
 import styles from "./RunView.module.css";
 
@@ -1125,6 +1126,47 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       ? extractReportSignal(openReportSection, openReportContent)
       : null;
 
+  const finalDecisionMarkdown = reports.final_trade_decision ?? "";
+  const finalDecisionSignal = finalDecisionMarkdown
+    ? extractReportSignal("final_trade_decision", finalDecisionMarkdown)
+    : null;
+  const decisionHeadline =
+    sessionMeta?.decision?.trim() ||
+    finalDecisionSignal ||
+    (completed ? "Completed" : null);
+
+  const researchLibrary = showResults ? (
+    <section
+      className={`${styles.resultsHero} ${styles.resultsHeroVisible} ${styles.researchLibrary}`}
+      aria-label="Research library"
+      aria-live={resultsPhase === "complete" ? "polite" : undefined}
+    >
+      <header className={styles.appendixHeader}>
+        <h2 className={styles.appendixTitle}>Research library</h2>
+        <p className={styles.appendixHint}>
+          Full agent write-ups from the original run. Open any report for the
+          readable view.
+        </p>
+      </header>
+
+      {REPORT_TEAM_GROUPS.map((group) => {
+        const sections = group.analystOnly ? analystSections : group.sections;
+        if (sections.length === 0) {
+          return null;
+        }
+
+        return (
+          <div key={group.title} className={styles.reportGroup}>
+            <h3 className={styles.reportGroupTitle}>{group.title}</h3>
+            <div className={styles.reportList}>
+              {sections.map((section) => renderReportRow(section))}
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  ) : null;
+
   return (
     <div className={layoutClassName}>
       {isSignedIn ? (
@@ -1159,12 +1201,6 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           </p>
         </div>
       )}
-
-      <RunSettingsPanel
-        session={sessionMeta}
-        expanded={settingsExpanded}
-        onToggle={() => setSettingsExpanded((prev) => !prev)}
-      />
 
       {creditWarning && !runError ? (
         <div className={styles.bannerInfo} role="status" aria-live="polite">
@@ -1238,6 +1274,38 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </div>
       )}
 
+      {/* Live run: pipeline first so progress stays front-and-center */}
+      {!showResults && hasPrivateAccess ? renderAgentPipeline(false) : null}
+
+      {showResults && decisionHeadline ? (
+        <section className={styles.decisionHero} aria-label="Decision summary">
+          <p className={styles.decisionEyebrow}>Portfolio decision</p>
+          <h2
+            className={`${styles.decisionTitle} ${reportSignalToneClass(finalDecisionSignal)}`}
+          >
+            {decisionHeadline}
+          </h2>
+          {finalDecisionMarkdown ? (
+            <p className={styles.decisionPreview}>
+              {truncatePreview(finalDecisionMarkdown, 280)}
+            </p>
+          ) : null}
+          {reports.final_trade_decision ? (
+            <button
+              type="button"
+              className={styles.decisionOpen}
+              onClick={() => handleOpenReport("final_trade_decision")}
+              onKeyDown={(event) =>
+                handleReportRowKeyDown(event, "final_trade_decision")
+              }
+              aria-label="Open full Portfolio Manager decision"
+            >
+              Read full decision
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
       {showResults && tradeCheckReport ? (
         <section
           className={styles.chartHero}
@@ -1290,40 +1358,23 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
         </section>
       ) : null}
 
-      {showResults ? (
-        <section
-          className={`${styles.resultsHero} ${styles.resultsHeroVisible}`}
-          aria-label="Full agent reports"
-          aria-live={resultsPhase === "complete" ? "polite" : undefined}
-        >
-          <header className={styles.appendixHeader}>
-            <h2 className={styles.appendixTitle}>Full agent reports</h2>
-            <p className={styles.appendixHint}>
-              Click any report to open the full write-up in a readable view.
-            </p>
-          </header>
-
-          {REPORT_TEAM_GROUPS.map((group) => {
-            const sections = group.analystOnly
-              ? analystSections
-              : group.sections;
-            if (sections.length === 0) {
-              return null;
-            }
-
-            return (
-              <div key={group.title} className={styles.reportGroup}>
-                <h3 className={styles.reportGroupTitle}>{group.title}</h3>
-                <div className={styles.reportList}>
-                  {sections.map((section) => renderReportRow(section))}
-                </div>
-              </div>
-            );
-          })}
-        </section>
+      {showResults && completed && !runError ? (
+        <SessionChatPanel
+          sessionId={sessionId}
+          sessionCompleted={completed && !runError}
+          isOwner={hasPrivateAccess}
+        />
       ) : null}
 
-      {hasPrivateAccess ? renderAgentPipeline(showResults) : null}
+      {researchLibrary}
+
+      {showResults && hasPrivateAccess ? renderAgentPipeline(true) : null}
+
+      <RunSettingsPanel
+        session={sessionMeta}
+        expanded={settingsExpanded}
+        onToggle={() => setSettingsExpanded((prev) => !prev)}
+      />
 
       {openReportSection && openReportContent ? (
         <ReportModal
