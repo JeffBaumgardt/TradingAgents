@@ -171,6 +171,11 @@ export default function SessionChatPanel({
           void hydrate();
         }
       },
+      // Reconnect replays turn history from agents-service — reset live parts
+      // so thinking/tool frames are not duplicated after rotation.
+      onReconnect: () => {
+        setLiveParts([]);
+      },
       onError: (err) => {
         setSending(false);
         setLiveParts([]);

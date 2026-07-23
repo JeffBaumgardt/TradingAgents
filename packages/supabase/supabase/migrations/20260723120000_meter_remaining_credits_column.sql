@@ -1,46 +1,7 @@
--- Follow-up Portfolio Manager chat messages, keyed to analysis sessions.
+-- Restore meter_session_usage column name expected by the API
+-- (remaining_credits, not remaining). Safe to re-run on fresh DBs that
+-- already have remaining_credits from 20260723000000 after the rename fix.
 
-create table if not exists public.session_chat_messages (
-  id text primary key,
-  session_id text not null references public.sessions (id) on delete cascade,
-  user_id text not null references public.users (id),
-  role text not null check (role in ('user', 'assistant', 'system')),
-  status text not null default 'completed'
-    check (status in ('pending', 'streaming', 'completed', 'error', 'cancelled')),
-  content_markdown text not null default '',
-  parts jsonb not null default '[]'::jsonb,
-  decision_excerpt text,
-  tokens_in bigint not null default 0,
-  tokens_out bigint not null default 0,
-  credits_charged bigint not null default 0,
-  turn_id text,
-  error text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists session_chat_messages_session_created_idx
-  on public.session_chat_messages (session_id, created_at asc);
-
-create index if not exists session_chat_messages_turn_id_idx
-  on public.session_chat_messages (turn_id)
-  where turn_id is not null;
-
-alter table public.session_chat_messages enable row level security;
-
-revoke all on table public.session_chat_messages from anon, authenticated;
-grant select, insert, update, delete on table public.session_chat_messages to service_role;
-
--- Optional attribution on usage ledger (analysis_run | follow_up).
-alter table public.usage_events
-  add column if not exists usage_kind text not null default 'analysis_run'
-  check (usage_kind in ('analysis_run', 'follow_up'));
-
-alter table public.session_usage_cursors
-  add column if not exists usage_kind text not null default 'analysis_run'
-  check (usage_kind in ('analysis_run', 'follow_up'));
-
--- Copy usage_kind from the session cursor into each usage_events row.
 drop function if exists public.meter_session_usage(text, text, bigint, bigint, bigint, numeric, numeric);
 
 create function public.meter_session_usage(

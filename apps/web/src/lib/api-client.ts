@@ -649,6 +649,13 @@ export interface ChatStreamCallbacks {
   onOpen?: () => void;
   onStreamEnd?: () => void;
   onError?: (error: Error) => void;
+  /** Called before an intentional SSE reconnect (Vercel duration rotation). */
+  onReconnect?: () => void;
+}
+
+export interface ChatStreamOptions {
+  /** Restart the SSE connection before serverless timeout (default 4:30). */
+  rotateMs?: number;
 }
 
 /** Subscribe to a follow-up chat turn SSE (owner only; proxied for auth). */
@@ -656,48 +663,114 @@ export function subscribeToChatStream(
   sessionId: string,
   turnId: string,
   callbacks: ChatStreamCallbacks,
+  options: ChatStreamOptions = {},
 ): () => void {
+  const rotateMs = options.rotateMs ?? SESSION_STREAM_ROTATE_MS;
   let eventSource: EventSource | null = null;
+  let rotateTimer: ReturnType<typeof setTimeout> | null = null;
   let closed = false;
   let terminal = false;
+  let connectionGen = 0;
+  let rotating = false;
 
   const url = `/api/sessions/${encodeURIComponent(sessionId)}/chat/stream?turnId=${encodeURIComponent(turnId)}`;
-  eventSource = new EventSource(url);
 
-  eventSource.onopen = () => {
-    callbacks.onOpen?.();
-  };
-
-  for (const eventType of SSE_EVENT_TYPES) {
-    eventSource.addEventListener(eventType, (event: MessageEvent<string>) => {
-      if (closed) {
-        return;
-      }
-      try {
-        const data = JSON.parse(event.data) as SseEventMap[typeof eventType];
-        callbacks.onEvent(eventType, data);
-        if (eventType === "chat.completed" || eventType === "chat.error") {
-          terminal = true;
-          eventSource?.close();
-          callbacks.onStreamEnd?.();
-        }
-      } catch (error) {
-        callbacks.onError?.(
-          error instanceof Error ? error : new Error("Failed to parse chat stream event"),
-        );
-      }
-    });
+  function clearRotateTimer() {
+    if (rotateTimer !== null) {
+      clearTimeout(rotateTimer);
+      rotateTimer = null;
+    }
   }
 
-  eventSource.onerror = () => {
+  function scheduleRotation() {
+    clearRotateTimer();
+    if (terminal || closed) {
+      return;
+    }
+    rotateTimer = setTimeout(() => {
+      void rotateConnection();
+    }, rotateMs);
+  }
+
+  function rotateConnection() {
+    if (terminal || closed) {
+      return;
+    }
+    rotating = true;
+    callbacks.onReconnect?.();
+    const staleSource = eventSource;
+    connectionGen += 1;
+    clearRotateTimer();
+    staleSource?.close();
+    eventSource = null;
+    rotating = false;
+    if (terminal || closed) {
+      return;
+    }
+    connect();
+  }
+
+  function connect() {
     if (closed || terminal) {
       return;
     }
-    callbacks.onError?.(new Error("Chat stream connection error"));
-  };
+
+    const gen = connectionGen;
+    const source = new EventSource(url);
+    eventSource = source;
+
+    source.onopen = () => {
+      if (gen !== connectionGen) {
+        return;
+      }
+      callbacks.onOpen?.();
+      scheduleRotation();
+    };
+
+    for (const eventType of SSE_EVENT_TYPES) {
+      source.addEventListener(eventType, (event: MessageEvent<string>) => {
+        if (closed || gen !== connectionGen) {
+          return;
+        }
+        try {
+          const data = JSON.parse(event.data) as SseEventMap[typeof eventType];
+          callbacks.onEvent(eventType, data);
+          if (eventType === "chat.completed" || eventType === "chat.error") {
+            terminal = true;
+            clearRotateTimer();
+            source.close();
+            if (eventSource === source) {
+              eventSource = null;
+            }
+            callbacks.onStreamEnd?.();
+          }
+        } catch (error) {
+          callbacks.onError?.(
+            error instanceof Error ? error : new Error("Failed to parse chat stream event"),
+          );
+        }
+      });
+    }
+
+    source.onerror = () => {
+      if (gen !== connectionGen || closed || terminal || rotating) {
+        return;
+      }
+      clearRotateTimer();
+      source.close();
+      if (eventSource === source) {
+        eventSource = null;
+      }
+      callbacks.onError?.(new Error("Chat stream connection error"));
+    };
+  }
+
+  connect();
 
   return () => {
     closed = true;
+    connectionGen += 1;
+    clearRotateTimer();
     eventSource?.close();
     eventSource = null;
   };

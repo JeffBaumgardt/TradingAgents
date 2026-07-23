@@ -10,6 +10,7 @@ Apply migrations in order:
 6. `packages/supabase/supabase/migrations/20260722150000_sessions_soft_delete.sql` (if present)
 7. `packages/supabase/supabase/migrations/20260722160000_meter_period_user_check.sql`
 8. `packages/supabase/supabase/migrations/20260723000000_session_chat_messages.sql` (follow-up chat + usage_kind)
+9. `packages/supabase/supabase/migrations/20260723120000_meter_remaining_credits_column.sql` (meter RPC column name restore)
 
 Do **not** paste plaintext provider keys into SQL. Keys must be stored as `enc:v1:` AES-GCM ciphertext using the same `CREDENTIALS_ENCRYPTION_KEY` as user credentials.
 

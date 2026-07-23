@@ -19,8 +19,6 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.prebuilt import create_react_agent
-
-from cli.stats_handler import StatsCallbackHandler
 from provider_credentials import (
     active_provider_api_key,
     credentials_to_env_updates,
@@ -28,6 +26,8 @@ from provider_credentials import (
 )
 from run_manager import error_hint, temporary_env
 from stream_processor import format_sse
+
+from cli.stats_handler import StatsCallbackHandler
 from tradingagents.agents.utils.agent_utils import (
     get_balance_sheet,
     get_cashflow,
@@ -506,6 +506,11 @@ class ChatManager:
                                     },
                                 )
 
+                # Cancel / credit exhaustion may finalize the turn after the last
+                # stream chunk — do not emit chat.completed on top of chat.error.
+                if record.cancel_event.is_set() or record.status == "error":
+                    return
+
                 markdown = "\n\n".join(final_text_parts).strip()
                 if not markdown and record.parts:
                     # Fall back to last AI text stored as thinking if model only used tools.
@@ -565,6 +570,9 @@ class ChatManager:
                     },
                 )
         except Exception as exc:  # noqa: BLE001
+            if record.cancel_event.is_set() or record.status == "error":
+                # cancel_turn already emitted chat.error — avoid a duplicate frame.
+                return
             message = str(exc) or "Chat turn failed"
             self._fail_turn(record, message)
         finally:
