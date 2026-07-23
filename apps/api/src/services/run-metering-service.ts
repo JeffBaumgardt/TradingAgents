@@ -152,15 +152,29 @@ export function startBackgroundChatMetering(input: {
           streamUrl: getChatTurnStreamUrl(input.turnId),
           terminalEvents: ["chat.completed", "chat.error"],
           onExhausted: async (meter) => {
+            const exhaustedMessage =
+              "Compute credits exhausted — this chat turn has been stopped.";
+            const exhaustedHint = "Prior research and chat history remain available.";
             await cancelChatTurn(input.turnId, {
-              message: "Compute credits exhausted — this chat turn has been stopped.",
-              hint: "Prior research and chat history remain available.",
+              message: exhaustedMessage,
+              hint: exhaustedHint,
             });
             await sessionService.persistEvent(input.client, input.sessionId, "credit.exhausted", {
               remainingComputeCredits: meter.remaining ?? 0,
-              message: "Compute credits exhausted — this chat turn has been stopped.",
+              message: exhaustedMessage,
               turnId: input.turnId,
               assistantMessageId: input.assistantMessageId,
+            });
+            sawTerminal = true;
+            await input.onTerminal?.({
+              type: "chat.error",
+              payload: {
+                turnId: input.turnId,
+                sessionId: input.sessionId,
+                assistantMessageId: input.assistantMessageId,
+                message: exhaustedMessage,
+                hint: exhaustedHint,
+              },
             });
           },
           onTerminal: async (event) => {
