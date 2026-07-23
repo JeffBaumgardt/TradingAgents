@@ -3,9 +3,10 @@
  *
  * Session CRUD, report retrieval, and SSE streaming endpoints.
  *
- * Share-by-link reads (GET session / report / trade-check) are public: the
- * session UUID is the capability. Mutations, event history, and live streams
- * still require a verified Clerk session and are scoped to the owner.
+ * Share-by-link reads (GET session / report / trade-check / export.md) are public: the
+ * session UUID is the capability. Owner-scoped fields (e.g. userContext) are redacted for
+ * non-owners. Mutations, event history, and live streams still require a verified Clerk
+ * session and are scoped to the owner.
  *
  * Note: anonymous GET must stay free of requireUserId() — share links depend on it.
  */
@@ -793,10 +794,18 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
   });
 });
 
-/** Public: download research + chat as markdown (clipboard-limit workaround). */
+/**
+ * Public share-by-link: session UUID is the capability.
+ * Owner-scoped thesis (`config.userContext`) is redacted unless the requester owns the session.
+ */
 sessionRoutes.get("/sessions/:id/export.md", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
-  const markdown = await chatService.buildSessionExportMarkdown(client, sessionIdParam(c));
+  const requesterId = getOptionalRequestUserId(c);
+  const markdown = await chatService.buildSessionExportMarkdown(
+    client,
+    sessionIdParam(c),
+    { requesterId },
+  );
   if (markdown === "not_found") {
     return c.json({ error: "Session not found" }, 404);
   }

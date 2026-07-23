@@ -623,6 +623,9 @@ export async function finalizeAssistantFromStream(
 export async function buildSessionExportMarkdown(
   client: AppSupabaseClient,
   sessionId: string,
+  options: {
+    requesterId?: string | null;
+  } = {},
 ): Promise<string | "not_found"> {
   const { data: session, error } = await client
     .from("sessions")
@@ -638,12 +641,18 @@ export async function buildSessionExportMarkdown(
   }
 
   const row = session as SessionRow;
-  const chat = await listChatMessages(client, sessionId, { requesterId: null });
+  const requesterId = options.requesterId ?? null;
+  const isOwner = Boolean(requesterId && row.user_id === requesterId);
+  const chat = await listChatMessages(client, sessionId, { requesterId });
   if (chat === "not_found") {
     return "not_found";
   }
 
   const config = row.config as CreateSessionRequest;
+  // Match toShareSession: owner-only thesis/notes stay private for share-by-link.
+  const userContextForExport = isOwner
+    ? config.userContext?.trim() || "(none)"
+    : "(none)";
   const sections = (row.report_sections ?? {}) as Record<string, string | null>;
   const lines: string[] = [
     `# TradingAgents export — ${row.ticker}`,
@@ -657,7 +666,7 @@ export async function buildSessionExportMarkdown(
     "",
     "## Original thesis / user context",
     "",
-    config.userContext?.trim() || "(none)",
+    userContextForExport,
     "",
   ];
 

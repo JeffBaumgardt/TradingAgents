@@ -100,7 +100,7 @@ describe("chat-service", () => {
     );
   });
 
-  it("export markdown includes research and chat transcript", async () => {
+  it("export markdown includes research for share viewers but redacts owner thesis", async () => {
     const client = createInMemorySupabase();
     const userId = "user_export";
     const sessionId = "session_export";
@@ -158,11 +158,21 @@ describe("chat-service", () => {
       updated_at: new Date().toISOString(),
     });
 
-    const markdown = await buildSessionExportMarkdown(client, sessionId);
-    assert.notEqual(markdown, "not_found");
-    assert.match(String(markdown), /TradingAgents export — SPY/);
-    assert.match(String(markdown), /1w dte puts/);
-    assert.match(String(markdown), /Hold — wait for confirmation/);
-    assert.match(String(markdown), /What if we go slightly OTM/);
+    const ownerMarkdown = await buildSessionExportMarkdown(client, sessionId, {
+      requesterId: userId,
+    });
+    assert.notEqual(ownerMarkdown, "not_found");
+    assert.match(String(ownerMarkdown), /TradingAgents export — SPY/);
+    assert.match(String(ownerMarkdown), /1w dte puts/);
+    assert.match(String(ownerMarkdown), /Hold — wait for confirmation/);
+    assert.match(String(ownerMarkdown), /What if we go slightly OTM/);
+
+    const shareMarkdown = await buildSessionExportMarkdown(client, sessionId, {
+      requesterId: null,
+    });
+    assert.notEqual(shareMarkdown, "not_found");
+    assert.doesNotMatch(String(shareMarkdown), /1w dte puts/);
+    assert.match(String(shareMarkdown), /## Original thesis \/ user context\n\n\(none\)/);
+    assert.match(String(shareMarkdown), /Hold — wait for confirmation/);
   });
 });
