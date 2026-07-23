@@ -55,6 +55,16 @@ function blockedCopy(
   }
 }
 
+function ThinkingDots() {
+  return (
+    <span className={styles.thinkingDots} aria-hidden>
+      <span className={styles.dot} />
+      <span className={styles.dot} />
+      <span className={styles.dot} />
+    </span>
+  );
+}
+
 export default function SessionChatPanel({
   sessionId,
   sessionCompleted,
@@ -106,7 +116,7 @@ export default function SessionChatPanel({
     if (!node) {
       return;
     }
-    node.scrollTop = node.scrollHeight;
+    node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
   }, [messages, liveParts, liveAssistantId]);
 
   const showComposer = isOwner && sessionCompleted;
@@ -239,6 +249,7 @@ export default function SessionChatPanel({
     if (!liveAssistantId) {
       return null;
     }
+    const waitingForFirstToken = liveParts.length === 0;
     return (
       <article
         className={`${styles.bubble} ${styles.assistant}`}
@@ -247,9 +258,19 @@ export default function SessionChatPanel({
       >
         <header className={styles.bubbleMeta}>
           <span>Portfolio Manager</span>
-          <span className={styles.streamingBadge}>Working…</span>
+          <span className={styles.streamingBadge}>
+            Working
+            <ThinkingDots />
+          </span>
         </header>
-        <ChatMessageParts parts={liveParts} fallbackMarkdown="" />
+        {waitingForFirstToken ? (
+          <p className={styles.waitingRow}>
+            <span className={styles.srOnly}>Thinking</span>
+            <ThinkingDots />
+          </p>
+        ) : (
+          <ChatMessageParts parts={liveParts} fallbackMarkdown="" />
+        )}
         {liveStats ? (
           <p className={styles.statsLine}>
             Tokens {liveStats.tokens_in + liveStats.tokens_out}
