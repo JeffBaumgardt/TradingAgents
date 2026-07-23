@@ -444,7 +444,8 @@ export async function postChatMessage(
             error: null,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", assistantMessageId);
+          .eq("id", assistantMessageId)
+          .eq("session_id", sessionId);
         return;
       }
 
@@ -457,7 +458,8 @@ export async function postChatMessage(
           error: message,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", assistantMessageId);
+        .eq("id", assistantMessageId)
+        .eq("session_id", sessionId);
     },
   });
 
