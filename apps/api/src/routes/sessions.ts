@@ -610,6 +610,7 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
   if (!turn) {
     return c.json({ error: "Chat turn not found for this session" }, 404);
   }
+  const assistantMessageId = turn.id;
 
   const account = await getBillingAccount(client, userId);
   const creditSubscription =
@@ -634,32 +635,42 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
       : ("self_pay" as const);
 
   return streamSSE(c, async (stream) => {
+    async function failStream(message: string) {
+      const payload = {
+        turnId,
+        sessionId: id,
+        assistantMessageId,
+        message,
+      };
+      await stream.writeSSE({
+        event: "chat.error",
+        data: JSON.stringify(payload),
+      });
+      try {
+        await chatService.finalizeAssistantFromStream(
+          client,
+          assistantMessageId,
+          id,
+          payload,
+          "error",
+        );
+      } catch {
+        // Best-effort; background meter may also finalize.
+      }
+    }
+
     let response: Response;
     try {
       response = await fetch(getChatTurnStreamUrl(turnId));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to connect to chat stream";
-      await stream.writeSSE({
-        event: "chat.error",
-        data: JSON.stringify({
-          turnId,
-          sessionId: id,
-          message,
-        }),
-      });
+      await failStream(message);
       return;
     }
 
     if (!response.ok || !response.body) {
-      await stream.writeSSE({
-        event: "chat.error",
-        data: JSON.stringify({
-          turnId,
-          sessionId: id,
-          message: `Chat stream unavailable (${response.status})`,
-        }),
-      });
+      await failStream(`Chat stream unavailable (${response.status})`);
       return;
     }
 

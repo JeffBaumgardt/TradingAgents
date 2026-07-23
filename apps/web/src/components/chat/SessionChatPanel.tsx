@@ -172,6 +172,9 @@ export default function SessionChatPanel({
         }
       },
       onError: (err) => {
+        setSending(false);
+        setLiveParts([]);
+        setLiveAssistantId(null);
         setError(err.message);
         void hydrate();
       },

@@ -123,6 +123,24 @@ export function startBackgroundChatMetering(input: {
   activeMeters.set(key, controller);
 
   void (async () => {
+    let sawTerminal = false;
+    const failTerminal = async (message: string, hint?: string) => {
+      if (sawTerminal || !input.onTerminal) {
+        return;
+      }
+      sawTerminal = true;
+      await input.onTerminal({
+        type: "chat.error",
+        payload: {
+          turnId: input.turnId,
+          sessionId: input.sessionId,
+          assistantMessageId: input.assistantMessageId,
+          message,
+          ...(hint ? { hint } : {}),
+        },
+      });
+    };
+
     try {
       await consumeSseForMetering(
         {
@@ -145,22 +163,32 @@ export function startBackgroundChatMetering(input: {
               assistantMessageId: input.assistantMessageId,
             });
           },
-          onTerminal: input.onTerminal,
+          onTerminal: async (event) => {
+            sawTerminal = true;
+            await input.onTerminal?.(event);
+          },
         },
         controller.signal,
       );
+      if (!sawTerminal && !controller.signal.aborted) {
+        await failTerminal(
+          "Chat stream ended before the Portfolio Manager finished.",
+          "Try sending your message again.",
+        );
+      }
     } catch (error) {
-      if (input.costSource === "hosted" && !controller.signal.aborted) {
-        const message =
-          error instanceof Error ? error.message : "Credit metering failed";
+      const message =
+        error instanceof Error ? error.message : "Credit metering failed";
+      if (!controller.signal.aborted) {
         try {
           await cancelChatTurn(input.turnId, {
-            message: "Chat stopped because credit metering failed.",
+            message: "Chat stopped because the metering stream failed.",
             hint: message,
           });
         } catch {
           // Best-effort.
         }
+        await failTerminal("Chat stopped because the metering stream failed.", message);
       }
     } finally {
       activeMeters.delete(key);
