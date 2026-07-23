@@ -8,6 +8,7 @@
 
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import {
+  agentsServiceAuthHeaders,
   cancelChatTurn,
   cancelRun,
   getChatTurnStreamUrl,
@@ -247,7 +248,10 @@ async function consumeSseForMetering(
   },
   signal: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(input.streamUrl, { signal });
+  const response = await fetch(input.streamUrl, {
+    signal,
+    headers: agentsServiceAuthHeaders(),
+  });
   if (!response.ok || !response.body) {
     throw new Error(`Metering stream unavailable (${response.status})`);
   }

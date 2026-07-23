@@ -43,6 +43,7 @@ services:
       - .env
     environment:
       - PYTHONPATH=/app:/app/apps/agents-service
+      - AGENTS_SERVICE_TOKEN=${AGENTS_SERVICE_TOKEN:-local-dev-agents-service-token}
     ports:
       - "8000:8000"
     volumes:
@@ -57,6 +58,7 @@ services:
     environment:
       - PORT=4000
       - AGENTS_SERVICE_URL=http://agents-service:8000
+      - AGENTS_SERVICE_TOKEN=${AGENTS_SERVICE_TOKEN:-local-dev-agents-service-token}
       - CORS_ORIGIN=http://localhost:3000
     ports:
       - "4000:4000"

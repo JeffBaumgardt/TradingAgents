@@ -24,6 +24,7 @@ Internet → ALB → ECS Service (api) → ECS Service (agents-service)
 - **Health check**: `GET /health`
 - **Environment**:
   - `AGENTS_SERVICE_URL=http://agents-service.internal:8000`
+  - `AGENTS_SERVICE_TOKEN` — shared secret for `/internal/*` calls (same value on agents-service)
   - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_JWKS_URL`
   - `CREDENTIALS_ENCRYPTION_KEY` — 32-byte base64 key for AES-256-GCM encryption of user provider API keys at rest (`openssl rand -base64 32`). Keep stable across deploys; rotating it invalidates stored keys unless you re-encrypt.
   - `CORS_ORIGIN=https://app.example.com`
@@ -43,7 +44,7 @@ Store in AWS Secrets Manager:
 
 - Database credentials
 - `CREDENTIALS_ENCRYPTION_KEY` (user API key encryption)
-- Internal service auth token (future)
+- `AGENTS_SERVICE_TOKEN` (API ↔ agents-service shared secret)
 
 ## Monitoring
 

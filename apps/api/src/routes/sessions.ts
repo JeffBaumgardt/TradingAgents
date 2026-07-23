@@ -17,7 +17,7 @@ import type { CreateSessionRequest, PostChatMessageRequest } from "@tradingagent
 import { formatSseEvent } from "@tradingagents/utils";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUserId } from "../middleware/user-context.js";
-import { cancelChatTurn, cancelRun, getChatTurnStreamUrl, getRunStreamUrl, fetchRunStatus } from "../services/agents-client.js";
+import { cancelChatTurn, cancelRun, getChatTurnStreamUrl, getRunStreamUrl, fetchRunStatus, agentsServiceAuthHeaders } from "../services/agents-client.js";
 import {
   getBillingAccount,
   userHasActiveSubscription,
@@ -417,7 +417,9 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
 
     let response: Response;
     try {
-      response = await fetch(getRunStreamUrl(session.runId!));
+      response = await fetch(getRunStreamUrl(session.runId!), {
+        headers: agentsServiceAuthHeaders(),
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to connect to agents stream";
@@ -662,7 +664,9 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
 
     let response: Response;
     try {
-      response = await fetch(getChatTurnStreamUrl(turnId));
+      response = await fetch(getChatTurnStreamUrl(turnId), {
+        headers: agentsServiceAuthHeaders(),
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to connect to chat stream";

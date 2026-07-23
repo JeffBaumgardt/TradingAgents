@@ -19,6 +19,7 @@ from routes_config import router as config_router
 from routes_runs import router as runs_router
 from routes_trade_check import router as trade_check_router
 from security_headers import SecurityHeadersMiddleware
+from service_auth import ServiceAuthMiddleware
 
 app = FastAPI(
     title="TradingAgents Agents Service",
@@ -32,6 +33,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(ServiceAuthMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(config_router)

@@ -30,6 +30,7 @@ docker compose up --build
 
 - `PORT` — default `4000`
 - `AGENTS_SERVICE_URL` — default `http://localhost:8000`
+- `AGENTS_SERVICE_TOKEN` — shared secret for `/internal/*` (same value on agents-service; required in production)
 - `SUPABASE_URL` — Supabase project URL
 - `SUPABASE_PUBLISHABLE_KEY` — publishable key for client-facing auth modes
 - `SUPABASE_SECRET_KEY` — secret key for `supabaseAdmin` (server-side DB access)
@@ -42,6 +43,7 @@ See `apps/api/.env.example` for a full template. Database schema and migrations 
 
 - `PORT` — default `8000`
 - `PYTHONPATH` — must include repository root (`../..` from agents-service)
+- `AGENTS_SERVICE_TOKEN` — same shared secret as the API (Bearer auth on `/internal/*`)
 - LLM keys from `.env` (see `.env.example`)
 
 ## Documentation map

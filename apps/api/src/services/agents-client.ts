@@ -26,9 +26,34 @@ export type AgentsHealthStatus = {
   hint?: string;
 };
 
+/** Shared secret for API → agents-service /internal/* calls. */
+export function getAgentsServiceToken(): string {
+  return process.env.AGENTS_SERVICE_TOKEN?.trim() ?? "";
+}
+
+/** Headers for authenticated calls to agents-service (including SSE). */
+export function agentsServiceAuthHeaders(
+  extra?: Record<string, string>,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(extra ?? {}),
+  };
+  const token = getAgentsServiceToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 function formatAgentsTargetHint(body: string, status: number): string {
   try {
-    const parsed = JSON.parse(body) as { error?: string; code?: string; service?: string };
+    const parsed = JSON.parse(body) as {
+      error?: string;
+      detail?: string;
+      code?: string;
+      service?: string;
+    };
     if (parsed.code === "MISSING_SUPABASE_URL") {
       return (
         "AGENTS_SERVICE_URL is hitting a Node API instance (Supabase middleware error), not the Python agents-service. " +
@@ -38,6 +63,15 @@ function formatAgentsTargetHint(body: string, status: number): string {
     if (parsed.service === "tradingagents-api") {
       return (
         "AGENTS_SERVICE_URL points at the Node API. Set it to the Python agents-service private URL on port 8000."
+      );
+    }
+    if (
+      parsed.code === "SERVICE_AUTH_FAILED" ||
+      parsed.code === "SERVICE_AUTH_NOT_CONFIGURED"
+    ) {
+      return (
+        `${parsed.detail ?? "Agents service authentication failed"}. ` +
+        "Set the same AGENTS_SERVICE_TOKEN on both the API and agents-service."
       );
     }
   } catch {
@@ -51,7 +85,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${AGENTS_SERVICE_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...agentsServiceAuthHeaders(),
       ...(init?.headers ?? {}),
     },
   });
@@ -217,7 +251,7 @@ export async function fetchRunStatus(runId: string): Promise<RunStatusResponse |
   const response = await fetch(
     `${AGENTS_SERVICE_URL}/internal/runs/${encodeURIComponent(runId)}`,
     {
-      headers: { "Content-Type": "application/json" },
+      headers: agentsServiceAuthHeaders(),
     },
   );
 
