@@ -423,7 +423,12 @@ export async function assertHostedCreditsForFollowUp(
 
   const balance = await getCreditBalance(client, userId, subscription);
   const estimatedCredits = await estimateFollowUpCredits(client, input);
-  const inFlightReserved = await sumInFlightHostedCreditReservations(client, userId);
+  const inFlightReserved =
+    (await sumInFlightHostedCreditReservations(client, userId)) +
+    (await sumInFlightFollowUpReservations(client, userId, {
+      llmProvider: input.llmProvider,
+      thinkLlm: input.thinkLlm,
+    }));
   const { period, remaining, totalAllowance, blockRatio } = balance;
   const available = Math.max(0, remaining - inFlightReserved);
 
@@ -532,6 +537,78 @@ async function sumInFlightHostedCreditReservations(
     }
     const estimated = await estimateRunCredits(client, session.config, "hosted");
     reserved += Math.max(0, estimated - charged);
+  }
+  return reserved;
+}
+
+/**
+ * Reserve estimate for hosted follow-up chats already streaming (completed
+ * sessions with an in-progress assistant message). Prevents concurrent chat
+ * POSTs across many sessions from each clearing the same remaining balance.
+ */
+async function sumInFlightFollowUpReservations(
+  client: AppSupabaseClient,
+  userId: string,
+  input: { llmProvider: string; thinkLlm: string },
+): Promise<number> {
+  const { data: streaming, error } = await client
+    .from("session_chat_messages")
+    .select("session_id")
+    .eq("user_id", userId)
+    .eq("role", "assistant")
+    .in("status", ["pending", "streaming"]);
+
+  if (error) {
+    throw new Error(`session_chat_messages in-flight read failed: ${error.message}`);
+  }
+
+  const sessionIds = [
+    ...new Set(
+      ((streaming ?? []) as Array<{ session_id: string }>).map((row) => row.session_id),
+    ),
+  ];
+  if (sessionIds.length === 0) {
+    return 0;
+  }
+
+  const { data: cursors, error: cursorError } = await client
+    .from("session_usage_cursors")
+    .select("session_id, cost_source, credits_charged, usage_kind")
+    .eq("user_id", userId)
+    .eq("cost_source", "hosted");
+
+  if (cursorError) {
+    throw new Error(`session_usage_cursors follow-up read failed: ${cursorError.message}`);
+  }
+
+  const estimate = await estimateFollowUpCredits(client, {
+    llmProvider: input.llmProvider,
+    thinkLlm: input.thinkLlm,
+    costSource: "hosted",
+  });
+
+  const hostedFollowUp = new Map(
+    ((cursors ?? []) as Array<{
+      session_id: string;
+      credits_charged: number;
+      usage_kind?: string;
+    }>)
+      .filter(
+        (row) =>
+          sessionIds.includes(row.session_id) &&
+          (row.usage_kind === "follow_up" || row.usage_kind == null),
+      )
+      .map((row) => [row.session_id, asNumber(row.credits_charged)]),
+  );
+
+  let reserved = 0;
+  for (const sessionId of sessionIds) {
+    const charged = hostedFollowUp.get(sessionId);
+    if (charged == null) {
+      // Streaming chat without a hosted cursor is self_pay / not our reservation.
+      continue;
+    }
+    reserved += Math.max(0, estimate - charged);
   }
   return reserved;
 }

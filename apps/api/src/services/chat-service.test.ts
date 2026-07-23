@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import {
   buildSessionExportMarkdown,
+  getOwnedChatTurn,
   listChatMessages,
 } from "./chat-service.js";
 
@@ -15,6 +16,88 @@ describe("chat-service", () => {
     const client = createInMemorySupabase();
     const result = await listChatMessages(client, "missing", { requesterId: "user_1" });
     assert.equal(result, "not_found");
+  });
+
+  it("getOwnedChatTurn requires session + owner + turn binding", async () => {
+    const client = createInMemorySupabase();
+    const userId = "user_bind";
+    const sessionId = "session_bind";
+    const now = new Date().toISOString();
+
+    await client.from("users").insert({
+      id: userId,
+      email: "bind@example.com",
+      created_at: now,
+      updated_at: now,
+    });
+    await client.from("sessions").insert({
+      id: sessionId,
+      user_id: userId,
+      ticker: "SPY",
+      analysis_date: "2026-07-22",
+      status: "completed",
+      config: {
+        ticker: "SPY",
+        analysisDate: "2026-07-22",
+        outputLanguage: "English",
+        analysts: ["market"],
+        researchDepth: 1,
+        llmProvider: "openai",
+        thinkLlm: "gpt-4o-mini",
+      },
+      run_id: "run_1",
+      report_markdown: null,
+      report_sections: {},
+      decision: "Hold",
+      error: null,
+      created_at: now,
+      updated_at: now,
+    });
+    await client.from("session_chat_messages").insert({
+      id: "asst_1",
+      session_id: sessionId,
+      user_id: userId,
+      role: "assistant",
+      status: "streaming",
+      content_markdown: "",
+      parts: [],
+      decision_excerpt: null,
+      tokens_in: 0,
+      tokens_out: 0,
+      credits_charged: 0,
+      turn_id: "turn_abc",
+      error: null,
+      created_at: now,
+      updated_at: now,
+    });
+
+    const owned = await getOwnedChatTurn(client, {
+      sessionId,
+      userId,
+      turnId: "turn_abc",
+    });
+    assert.deepEqual(owned, {
+      id: "asst_1",
+      sessionId,
+      turnId: "turn_abc",
+    });
+
+    assert.equal(
+      await getOwnedChatTurn(client, {
+        sessionId,
+        userId: "other",
+        turnId: "turn_abc",
+      }),
+      null,
+    );
+    assert.equal(
+      await getOwnedChatTurn(client, {
+        sessionId: "other_session",
+        userId,
+        turnId: "turn_abc",
+      }),
+      null,
+    );
   });
 
   it("export markdown includes research and chat transcript", async () => {

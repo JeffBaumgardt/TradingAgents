@@ -252,9 +252,18 @@ class ChatManager:
         with self._lock:
             record.event_history.append((event_type, data))
             subscribers = list(record.subscribers)
+        terminal = event_type in {"chat.completed", "chat.error"}
         for subscriber in subscribers:
-            with suppress(queue.Full):
+            try:
                 subscriber.put_nowait(frame)
+            except queue.Full:
+                if not terminal:
+                    # Drop non-terminal frames under backpressure; keep history
+                    # so late subscribers can still catch up via event_history.
+                    continue
+                # Never drop terminal events — block briefly so metering/UI finalize.
+                with suppress(Exception):
+                    subscriber.put(frame, timeout=5.0)
 
     def _emit(self, record: ChatTurnRecord, event_type: str, data: dict[str, Any]) -> None:
         self._broadcast(record, event_type, data)
@@ -593,6 +602,14 @@ class ChatManager:
                     frame = await asyncio.to_thread(subscriber.get, True, 0.5)
                 except queue.Empty:
                     if record.status in terminal and subscriber.empty():
+                        # Backstop: if the live queue dropped the terminal frame,
+                        # re-yield it from history so metering/UI can finalize.
+                        with self._lock:
+                            hist = list(record.event_history)
+                        for event_type, data in reversed(hist):
+                            if event_type in {"chat.completed", "chat.error"}:
+                                yield format_sse(event_type, data)
+                                return
                         break
                     continue
 

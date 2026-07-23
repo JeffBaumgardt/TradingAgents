@@ -602,6 +602,15 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
     return c.json({ error: "Session not found" }, 404);
   }
 
+  const turn = await chatService.getOwnedChatTurn(client, {
+    sessionId: id,
+    userId,
+    turnId,
+  });
+  if (!turn) {
+    return c.json({ error: "Chat turn not found for this session" }, 404);
+  }
+
   const account = await getBillingAccount(client, userId);
   const creditSubscription =
     account.subscription.planId === "hosted" &&

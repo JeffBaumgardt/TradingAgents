@@ -347,6 +347,9 @@ export async function postChatMessage(
     quickModelId: thinkLlm,
     deepModelId: thinkLlm,
     costSource: resolved.costSource,
+    // Analysis cursors are deleted on run completion. Re-init for this turn with
+    // watermarks at 0 so agents StatsCallbackHandler (also starting at 0) meters
+    // only follow-up tokens — never replaying the completed analysis totals.
     usageKind: "follow_up",
   });
 
@@ -468,6 +471,36 @@ export async function postChatMessage(
   };
 }
 
+export async function getOwnedChatTurn(
+  client: AppSupabaseClient,
+  input: {
+    sessionId: string;
+    userId: string;
+    turnId: string;
+  },
+): Promise<{ id: string; sessionId: string; turnId: string } | null> {
+  const { data, error } = await client
+    .from("session_chat_messages")
+    .select("id, session_id, turn_id")
+    .eq("session_id", input.sessionId)
+    .eq("user_id", input.userId)
+    .eq("turn_id", input.turnId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    return null;
+  }
+  const row = data as { id: string; session_id: string; turn_id: string };
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    turnId: row.turn_id,
+  };
+}
+
 export async function finalizeAssistantFromStream(
   client: AppSupabaseClient,
   assistantMessageId: string,
@@ -485,7 +518,8 @@ export async function finalizeAssistantFromStream(
         error: message,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", assistantMessageId);
+      .eq("id", assistantMessageId)
+      .eq("session_id", sessionId);
     return;
   }
 
@@ -516,7 +550,8 @@ export async function finalizeAssistantFromStream(
       error: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", assistantMessageId);
+    .eq("id", assistantMessageId)
+    .eq("session_id", sessionId);
 }
 
 export async function buildSessionExportMarkdown(

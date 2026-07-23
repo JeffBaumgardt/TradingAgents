@@ -21,6 +21,22 @@ function looksLikeHtml(content: string): boolean {
   return /<\/?[a-z][\s\S]*>/i.test(content.trim());
 }
 
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value, "https://example.invalid");
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function isSafeImageSrc(value: string): boolean {
+  if (value.startsWith("data:image/")) {
+    return true;
+  }
+  return isSafeHttpUrl(value);
+}
+
 export default function RichContent({
   content,
   asHtml = false,
@@ -33,6 +49,7 @@ export default function RichContent({
       USE_PROFILES: { html: true },
       FORBID_TAGS: ["script", "iframe", "object", "embed", "form"],
       FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
     });
     return (
       <div
@@ -48,15 +65,18 @@ export default function RichContent({
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
-          img: ({ src, alt }) => {
-            if (!src || typeof src !== "string") {
-              return null;
+          a: ({ href, children }) => {
+            if (!href || typeof href !== "string" || !isSafeHttpUrl(href)) {
+              return <span>{children}</span>;
             }
-            const safe =
-              src.startsWith("data:image/") ||
-              src.startsWith("https://") ||
-              src.startsWith("http://");
-            if (!safe) {
+            return (
+              <a href={href} rel="noopener noreferrer" target="_blank">
+                {children}
+              </a>
+            );
+          },
+          img: ({ src, alt }) => {
+            if (!src || typeof src !== "string" || !isSafeImageSrc(src)) {
               return null;
             }
             return (
