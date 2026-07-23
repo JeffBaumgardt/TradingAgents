@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from chat_manager import chat_manager
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -79,8 +79,16 @@ async def stream_chat_turn(turn_id: str) -> StreamingResponse:
 
 
 @router.delete("/turns/{turn_id}")
-def cancel_chat_turn(turn_id: str, body: dict[str, Any] | None = None) -> dict[str, bool]:
-    ok = chat_manager.cancel_turn(turn_id, body)
+async def cancel_chat_turn(turn_id: str, request: Request) -> dict[str, bool]:
+    reason: dict[str, Any] | None = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            reason = body
+    except Exception:
+        reason = None
+
+    ok = chat_manager.cancel_turn(turn_id, reason)
     if not ok:
         raise HTTPException(status_code=404, detail="Turn not found")
     return {"ok": True}

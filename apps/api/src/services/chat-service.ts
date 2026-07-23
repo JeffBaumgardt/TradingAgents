@@ -21,6 +21,7 @@ import * as agentsClient from "./agents-client.js";
 import { getBillingAccount, userHasActiveSubscription } from "./billing-account-service.js";
 import {
   assertHostedCreditsForFollowUp,
+  assertHostedFollowUpInFlightWithinBalance,
   initSessionUsageCursor,
 } from "./credit-service.js";
 import { getUserCredentialsRaw } from "./credentials-service.js";
@@ -340,6 +341,28 @@ export async function postChatMessage(
     throw new Error(asstErr.message);
   }
 
+  // Re-check single in-flight after insert (TOCTOU with concurrent POSTs).
+  const { data: streamingRows, error: streamErr } = await client
+    .from("session_chat_messages")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("role", "assistant")
+    .in("status", ["pending", "streaming"]);
+  if (streamErr) {
+    await client.from("session_chat_messages").delete().eq("id", assistantMessageId);
+    await client.from("session_chat_messages").delete().eq("id", userMessageId);
+    throw new Error(streamErr.message);
+  }
+  if ((streamingRows?.length ?? 0) > 1) {
+    await client.from("session_chat_messages").delete().eq("id", assistantMessageId);
+    await client.from("session_chat_messages").delete().eq("id", userMessageId);
+    throw new SessionServiceError(
+      "A chat reply is already in progress. Wait for it to finish.",
+      409,
+      "chat_in_progress",
+    );
+  }
+
   await initSessionUsageCursor(client, {
     sessionId,
     userId,
@@ -352,6 +375,33 @@ export async function postChatMessage(
     // only follow-up tokens — never replaying the completed analysis totals.
     usageKind: "follow_up",
   });
+
+  if (isHostedPlan && account.subscription.currentPeriodStart && account.subscription.currentPeriodEnd) {
+    // Post-insert: count this chat in the reservation pool (like analysis create).
+    const balanceGate = await assertHostedFollowUpInFlightWithinBalance(
+      client,
+      userId,
+      {
+        plan_id: "hosted",
+        current_period_start: account.subscription.currentPeriodStart,
+        current_period_end: account.subscription.currentPeriodEnd,
+      },
+      {
+        llmProvider: config.llmProvider,
+        thinkLlm,
+      },
+    );
+    if (!balanceGate.allowed) {
+      await client.from("session_usage_cursors").delete().eq("session_id", sessionId);
+      await client.from("session_chat_messages").delete().eq("id", assistantMessageId);
+      await client.from("session_chat_messages").delete().eq("id", userMessageId);
+      throw new SessionServiceError(
+        balanceGate.message ?? "Insufficient compute credits for this chat turn.",
+        402,
+        balanceGate.code ?? "credits_insufficient",
+      );
+    }
+  }
 
   const backendUrl = resolved.usedPlatformKey
     ? canonicalBackendUrlForProvider(config.llmProvider)
@@ -431,19 +481,25 @@ export async function postChatMessage(
           .eq("session_id", sessionId)
           .maybeSingle();
 
+        const updatePayload: Record<string, unknown> = {
+          status: "completed",
+          content_markdown: contentMarkdown,
+          parts,
+          decision_excerpt: decisionExcerpt,
+          tokens_in: tokensIn,
+          tokens_out: tokensOut,
+          error: null,
+          updated_at: new Date().toISOString(),
+        };
+        if (cursor) {
+          updatePayload.credits_charged = Number(
+            (cursor as { credits_charged?: number }).credits_charged ?? 0,
+          );
+        }
+
         await client
           .from("session_chat_messages")
-          .update({
-            status: "completed",
-            content_markdown: contentMarkdown,
-            parts,
-            decision_excerpt: decisionExcerpt,
-            tokens_in: tokensIn,
-            tokens_out: tokensOut,
-            credits_charged: Number(cursor?.credits_charged ?? 0),
-            error: null,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updatePayload)
           .eq("id", assistantMessageId)
           .eq("session_id", sessionId);
         return;
@@ -539,19 +595,27 @@ export async function finalizeAssistantFromStream(
     .eq("session_id", sessionId)
     .maybeSingle();
 
+  const updatePayload: Record<string, unknown> = {
+    status: "completed",
+    content_markdown: contentMarkdown,
+    parts,
+    decision_excerpt: decisionExcerpt,
+    tokens_in: tokensIn,
+    tokens_out: tokensOut,
+    error: null,
+    updated_at: new Date().toISOString(),
+  };
+  // Background metering deletes the cursor on terminal events. A late browser
+  // finalize must not overwrite a previously persisted credits_charged with 0.
+  if (cursor) {
+    updatePayload.credits_charged = Number(
+      (cursor as { credits_charged?: number }).credits_charged ?? 0,
+    );
+  }
+
   await client
     .from("session_chat_messages")
-    .update({
-      status: "completed",
-      content_markdown: contentMarkdown,
-      parts,
-      decision_excerpt: decisionExcerpt,
-      tokens_in: tokensIn,
-      tokens_out: tokensOut,
-      credits_charged: Number(cursor?.credits_charged ?? 0),
-      error: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", assistantMessageId)
     .eq("session_id", sessionId);
 }

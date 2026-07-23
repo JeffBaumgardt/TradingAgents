@@ -470,6 +470,41 @@ export async function assertHostedCreditsForFollowUp(
 }
 
 /**
+ * After inserting a streaming follow-up, ensure total in-flight reservations
+ * (analysis runs + all streaming chats including this one) still fit.
+ */
+export async function assertHostedFollowUpInFlightWithinBalance(
+  client: AppSupabaseClient,
+  userId: string,
+  subscription: Pick<
+    UserSubscriptionRow,
+    "plan_id" | "current_period_start" | "current_period_end"
+  >,
+  input: { llmProvider: string; thinkLlm: string },
+): Promise<CreditGateResult> {
+  if (subscription.plan_id !== "hosted") {
+    return { allowed: true, code: "not_hosted" };
+  }
+
+  const balance = await getCreditBalance(client, userId, subscription);
+  const inFlightReserved =
+    (await sumInFlightHostedCreditReservations(client, userId)) +
+    (await sumInFlightFollowUpReservations(client, userId, input));
+  const { remaining } = balance;
+
+  if (inFlightReserved > remaining) {
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `Concurrent hosted chat would reserve about ${inFlightReserved.toLocaleString()} compute credits, but you only have ${remaining.toLocaleString()} remaining. Wait for another chat or run to finish.`,
+      balance,
+    };
+  }
+
+  return { allowed: true, balance };
+}
+
+/**
  * Remaining estimate still committed to in-flight hosted runs for this user.
  * Prevents concurrent session creates from each passing the same balance gate.
  * Counts both `pending` and `running` so the window before startRun is covered.
@@ -549,7 +584,10 @@ async function sumInFlightHostedCreditReservations(
 async function sumInFlightFollowUpReservations(
   client: AppSupabaseClient,
   userId: string,
-  input: { llmProvider: string; thinkLlm: string },
+  input: {
+    llmProvider: string;
+    thinkLlm: string;
+  },
 ): Promise<number> {
   const { data: streaming, error } = await client
     .from("session_chat_messages")
