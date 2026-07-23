@@ -383,6 +383,127 @@ export async function estimateRunCredits(
   return Math.round(baseTokens * analystFactor * thinkMult);
 }
 
+/** Typical follow-up chat turn (~8k tokens) × model multiplier. */
+const DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE = 8_000;
+
+export async function estimateFollowUpCredits(
+  client: AppSupabaseClient,
+  input: {
+    llmProvider: string;
+    thinkLlm: string;
+    costSource: ProviderCostSource;
+  },
+): Promise<number> {
+  if (input.costSource === "self_pay") {
+    return 0;
+  }
+  const thinkMult = await loadMultiplier(client, input.llmProvider, input.thinkLlm);
+  return Math.round(DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE * thinkMult);
+}
+
+/**
+ * Gate a hosted follow-up chat turn. Uses a small turn estimate (not full-run depth).
+ */
+export async function assertHostedCreditsForFollowUp(
+  client: AppSupabaseClient,
+  userId: string,
+  subscription: Pick<
+    UserSubscriptionRow,
+    "plan_id" | "current_period_start" | "current_period_end"
+  >,
+  input: {
+    llmProvider: string;
+    thinkLlm: string;
+    costSource: ProviderCostSource;
+  },
+): Promise<CreditGateResult> {
+  if (subscription.plan_id !== "hosted" || input.costSource !== "hosted") {
+    return { allowed: true, code: "not_hosted" };
+  }
+
+  const balance = await getCreditBalance(client, userId, subscription);
+  const estimatedCredits = await estimateFollowUpCredits(client, input);
+  const inFlightReserved =
+    (await sumInFlightHostedCreditReservations(client, userId)) +
+    (await sumInFlightFollowUpReservations(client, userId, {
+      llmProvider: input.llmProvider,
+      thinkLlm: input.thinkLlm,
+    }));
+  const { period, remaining, totalAllowance, blockRatio } = balance;
+  const available = Math.max(0, remaining - inFlightReserved);
+
+  if (period.blocked_low_balance) {
+    return {
+      allowed: false,
+      code: "credits_blocked",
+      message:
+        "Your hosted compute credits are too low to continue chatting this billing period. " +
+        "Usage resets at the start of your next period.",
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  const blockFloor = Math.ceil(totalAllowance * blockRatio);
+  if (remaining < blockFloor) {
+    await markPeriodBlocked(client, period.id);
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `You have less than ${Math.round(blockRatio * 100)}% of your compute credit allowance remaining (${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()}). Follow-up chat is blocked for the rest of this credit period.`,
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  if (estimatedCredits > available) {
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `Not enough compute credits for another chat turn (need ~${estimatedCredits.toLocaleString()}, ~${available.toLocaleString()} available after in-flight runs).`,
+      balance,
+      estimatedCredits,
+    };
+  }
+
+  return { allowed: true, balance, estimatedCredits };
+}
+
+/**
+ * After inserting a streaming follow-up, ensure total in-flight reservations
+ * (analysis runs + all streaming chats including this one) still fit.
+ */
+export async function assertHostedFollowUpInFlightWithinBalance(
+  client: AppSupabaseClient,
+  userId: string,
+  subscription: Pick<
+    UserSubscriptionRow,
+    "plan_id" | "current_period_start" | "current_period_end"
+  >,
+  input: { llmProvider: string; thinkLlm: string },
+): Promise<CreditGateResult> {
+  if (subscription.plan_id !== "hosted") {
+    return { allowed: true, code: "not_hosted" };
+  }
+
+  const balance = await getCreditBalance(client, userId, subscription);
+  const inFlightReserved =
+    (await sumInFlightHostedCreditReservations(client, userId)) +
+    (await sumInFlightFollowUpReservations(client, userId, input));
+  const { remaining } = balance;
+
+  if (inFlightReserved > remaining) {
+    return {
+      allowed: false,
+      code: "credits_insufficient",
+      message: `Concurrent hosted chat would reserve about ${inFlightReserved.toLocaleString()} compute credits, but you only have ${remaining.toLocaleString()} remaining. Wait for another chat or run to finish.`,
+      balance,
+    };
+  }
+
+  return { allowed: true, balance };
+}
+
 /**
  * Remaining estimate still committed to in-flight hosted runs for this user.
  * Prevents concurrent session creates from each passing the same balance gate.
@@ -451,6 +572,81 @@ async function sumInFlightHostedCreditReservations(
     }
     const estimated = await estimateRunCredits(client, session.config, "hosted");
     reserved += Math.max(0, estimated - charged);
+  }
+  return reserved;
+}
+
+/**
+ * Reserve estimate for hosted follow-up chats already streaming (completed
+ * sessions with an in-progress assistant message). Prevents concurrent chat
+ * POSTs across many sessions from each clearing the same remaining balance.
+ */
+async function sumInFlightFollowUpReservations(
+  client: AppSupabaseClient,
+  userId: string,
+  input: {
+    llmProvider: string;
+    thinkLlm: string;
+  },
+): Promise<number> {
+  const { data: streaming, error } = await client
+    .from("session_chat_messages")
+    .select("session_id")
+    .eq("user_id", userId)
+    .eq("role", "assistant")
+    .in("status", ["pending", "streaming"]);
+
+  if (error) {
+    throw new Error(`session_chat_messages in-flight read failed: ${error.message}`);
+  }
+
+  const sessionIds = [
+    ...new Set(
+      ((streaming ?? []) as Array<{ session_id: string }>).map((row) => row.session_id),
+    ),
+  ];
+  if (sessionIds.length === 0) {
+    return 0;
+  }
+
+  const { data: cursors, error: cursorError } = await client
+    .from("session_usage_cursors")
+    .select("session_id, cost_source, credits_charged, usage_kind")
+    .eq("user_id", userId)
+    .eq("cost_source", "hosted");
+
+  if (cursorError) {
+    throw new Error(`session_usage_cursors follow-up read failed: ${cursorError.message}`);
+  }
+
+  const estimate = await estimateFollowUpCredits(client, {
+    llmProvider: input.llmProvider,
+    thinkLlm: input.thinkLlm,
+    costSource: "hosted",
+  });
+
+  const hostedFollowUp = new Map(
+    ((cursors ?? []) as Array<{
+      session_id: string;
+      credits_charged: number;
+      usage_kind?: string;
+    }>)
+      .filter(
+        (row) =>
+          sessionIds.includes(row.session_id) &&
+          (row.usage_kind === "follow_up" || row.usage_kind == null),
+      )
+      .map((row) => [row.session_id, asNumber(row.credits_charged)]),
+  );
+
+  let reserved = 0;
+  for (const sessionId of sessionIds) {
+    const charged = hostedFollowUp.get(sessionId);
+    if (charged == null) {
+      // Streaming chat without a hosted cursor is self_pay / not our reservation.
+      continue;
+    }
+    reserved += Math.max(0, estimate - charged);
   }
   return reserved;
 }
@@ -686,6 +882,7 @@ export async function initSessionUsageCursor(
     quickModelId: string;
     deepModelId: string;
     costSource: ProviderCostSource;
+    usageKind?: "analysis_run" | "follow_up";
   },
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -697,6 +894,7 @@ export async function initSessionUsageCursor(
       quick_model_id: input.quickModelId,
       deep_model_id: input.deepModelId,
       cost_source: input.costSource,
+      usage_kind: input.usageKind ?? "analysis_run",
       last_tokens_in: 0,
       last_tokens_out: 0,
       credits_charged: 0,
@@ -942,6 +1140,7 @@ async function meterSessionStatsLegacyFallback(
     tokens_out: deltaOut,
     billable_units: costSource === "hosted" ? chargedCredits : 0,
     cost_source: costSource,
+    usage_kind: cursor.usage_kind ?? "analysis_run",
     credit_period_id: input.periodId,
     created_at: new Date().toISOString(),
   });

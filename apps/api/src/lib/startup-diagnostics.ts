@@ -86,6 +86,16 @@ export async function logStartupDiagnostics(): Promise<void> {
     console.log(`[startup] ${name}: ${envStatus(name)}`);
   }
 
+  const agentsTokenConfigured = Boolean(process.env.AGENTS_SERVICE_TOKEN?.trim());
+  console.log(
+    `[startup] AGENTS_SERVICE_TOKEN: ${agentsTokenConfigured ? "set" : "MISSING"}`,
+  );
+  if (!agentsTokenConfigured && process.env.NODE_ENV === "production") {
+    console.error(
+      "[startup] AGENTS_SERVICE_TOKEN is required in production (shared with agents-service for /internal/* auth)",
+    );
+  }
+
   for (const name of [
     "SUPABASE_PUBLISHABLE_KEYS",
     "SUPABASE_SECRET_KEYS",

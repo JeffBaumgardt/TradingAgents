@@ -1,0 +1,66 @@
+/**
+ * @file apps/web/src/components/chat/ChatMessageParts.module.css
+ */
+
+.parts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.collapsed {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-muted, rgba(0, 0, 0, 0.03));
+  font-size: 0.85rem;
+}
+
+.collapsedSummary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.45rem 0.7rem;
+  color: var(--color-text-subtle);
+  font-weight: 560;
+}
+
+.collapsedSummary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsedSummary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 0.4rem;
+  transition: transform 0.15s ease;
+}
+
+.collapsed[open] .collapsedSummary::before {
+  transform: rotate(90deg);
+}
+
+.collapsedBody {
+  padding: 0 0.7rem 0.7rem;
+}
+
+.toolArgs {
+  margin: 0;
+  padding: 0 0.7rem 0.7rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}

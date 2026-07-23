@@ -1,0 +1,178 @@
+/**
+ * chat-service unit tests — gates, export markdown, message mapping.
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { createInMemorySupabase } from "@tradingagents/supabase/test";
+import {
+  buildSessionExportMarkdown,
+  getOwnedChatTurn,
+  listChatMessages,
+} from "./chat-service.js";
+
+describe("chat-service", () => {
+  it("listChatMessages returns not_found for missing sessions", async () => {
+    const client = createInMemorySupabase();
+    const result = await listChatMessages(client, "missing", { requesterId: "user_1" });
+    assert.equal(result, "not_found");
+  });
+
+  it("getOwnedChatTurn requires session + owner + turn binding", async () => {
+    const client = createInMemorySupabase();
+    const userId = "user_bind";
+    const sessionId = "session_bind";
+    const now = new Date().toISOString();
+
+    await client.from("users").insert({
+      id: userId,
+      email: "bind@example.com",
+      created_at: now,
+      updated_at: now,
+    });
+    await client.from("sessions").insert({
+      id: sessionId,
+      user_id: userId,
+      ticker: "SPY",
+      analysis_date: "2026-07-22",
+      status: "completed",
+      config: {
+        ticker: "SPY",
+        analysisDate: "2026-07-22",
+        outputLanguage: "English",
+        analysts: ["market"],
+        researchDepth: 1,
+        llmProvider: "openai",
+        thinkLlm: "gpt-4o-mini",
+      },
+      run_id: "run_1",
+      report_markdown: null,
+      report_sections: {},
+      decision: "Hold",
+      error: null,
+      created_at: now,
+      updated_at: now,
+    });
+    await client.from("session_chat_messages").insert({
+      id: "asst_1",
+      session_id: sessionId,
+      user_id: userId,
+      role: "assistant",
+      status: "streaming",
+      content_markdown: "",
+      parts: [],
+      decision_excerpt: null,
+      tokens_in: 0,
+      tokens_out: 0,
+      credits_charged: 0,
+      turn_id: "turn_abc",
+      error: null,
+      created_at: now,
+      updated_at: now,
+    });
+
+    const owned = await getOwnedChatTurn(client, {
+      sessionId,
+      userId,
+      turnId: "turn_abc",
+    });
+    assert.deepEqual(owned, {
+      id: "asst_1",
+      sessionId,
+      turnId: "turn_abc",
+    });
+
+    assert.equal(
+      await getOwnedChatTurn(client, {
+        sessionId,
+        userId: "other",
+        turnId: "turn_abc",
+      }),
+      null,
+    );
+    assert.equal(
+      await getOwnedChatTurn(client, {
+        sessionId: "other_session",
+        userId,
+        turnId: "turn_abc",
+      }),
+      null,
+    );
+  });
+
+  it("export markdown includes research for share viewers but redacts owner thesis", async () => {
+    const client = createInMemorySupabase();
+    const userId = "user_export";
+    const sessionId = "session_export";
+
+    await client.from("users").insert({
+      id: userId,
+      email: "export@example.com",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    await client.from("sessions").insert({
+      id: sessionId,
+      user_id: userId,
+      ticker: "SPY",
+      analysis_date: "2026-07-22",
+      status: "completed",
+      config: {
+        ticker: "SPY",
+        analysisDate: "2026-07-22",
+        outputLanguage: "English",
+        analysts: ["market"],
+        researchDepth: 1,
+        llmProvider: "openai",
+        thinkLlm: "gpt-4o-mini",
+        userContext: "1w dte puts",
+      },
+      run_id: "run_1",
+      report_markdown: "# Report",
+      report_sections: {
+        final_trade_decision: "Hold — wait for confirmation.",
+      },
+      decision: "Hold",
+      error: null,
+      trade_check_json: { header: { ticker: "SPY" } },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    await client.from("session_chat_messages").insert({
+      id: "msg_1",
+      session_id: sessionId,
+      user_id: userId,
+      role: "user",
+      status: "completed",
+      content_markdown: "What if we go slightly OTM?",
+      parts: [{ type: "text", content: "What if we go slightly OTM?" }],
+      decision_excerpt: null,
+      tokens_in: 0,
+      tokens_out: 0,
+      credits_charged: 0,
+      turn_id: null,
+      error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const ownerMarkdown = await buildSessionExportMarkdown(client, sessionId, {
+      requesterId: userId,
+    });
+    assert.notEqual(ownerMarkdown, "not_found");
+    assert.match(String(ownerMarkdown), /TradingAgents export — SPY/);
+    assert.match(String(ownerMarkdown), /1w dte puts/);
+    assert.match(String(ownerMarkdown), /Hold — wait for confirmation/);
+    assert.match(String(ownerMarkdown), /What if we go slightly OTM/);
+
+    const shareMarkdown = await buildSessionExportMarkdown(client, sessionId, {
+      requesterId: null,
+    });
+    assert.notEqual(shareMarkdown, "not_found");
+    assert.doesNotMatch(String(shareMarkdown), /1w dte puts/);
+    assert.match(String(shareMarkdown), /## Original thesis \/ user context\n\n\(none\)/);
+    assert.match(String(shareMarkdown), /Hold — wait for confirmation/);
+  });
+});

@@ -8,6 +8,7 @@ import type {
   ModelCreditMultiplierRow,
   PlanCreditConfigRow,
   PlatformApiKeyRow,
+  SessionChatMessageRow,
   SessionRow,
   SessionUsageCursorRow,
   UsageEventRow,
@@ -28,7 +29,8 @@ type TableName =
   | "model_credit_multipliers"
   | "platform_api_keys"
   | "user_credit_periods"
-  | "session_usage_cursors";
+  | "session_usage_cursors"
+  | "session_chat_messages";
 
 function credentialKey(userId: string, providerId: string, fieldName: string): string {
   return `${userId}:${providerId}:${fieldName}`;
@@ -84,6 +86,7 @@ export function createInMemorySupabase(): AppSupabaseClient {
   const platformKeys = new Map<string, PlatformApiKeyRow>();
   const creditPeriods = new Map<number, UserCreditPeriodRow>();
   const usageCursors = new Map<string, SessionUsageCursorRow>();
+  const chatMessages = new Map<string, SessionChatMessageRow>();
   const usageEvents: UsageEventRow[] = [];
   const events: EventRow[] = [];
   let nextEventId = 1;
@@ -122,6 +125,8 @@ export function createInMemorySupabase(): AppSupabaseClient {
         return [...creditPeriods.values()] as unknown as Record<string, unknown>[];
       case "session_usage_cursors":
         return [...usageCursors.values()] as unknown as Record<string, unknown>[];
+      case "session_chat_messages":
+        return [...chatMessages.values()] as unknown as Record<string, unknown>[];
       default:
         return [];
     }
@@ -208,6 +213,11 @@ export function createInMemorySupabase(): AppSupabaseClient {
       },
       eq(column: string, value: unknown) {
         filters.push((row) => rowValue(row, column) === value);
+        return chain;
+      },
+      in(column: string, values: unknown[]) {
+        const set = new Set(values);
+        filters.push((row) => set.has(rowValue(row, column)));
         return chain;
       },
       is(column: string, value: null) {
@@ -329,6 +339,9 @@ export function createInMemorySupabase(): AppSupabaseClient {
       } else if (table === "session_usage_cursors") {
         usageCursors.set(String(row.session_id), row as unknown as SessionUsageCursorRow);
         inserted.push(row);
+      } else if (table === "session_chat_messages") {
+        chatMessages.set(String(row.id), row as unknown as SessionChatMessageRow);
+        inserted.push(row);
       }
     }
     return inserted;
@@ -375,6 +388,11 @@ export function createInMemorySupabase(): AppSupabaseClient {
       const existing = usageCursors.get(String(value));
       if (existing) {
         usageCursors.set(String(value), { ...existing, ...values });
+      }
+    } else if (table === "session_chat_messages" && column === "id") {
+      const existing = chatMessages.get(String(value));
+      if (existing) {
+        chatMessages.set(String(value), { ...existing, ...values });
       }
     } else if (table === "platform_api_keys" && column === "provider_id") {
       const existing = platformKeys.get(String(value));
@@ -526,6 +544,8 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 platformKeys.delete(String(value));
               } else if (table === "session_usage_cursors" && column === "session_id") {
                 usageCursors.delete(String(value));
+              } else if (table === "session_chat_messages" && column === "id") {
+                chatMessages.delete(String(value));
               }
               return Promise.resolve(ok(null));
             },

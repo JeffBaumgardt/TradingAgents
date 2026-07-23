@@ -135,6 +135,7 @@ RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile
 | `CLERK_SECRET_KEY` | Same Clerk app as Vercel |
 | `CREDENTIALS_ENCRYPTION_KEY` | `openssl rand -base64 32` — keep stable across deploys |
 | `AGENTS_SERVICE_URL` | `http://agents-service.railway.internal:8000` |
+| `AGENTS_SERVICE_TOKEN` | Shared secret (same value on agents-service) — `openssl rand -hex 32` |
 | `CORS_ORIGIN` | `https://your-app.vercel.app` |
 
 Do **not** set `PORT` — Railway injects it.

@@ -189,6 +189,7 @@ Vercel cannot run the API or Python agents service (long SSE, LangGraph, heavy d
 |----------|---------|
 | `PORT` | `4000` |
 | `AGENTS_SERVICE_URL` | `http://agents-service:8000` (internal) |
+| `AGENTS_SERVICE_TOKEN` | Shared secret (same value on agents-service) |
 | `CORS_ORIGIN` | `https://tradingagents.vercel.app` |
 | `SUPABASE_URL` | From Supabase dashboard |
 | `SUPABASE_PUBLISHABLE_KEY` | From Supabase dashboard |
@@ -207,6 +208,7 @@ Vercel cannot run the API or Python agents service (long SSE, LangGraph, heavy d
 |----------|---------|
 | `PYTHONPATH` | `/app:/app/apps/agents-service` |
 | `PORT` | `8000` |
+| `AGENTS_SERVICE_TOKEN` | Same shared secret as the API |
 
 Build from `apps/agents-service/Dockerfile` and `apps/api/Dockerfile` (see repo root `docker-compose.yml`).
 

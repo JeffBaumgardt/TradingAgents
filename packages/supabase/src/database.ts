@@ -126,6 +126,7 @@ export interface UsageEventRow {
   tokens_out: number;
   billable_units: number;
   cost_source: string;
+  usage_kind?: string;
   credit_period_id: number | null;
   created_at: string;
 }
@@ -137,10 +138,29 @@ export interface SessionUsageCursorRow {
   quick_model_id: string;
   deep_model_id: string;
   cost_source: string;
+  usage_kind?: string;
   last_tokens_in: number;
   last_tokens_out: number;
   credits_charged: number;
   low_credit_warned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionChatMessageRow {
+  id: string;
+  session_id: string;
+  user_id: string;
+  role: string;
+  status: string;
+  content_markdown: string;
+  parts: unknown;
+  decision_excerpt: string | null;
+  tokens_in: number;
+  tokens_out: number;
+  credits_charged: number;
+  turn_id: string | null;
+  error: string | null;
   created_at: string;
   updated_at: string;
 }

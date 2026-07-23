@@ -9,6 +9,8 @@ Apply migrations in order:
 5. `packages/supabase/supabase/migrations/20260722140000_meter_atomic_and_hardening.sql`
 6. `packages/supabase/supabase/migrations/20260722150000_sessions_soft_delete.sql` (if present)
 7. `packages/supabase/supabase/migrations/20260722160000_meter_period_user_check.sql`
+8. `packages/supabase/supabase/migrations/20260723000000_session_chat_messages.sql` (follow-up chat + usage_kind)
+9. `packages/supabase/supabase/migrations/20260723120000_meter_remaining_credits_column.sql` (meter RPC column name restore)
 
 Do **not** paste plaintext provider keys into SQL. Keys must be stored as `enc:v1:` AES-GCM ciphertext using the same `CREDENTIALS_ENCRYPTION_KEY` as user credentials.
 
@@ -103,6 +105,19 @@ Real-world AI apps get drained by bots and “power users” reselling inference
 8. **Hosted runs may only use curated catalog models** — custom / unknown model IDs are rejected so under-priced unknowns cannot drain provider spend against a cheap credit multiplier.
 9. **Preflight subtracts in-flight hosted estimates** — concurrent session creates cannot each clear the same remaining balance.
 10. **Metering refuses to charge another user’s credit period** (`user_id` must match on `user_credit_periods`).
+
+## Follow-up Portfolio Manager chat
+
+After a completed analysis, the **session owner** can continue a conversation with a
+single Portfolio Manager agent grounded in stored research (no full pipeline re-run).
+
+- Credits use the same token-delta meter (`usage_kind = follow_up` on the session cursor /
+  usage events). BYOK remains `self_pay` (tokens recorded, credits = 0).
+- An **active** BYOK or Hosted subscription is required to send messages. Cancelled /
+  expired subscribers can still view the run and transcript.
+- Share-by-link viewers can read the transcript; they cannot post or spend credits.
+- Export: `GET /sessions/:id/export.md` downloads research + chat as markdown (clipboard
+  size workaround).
 
 ## Rollover rule
 

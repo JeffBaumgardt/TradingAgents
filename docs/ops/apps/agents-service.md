@@ -23,9 +23,11 @@ Python FastAPI service on port 8000. Wraps LangGraph trading agents from the rep
 - **CPU/Memory**: 2 vCPU / 4 GB recommended for deep runs
 - **Environment**:
   - `PYTHONPATH=/app:/app/apps/agents-service`
+  - `AGENTS_SERVICE_TOKEN` — same shared secret as the API gateway (required in production)
   - LLM keys from Secrets Manager (mapped from `.env.example`)
 - **Health check**: `GET /health`
 - **Networking**: private subnet; reachable only from API service security group
+- **Auth**: `/internal/*` requires `Authorization: Bearer $AGENTS_SERVICE_TOKEN` (or `X-Agents-Service-Token`). `/health` stays open.
 
 ### Volumes
 

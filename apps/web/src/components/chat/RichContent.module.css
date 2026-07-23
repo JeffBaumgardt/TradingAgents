@@ -1,0 +1,59 @@
+/**
+ * @file apps/web/src/components/chat/RichContent.module.css
+ */
+
+.prose {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.prose :is(h1, h2, h3, h4) {
+  margin: 0.85em 0 0.4em;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.prose p {
+  margin: 0.55em 0;
+}
+
+.prose ul,
+.prose ol {
+  margin: 0.45em 0;
+  padding-left: 1.35rem;
+}
+
+.prose pre {
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: var(--color-bg-muted, rgba(0, 0, 0, 0.04));
+  font-size: 0.85rem;
+}
+
+.prose code {
+  font-size: 0.88em;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--color-border);
+  padding: 0.35rem 0.5rem;
+}
+
+.image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}

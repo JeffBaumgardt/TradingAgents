@@ -14,10 +14,13 @@ import type {
   FeedbackRequest,
   FeedbackResponse,
   ModelMode,
+  PostChatMessageRequest,
+  PostChatMessageResponse,
   ProviderCredentials,
   ProviderModelsResponse,
   ResolvedConfigResponse,
   Session,
+  SessionChatResponse,
   SessionEventsResponse,
   SessionListResponse,
   SessionReport,
@@ -389,11 +392,17 @@ const SSE_EVENT_TYPES: SseEventType[] = [
   "agent.status",
   "message",
   "tool.call",
+  "thinking",
   "report.section",
   "stats",
+  "credit.warning",
+  "credit.exhausted",
   "trade.check",
   "run.completed",
   "run.error",
+  "chat.started",
+  "chat.completed",
+  "chat.error",
 ];
 
 function buildStreamUrl(sessionId: string, liveOnly: boolean): string {
@@ -602,3 +611,172 @@ export function subscribeToSessionStream(
 }
 
 export { API_BASE };
+
+/** Fetch follow-up chat transcript (public for share links). */
+export async function fetchSessionChat(sessionId: string): Promise<SessionChatResponse> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/chat`,
+    {
+      headers: await buildAuthHeaders(),
+      cache: "no-store",
+    },
+  );
+  return parseJson<SessionChatResponse>(response);
+}
+
+/** Owner: post a follow-up message to the Portfolio Manager. */
+export async function postSessionChatMessage(
+  sessionId: string,
+  body: PostChatMessageRequest,
+): Promise<PostChatMessageResponse> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/chat/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await buildUserHeaders()),
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+  );
+  return parseJson<PostChatMessageResponse>(response);
+}
+
+export interface ChatStreamCallbacks {
+  onEvent: <T extends SseEventType>(event: T, data: SseEventMap[T]) => void;
+  onOpen?: () => void;
+  onStreamEnd?: () => void;
+  onError?: (error: Error) => void;
+  /** Called before an intentional SSE reconnect (Vercel duration rotation). */
+  onReconnect?: () => void;
+}
+
+export interface ChatStreamOptions {
+  /** Restart the SSE connection before serverless timeout (default 4:30). */
+  rotateMs?: number;
+}
+
+/** Subscribe to a follow-up chat turn SSE (owner only; proxied for auth). */
+export function subscribeToChatStream(
+  sessionId: string,
+  turnId: string,
+  callbacks: ChatStreamCallbacks,
+  options: ChatStreamOptions = {},
+): () => void {
+  const rotateMs = options.rotateMs ?? SESSION_STREAM_ROTATE_MS;
+  let eventSource: EventSource | null = null;
+  let rotateTimer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+  let terminal = false;
+  let connectionGen = 0;
+  let rotating = false;
+
+  const url = `/api/sessions/${encodeURIComponent(sessionId)}/chat/stream?turnId=${encodeURIComponent(turnId)}`;
+
+  function clearRotateTimer() {
+    if (rotateTimer !== null) {
+      clearTimeout(rotateTimer);
+      rotateTimer = null;
+    }
+  }
+
+  function scheduleRotation() {
+    clearRotateTimer();
+    if (terminal || closed) {
+      return;
+    }
+    rotateTimer = setTimeout(() => {
+      void rotateConnection();
+    }, rotateMs);
+  }
+
+  function rotateConnection() {
+    if (terminal || closed) {
+      return;
+    }
+    rotating = true;
+    callbacks.onReconnect?.();
+    const staleSource = eventSource;
+    connectionGen += 1;
+    clearRotateTimer();
+    staleSource?.close();
+    eventSource = null;
+    rotating = false;
+    if (terminal || closed) {
+      return;
+    }
+    connect();
+  }
+
+  function connect() {
+    if (closed || terminal) {
+      return;
+    }
+
+    const gen = connectionGen;
+    const source = new EventSource(url);
+    eventSource = source;
+
+    source.onopen = () => {
+      if (gen !== connectionGen) {
+        return;
+      }
+      callbacks.onOpen?.();
+      scheduleRotation();
+    };
+
+    for (const eventType of SSE_EVENT_TYPES) {
+      source.addEventListener(eventType, (event: MessageEvent<string>) => {
+        if (closed || gen !== connectionGen) {
+          return;
+        }
+        try {
+          const data = JSON.parse(event.data) as SseEventMap[typeof eventType];
+          callbacks.onEvent(eventType, data);
+          if (eventType === "chat.completed" || eventType === "chat.error") {
+            terminal = true;
+            clearRotateTimer();
+            source.close();
+            if (eventSource === source) {
+              eventSource = null;
+            }
+            callbacks.onStreamEnd?.();
+          }
+        } catch (error) {
+          callbacks.onError?.(
+            error instanceof Error ? error : new Error("Failed to parse chat stream event"),
+          );
+        }
+      });
+    }
+
+    source.onerror = () => {
+      if (gen !== connectionGen || closed || terminal || rotating) {
+        return;
+      }
+      clearRotateTimer();
+      source.close();
+      if (eventSource === source) {
+        eventSource = null;
+      }
+      callbacks.onError?.(new Error("Chat stream connection error"));
+    };
+  }
+
+  connect();
+
+  return () => {
+    closed = true;
+    connectionGen += 1;
+    clearRotateTimer();
+    eventSource?.close();
+    eventSource = null;
+  };
+}
+
+/** Absolute URL for downloading the full research + chat markdown export. */
+export function getSessionExportMarkdownUrl(sessionId: string): string {
+  return `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/export.md`;
+}
