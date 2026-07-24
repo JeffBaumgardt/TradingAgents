@@ -11,6 +11,7 @@ import {
   LANDING_DISCLAIMER,
   LANDING_FRAMEWORK_INTRO,
   LANDING_HERO,
+  LANDING_SUCCESS_STORY,
 } from "@/lib/landing-content";
 import styles from "./LandingPageContent.module.css";
 
@@ -143,6 +144,69 @@ export default function LandingPageContent({
               </Link>
             </div>
           </div>
+        </section>
+
+        <section
+          id="success-story"
+          className={styles.successStory}
+          aria-labelledby="success-story-heading"
+        >
+          <div className={styles.successIntro}>
+            <p className={styles.successEyebrow}>
+              {LANDING_SUCCESS_STORY.eyebrow}
+            </p>
+            <h2 id="success-story-heading" className={styles.successTitle}>
+              {LANDING_SUCCESS_STORY.headline}
+            </h2>
+            <p className={styles.successIntroCopy}>
+              {LANDING_SUCCESS_STORY.intro}
+            </p>
+            <blockquote className={styles.successQuote}>
+              <p>{LANDING_SUCCESS_STORY.quote}</p>
+              <footer className={styles.successAttribution}>
+                <cite className={styles.successCite}>
+                  {LANDING_SUCCESS_STORY.attribution.name}
+                </cite>
+                <span className={styles.successRole}>
+                  {LANDING_SUCCESS_STORY.attribution.role}
+                </span>
+              </footer>
+            </blockquote>
+          </div>
+
+          <ol className={styles.storyBeats} aria-label="SPY customer story arc">
+            {LANDING_SUCCESS_STORY.beats.map((beat, index) => (
+              <li
+                key={beat.slug}
+                className={`${styles.storyBeat} ${index % 2 === 1 ? styles.storyBeatReverse : ""}`}
+              >
+                <div className={styles.storyVisual}>
+                  <Image
+                    src={beat.imageSrc}
+                    alt={beat.imageAlt}
+                    width={1280}
+                    height={720}
+                    className={styles.storyImage}
+                  />
+                </div>
+                <div className={styles.storyCopy}>
+                  <p className={styles.storyStep}>
+                    <span className={styles.storyStepNumber} aria-hidden="true">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className={styles.storyStepLabel}>{beat.label}</span>
+                  </p>
+                  <h3
+                    id={`${beat.slug}-heading`}
+                    className={styles.storyBeatTitle}
+                  >
+                    {beat.title}
+                  </h3>
+                  <p className={styles.storyBeatText}>{beat.copy}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <p className={styles.disclaimer}>{LANDING_DISCLAIMER}</p>
