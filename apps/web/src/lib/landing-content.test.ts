@@ -4,7 +4,11 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { LANDING_AGENT_TEAMS, LANDING_HERO } from "./landing-content";
+import {
+  LANDING_AGENT_TEAMS,
+  LANDING_HERO,
+  LANDING_SUCCESS_STORY,
+} from "./landing-content";
 
 describe("landing-content", () => {
   it("describes the TradingAgents Framework in the hero", () => {
@@ -46,5 +50,28 @@ describe("landing-content", () => {
     assert.ok(riskTeam);
     assert.match(riskTeam.summary, /Portfolio Manager/i);
     assert.equal(riskTeam.agents?.[0]?.name, "Portfolio Manager");
+  });
+
+  it("frames the SPY success story as a collaborative testimonial arc", () => {
+    assert.match(LANDING_SUCCESS_STORY.eyebrow, /SPY/i);
+    assert.match(LANDING_SUCCESS_STORY.headline, /one idea/i);
+    assert.match(LANDING_SUCCESS_STORY.quote, /0 DTE/i);
+    assert.match(LANDING_SUCCESS_STORY.attribution.name, /Alex/i);
+
+    const beatSlugs = LANDING_SUCCESS_STORY.beats.map((beat) => beat.slug);
+    assert.deepEqual(beatSlugs, [
+      "opening-thesis",
+      "agents-push-back",
+      "shared-theory",
+    ]);
+
+    assert.match(LANDING_SUCCESS_STORY.beats[0].copy, /Hold/i);
+    assert.match(LANDING_SUCCESS_STORY.beats[1].copy, /pushed back|challenge/i);
+    assert.match(LANDING_SUCCESS_STORY.beats[2].copy, /Iron Condor/i);
+
+    for (const beat of LANDING_SUCCESS_STORY.beats) {
+      assert.match(beat.imageSrc, /^\/images\/landing\/spy-story-/);
+      assert.ok(beat.imageAlt.length > 20);
+    }
   });
 });

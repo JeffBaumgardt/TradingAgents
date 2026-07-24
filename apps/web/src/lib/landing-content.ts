@@ -93,5 +93,56 @@ export const LANDING_AGENT_TEAMS: LandingAgentTeam[] = [
   },
 ];
 
+export interface LandingStoryBeat {
+  slug: string;
+  label: string;
+  title: string;
+  copy: string;
+  imageSrc: string;
+  imageAlt: string;
+}
+
+export const LANDING_SUCCESS_STORY = {
+  eyebrow: "Customer story · SPY",
+  headline: "They walked in with one idea. The agents walked them out with a better one.",
+  quote:
+    "I thought I wanted a quick directional put after SPY cracked support. The agents verified the breakdown, then pushed back hard on my 0 DTE idea—and kept working with me until we had a defined-risk plan I actually trusted.",
+  attribution: {
+    name: "Alex R.",
+    role: "Independent trader · SPY session, July 2026",
+  },
+  intro:
+    "A real research session on SPY: full multi-agent report first, then a live follow-up conversation when the tape changed. Not a pasted report—a story about challenge, evidence, and a thesis built together.",
+  beats: [
+    {
+      slug: "opening-thesis",
+      label: "Day one",
+      title: "The opening idea: Hold the consolidation",
+      copy: "Alex ran SPY through the full desk. Analysts mapped a choppy range around $748—long-term uptrend intact above the 200 SMA, but short-term momentum flattening. The firm’s call was Hold: respect support, don’t chase the failed breakout.",
+      imageSrc: "/images/landing/spy-story-analysts.png",
+      imageAlt:
+        "Four analyst panels summarizing SPY market, sentiment, news, and fundamentals research",
+    },
+    {
+      slug: "agents-push-back",
+      label: "Two days later",
+      title: "The tape broke—and the agents pushed back",
+      copy: "SPY closed $738.18 and sliced through the 50 SMA on heavy volume. Alex came back worried about chips and a slide past support, floating a 0 DTE 735 put. The agents verified the print, showed the structural damage, then challenged the lottery-ticket trade: time decay would eat the thesis before the market had to prove it.",
+      imageSrc: "/images/landing/spy-story-debate.png",
+      imageAlt:
+        "Bullish and bearish researcher cards debating the SPY Hold thesis after the 50 SMA break",
+    },
+    {
+      slug: "shared-theory",
+      label: "Together",
+      title: "A new theory, co-authored",
+      copy: "Instead of walking away, they kept talking. Out of the debate came a shared range thesis: a July 31 Iron Condor around 735/745, with clear profit targets, breach stops, and defined max loss. Same desk. New theory. Built in conversation—not handed down as a black box.",
+      imageSrc: "/images/landing/spy-story-together.png",
+      imageAlt:
+        "Trader and risk panels showing the shift from a rejected 0 DTE put to a shared Iron Condor plan",
+    },
+  ] satisfies LandingStoryBeat[],
+} as const;
+
 export const LANDING_DISCLAIMER =
   "TradingAgents is designed for research purposes. Trading performance may vary based on model choice, temperature, data quality, and other non-deterministic factors. It is not financial, investment, tax, or trading advice.";
