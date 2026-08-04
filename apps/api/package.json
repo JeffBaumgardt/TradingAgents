@@ -19,7 +19,7 @@
     "@tradingagents/api-types": "workspace:*",
     "@tradingagents/supabase": "workspace:*",
     "@tradingagents/utils": "workspace:*",
-    "hono": "^4.7.11",
+    "hono": "^4.12.34",
     "resend": "^6.17.2",
     "stripe": "^22.3.2",
     "uuid": "^11.1.0"
