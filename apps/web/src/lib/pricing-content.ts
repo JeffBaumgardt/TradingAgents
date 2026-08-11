@@ -6,10 +6,11 @@
  * the API and UI cannot drift.
  *
  * Model:
- * - Standard ($9) — Agents Model, 1/3 Pro credits, 7-day report messaging, no share
- * - Pro ($19) — Agents Model, full credits, share + full history
+ * - Standard ($9) — Agents Model, 1/3 Pro credits, no public report sharing
+ * - Pro ($19) — Agents Model, full credits, share by link
  * - Both include a 14-day no-card free trial (default: Pro)
  * - Annual billing is 20% off the monthly rate (billed up front)
+ * - Report retention automation for Standard is schema-ready, not enforced yet
  */
 
 import {
@@ -86,12 +87,11 @@ const PLAN_MARKETING: Record<
       `${STANDARD_CREDIT_LABEL} compute credits per month (1/3 of Pro)`,
       "Agents Model (Claude Sonnet) — managed for you",
       "Research depth + efficiency controls",
-      "Reports kept visible for 7 days (upgrade for full history)",
       "Sharing by link available on Pro",
     ],
   },
   pro: {
-    tagline: "Full credit pool, report sharing, and long-term history.",
+    tagline: "Full credit pool and share finished reports by link.",
     ctaLabel: "Start free Pro trial",
     bestFor: "Active traders who share reports and run deeper research regularly.",
     recommended: true,
@@ -99,7 +99,6 @@ const PLAN_MARKETING: Record<
       `${PRO_CREDIT_LABEL} compute credits per month`,
       "Agents Model (Claude Sonnet) — managed for you",
       "Share finished reports by link",
-      "Full report history (no 7-day limit)",
       "Research depth + efficiency controls",
     ],
   },
@@ -117,7 +116,7 @@ export const PRICING_PAGE = {
   eyebrow: "Simple pricing",
   title: "One Agents Model. Two clear plans.",
   intro:
-    "Every subscription runs on our managed Agents Model (Claude Sonnet). Pick Standard for a lighter credit pool, or Pro for full credits, sharing, and long-term report history. Both include a 14-day free trial — no credit card required.",
+    "Every subscription runs on our managed Agents Model (Claude Sonnet). Pick Standard for a lighter credit pool, or Pro for full credits and report sharing by link. Both include a 14-day free trial — no credit card required.",
   annualNote: `Annual billing saves ${ANNUAL_DISCOUNT_PERCENT}% versus paying month to month.`,
   provisionalNote:
     "Credits meter against Agents Model token usage. Payments run through Stripe after your free trial — we only ask for a card when you subscribe.",

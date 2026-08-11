@@ -22,6 +22,11 @@ export interface SessionRow {
   trade_check_json?: Record<string, unknown> | null;
   /** Set when soft-deleted; null means the session is visible. */
   deleted_on?: string | null;
+  /**
+   * Set when a Standard-plan report is soft-hidden after retention.
+   * Present for schema parity with the pivot migration; list filtering ships later.
+   */
+  archived_on?: string | null;
   created_at: string;
   updated_at: string;
 }

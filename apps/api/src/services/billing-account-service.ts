@@ -860,11 +860,15 @@ export async function getBillingAccount(
     }
   }
 
+  const activeEntitlement = userHasActiveSubscription(subscription);
   return {
     subscription,
     usage,
     hostedProviderIds: [...HOSTED_PROVIDER_IDS],
-    features: planFeaturesFor(subscription.planId),
+    features: {
+      ...planFeaturesFor(activeEntitlement ? subscription.planId : null),
+      shareReports: userCanShareReports(subscription),
+    },
     agentsModelDisplayName: AGENTS_MODEL_DISPLAY_NAME,
   };
 }

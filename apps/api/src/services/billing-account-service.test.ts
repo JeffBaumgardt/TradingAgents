@@ -16,8 +16,8 @@ import {
 } from "./billing-account-service.js";
 
 describe("billing-account-service", () => {
-  it("activates a hosted scaffold subscription with sample usage", async () => {
-    const userId = `user-hosted-${Date.now()}`;
+  it("activates a Pro scaffold subscription with sample usage", async () => {
+    const userId = `user-pro-${Date.now()}`;
     const client = createInMemorySupabase();
 
     await activateScaffoldSubscription(client, userId, "pro", "monthly");
@@ -39,6 +39,28 @@ describe("billing-account-service", () => {
     assert.ok((account.usage?.byModel[0]?.creditMultiplier ?? 0) > 0);
     assert.equal(account.agentsModelDisplayName, "Agents Model");
     assert.equal(account.features.shareReports, true);
+  });
+
+  it("disables share features for expired Pro entitlements", async () => {
+    const client = createInMemorySupabase();
+    const userId = `user-expired-pro-${Date.now()}`;
+    await activatePaidSubscription(client, {
+      userId,
+      planId: "pro",
+      interval: "monthly",
+      status: "expired",
+      currentPeriodStart: "2026-07-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-07-15T00:00:00.000Z",
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripeCheckoutSessionId: null,
+    });
+
+    const account = await getBillingAccount(client, userId);
+    assert.equal(account.subscription.planId, "pro");
+    assert.equal(account.subscription.status, "expired");
+    assert.equal(account.features.shareReports, false);
+    assert.equal(userCanShareReports(account.subscription), false);
   });
 
   it("can cancel a paid subscription when Stripe is unset", async () => {

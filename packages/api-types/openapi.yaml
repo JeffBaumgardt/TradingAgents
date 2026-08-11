@@ -120,6 +120,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /billing/trial/start:
+    post:
+      tags: [billing]
+      summary: Start a no-card free trial
+      description: |
+        One free trial per account (defaults to Pro / 14 days). Rejects when a
+        subscription or prior trial row already exists for the user.
+      operationId: startBillingTrial
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartTrialRequest"
+      responses:
+        "200":
+          description: Trial activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartTrialResponse"
+        "400":
+          description: Trial already used or active plan present
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid auth
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /billing/subscription/cancel:
     post:
       tags: [billing]
@@ -749,6 +784,24 @@ components:
           type: string
         subscriptionActivated:
           type: boolean
+    StartTrialRequest:
+      type: object
+      properties:
+        planId:
+          $ref: "#/components/schemas/BillingPlanId"
+          description: Defaults to Pro when omitted.
+    StartTrialResponse:
+      type: object
+      required: [subscription, trialEndsAt]
+      properties:
+        subscription:
+          type: object
+          additionalProperties: true
+          description: User subscription snapshot after trial activation.
+        trialEndsAt:
+          type: string
+          format: date-time
+          description: When the free trial ends (current period end while trialing).
     BillingAccountResponse:
       type: object
       required: [subscription, usage, hostedProviderIds, features, agentsModelDisplayName]

@@ -11,7 +11,8 @@ pip install -r apps/agents-service/requirements.txt
 
 # 2. Environment
 cp .env.example .env
-# Add at least one LLM provider API key
+# Platform Agents Model key is injected server-side (ANTHROPIC / platform_api_keys).
+# Local full runs still need a configured platform Anthropic key.
 
 # 3. JavaScript dependencies
 pnpm install
@@ -25,8 +26,8 @@ pnpm dev
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Web | http://localhost:3000 | Provider keys → 9-step wizard → streaming run view |
-| API | http://localhost:4000 | OpenAPI gateway, session persistence |
+| Web | http://localhost:3000 | Subscription/trial gate → wizard → streaming run view |
+| API | http://localhost:4000 | OpenAPI gateway, sessions, billing |
 | Agents | http://localhost:8000 | Python LangGraph execution (internal) |
 
 ## Project layout
@@ -49,23 +50,18 @@ docs/
   MONOREPO.md       This file
 ```
 
-## Provider credentials (browser session)
+## Product inference (Agents Model)
 
-1. User enters API keys on the home screen (in-memory only — not saved to DB or localStorage)
-2. `POST /config/resolve` returns only providers with supplied credentials
-3. Wizard steps 7–8 show filtered providers and models
-4. `POST /sessions` includes `providerCredentials`; keys are forwarded to the agents-service for the run only
+There is no BYOK and no multi-provider product catalog on Standard/Pro.
 
-### Model catalog strategy
+1. User signs in and starts a free Pro trial (or subscribes to Standard/Pro).
+2. Platform Anthropic key is loaded server-side from `platform_api_keys`.
+3. Every product run forces `llmProvider=anthropic` and `thinkLlm=claude-sonnet-5` (Agents Model).
+4. Compute credits are metered against the active plan allowance.
 
-| Provider | Source | Notes |
-|----------|--------|-------|
-| OpenAI, Anthropic, Google, xAI, DeepSeek, Qwen, GLM | **Static** (`model_catalog.py`) | Curated list, manually updated with releases |
-| OpenRouter | **Live API** | Fetches `/v1/models` when key provided; falls back to custom ID |
-| Ollama | **Live or static** | Queries local `/api/tags` when enabled; static fallback |
-| Azure | **User deployment** | Uses deployment name from credentials |
+See [PLATFORM_API_KEYS_AND_CREDITS.md](./PLATFORM_API_KEYS_AND_CREDITS.md) for credit math and ops details.
 
-Most providers do not expose a useful “list all models I can use” API without ambiguity, so a maintained static catalog is the default. OpenRouter is the main exception and supports live discovery.
+The CLI and local library still support additional providers for development; the hosted web product does not.
 
 ## OpenAPI specification
 
@@ -73,11 +69,11 @@ The canonical API contract lives at `packages/api-types/openapi.yaml`.
 
 Key endpoints:
 
-- `GET /config/credentials/schema` — provider key field definitions
-- `POST /config/resolve` — filter config by supplied credentials
+- `POST /config/resolve` — product config enrichment for active subscribers
 - `GET /config/options` — analysts, languages, providers, research depths
 - `GET /config/providers/{provider}/models?mode=quick|deep` — model catalog
-- `POST /sessions` — start analysis with full CLI-equivalent config
+- `POST /billing/trial/start` — one free trial per account
+- `POST /sessions` — start analysis on Agents Model (subscription required)
 - `GET /sessions/{id}/stream` — SSE events (`run.started`, `agent.status`, `message`, `tool.call`, `report.section`, `stats`, `run.completed`, `run.error`)
 - `GET /sessions/{id}/report` — final markdown report + rating
 

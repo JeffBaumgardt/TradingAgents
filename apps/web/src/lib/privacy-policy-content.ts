@@ -138,7 +138,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     title: "How long we keep data",
     bullets: [
       "Account profile data is kept while your account is active and for a reasonable period afterward unless deletion is requested or required by law.",
-      "Analysis sessions and reports are kept while your account is active unless you delete them or request account erasure. Standard plan messaging describes a 7-day visibility window; Pro retains full history in product views.",
+      "Analysis sessions and reports are kept while your account is active unless you delete them or request account erasure.",
       "Server logs and security records are retained for a limited period appropriate for security and troubleshooting.",
       "Cookie acknowledgment is stored for up to one year unless you clear cookies earlier.",
     ],

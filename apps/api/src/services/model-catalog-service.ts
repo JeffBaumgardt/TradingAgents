@@ -13,7 +13,8 @@ import type { AppSupabaseClient, ModelCreditMultiplierRow } from "@tradingagents
 import { getPlanCreditConfig } from "./credit-service.js";
 
 export async function listHostedModelsFromDb(client: AppSupabaseClient) {
-  const config = await getPlanCreditConfig(client, "hosted");
+  // Reference rate is shared across product plans; pro config is representative.
+  const config = await getPlanCreditConfig(client, "pro");
   const { data, error } = await client
     .from("model_credit_multipliers")
     .select("*")
@@ -30,11 +31,7 @@ export async function listHostedModelsFromDb(client: AppSupabaseClient) {
     pricedAsOf: HOSTED_MODEL_CATALOG_PRICED_AS_OF,
     referenceOutputUsdPer1M: Number(config.reference_output_usd_per_1m) || COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
     models: rows.map((row) => ({
-      providerId: row.provider_id as
-        | "openai"
-        | "anthropic"
-        | "google"
-        | "xai",
+      providerId: row.provider_id as "anthropic",
       providerLabel: row.provider_label,
       modelId: row.model_id,
       displayName: row.display_name,

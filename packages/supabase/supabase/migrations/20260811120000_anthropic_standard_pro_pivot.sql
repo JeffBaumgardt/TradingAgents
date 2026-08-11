@@ -132,7 +132,7 @@ alter table public.sessions
   add column if not exists archived_on timestamptz;
 
 comment on column public.sessions.archived_on is
-  'Set when a Standard-plan report is soft-hidden after retention; null means visible. Pro upgrade clears this.';
+  'Forward-compat: intended for Standard-plan soft-hide after retention. App does not set or filter this yet; null means visible.';
 
 create index if not exists idx_sessions_user_id_visible
   on public.sessions (user_id, analysis_date desc, created_at desc)

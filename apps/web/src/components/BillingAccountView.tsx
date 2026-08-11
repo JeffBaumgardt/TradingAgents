@@ -95,7 +95,7 @@ export default function BillingAccountView({
   const modelName = agentsModelDisplayName ?? AGENTS_MODEL_DISPLAY_NAME;
   const planFeatures = features ?? {
     shareReports: isPro,
-    reportRetentionDays: isPro ? null : 7,
+    reportRetentionDays: null,
   };
 
   return (
@@ -191,16 +191,10 @@ export default function BillingAccountView({
             Report sharing:{" "}
             {planFeatures.shareReports ? "enabled (Pro)" : "Pro only — upgrade to share by link"}
           </li>
-          <li>
-            Report retention:{" "}
-            {planFeatures.reportRetentionDays
-              ? `${planFeatures.reportRetentionDays} days visible on Standard`
-              : "full history on Pro"}
-          </li>
         </ul>
         {!planFeatures.shareReports ? (
           <p className={styles.sampleNote} role="note">
-            Sharing and longer report history are Pro features.{" "}
+            Sharing finished reports by link is a Pro feature.{" "}
             <Link href="/checkout?plan=pro&interval=monthly">Upgrade to Pro</Link>
           </p>
         ) : null}

@@ -15,7 +15,7 @@ import {
 } from "./billing-service.js";
 
 describe("billing-service", () => {
-  it("lists the shared Standard and hosted catalog", () => {
+  it("lists the shared Standard and Pro catalog", () => {
     const { plans } = listBillingPlans();
     assert.deepEqual(plans, [...BILLING_CATALOG]);
     assert.equal(BILLING_ANNUAL_DISCOUNT_PERCENT, 20);

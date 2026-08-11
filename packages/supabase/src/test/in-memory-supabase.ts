@@ -46,31 +46,29 @@ function rowValue(row: Record<string, unknown>, column: string): unknown {
 
 function defaultPlanConfigs(): Map<string, PlanCreditConfigRow> {
   const now = new Date().toISOString();
+  const shared = {
+    low_balance_block_ratio: 0.03,
+    low_balance_warn_ratio: 0.1,
+    max_rollover_periods: 1,
+    estimated_tokens_by_depth: { "1": 80_000, "3": 250_000, "5": 500_000 },
+    reference_output_usd_per_1m: 0.266667,
+    updated_at: now,
+  } as const;
   return new Map([
     [
-      "hosted",
+      "pro",
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         monthly_credit_allowance: 10_000_000,
-        low_balance_block_ratio: 0.03,
-        low_balance_warn_ratio: 0.1,
-        max_rollover_periods: 1,
-        estimated_tokens_by_depth: { "1": 80_000, "3": 250_000, "5": 500_000 },
-        reference_output_usd_per_1m: 0.266667,
-        updated_at: now,
+        ...shared,
       },
     ],
     [
-      "byok",
+      "standard",
       {
-        plan_id: "byok",
-        monthly_credit_allowance: 0,
-        low_balance_block_ratio: 0.03,
-        low_balance_warn_ratio: 0.1,
-        max_rollover_periods: 0,
-        estimated_tokens_by_depth: { "1": 80_000, "3": 250_000, "5": 500_000 },
-        reference_output_usd_per_1m: 0.266667,
-        updated_at: now,
+        plan_id: "standard",
+        monthly_credit_allowance: 3_333_333,
+        ...shared,
       },
     ],
   ]);

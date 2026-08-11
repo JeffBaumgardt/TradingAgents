@@ -643,10 +643,12 @@ export function planFeaturesFor(planId: BillingPlanId | null): PlanFeatures {
   if (planId === "pro") {
     return { shareReports: true, reportRetentionDays: null };
   }
+  // Standard soft-hide (archived_on) is schema-ready but not enforced yet;
+  // keep reportRetentionDays null so UI/marketing do not overpromise.
   if (planId === "standard") {
-    return { shareReports: false, reportRetentionDays: 7 };
+    return { shareReports: false, reportRetentionDays: null };
   }
-  return { shareReports: false, reportRetentionDays: 7 };
+  return { shareReports: false, reportRetentionDays: null };
 }
 
 export type SubscriptionStatus =
