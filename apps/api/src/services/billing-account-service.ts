@@ -442,7 +442,8 @@ export async function activateScaffoldSubscription(
 }
 
 /**
- * Start a no-card free trial. Rejects if user already has trialing/active access.
+ * Start a no-card free trial. One trial per account: rejects if any
+ * subscription row (or in-memory scaffold) already exists.
  */
 export async function startTrialSubscription(
   client: AppSupabaseClient,
@@ -453,20 +454,21 @@ export async function startTrialSubscription(
 
   const existing = await loadStoredSubscription(client, userId);
   const scaffold = scaffoldSubscriptions.get(userId);
-  const effective = existing ?? (scaffold
-    ? enrichSubscription({
-        planId: scaffold.planId,
-        interval: scaffold.interval,
-        status: scaffold.status,
-        currentPeriodStart: scaffold.currentPeriodStart,
-        currentPeriodEnd: scaffold.currentPeriodEnd,
-        cancelAtPeriodEnd: scaffold.cancelAtPeriodEnd,
-      })
-    : emptySubscription());
-
-  if (userHasActiveSubscription(effective)) {
+  if (existing || scaffold) {
     throw new BillingAccountError(
-      "An active plan or trial is already in progress",
+      userHasActiveSubscription(
+        existing ??
+          enrichSubscription({
+            planId: scaffold!.planId,
+            interval: scaffold!.interval,
+            status: scaffold!.status,
+            currentPeriodStart: scaffold!.currentPeriodStart,
+            currentPeriodEnd: scaffold!.currentPeriodEnd,
+            cancelAtPeriodEnd: scaffold!.cancelAtPeriodEnd,
+          }),
+      )
+        ? "An active plan or trial is already in progress"
+        : "A free trial has already been used for this account",
       400,
     );
   }
