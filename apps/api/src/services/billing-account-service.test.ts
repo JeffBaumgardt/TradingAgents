@@ -11,6 +11,7 @@ import {
   activateScaffoldSubscription,
   cancelSubscriptionAtPeriodEnd,
   getBillingAccount,
+  userCanShareReports,
   userHasActiveSubscription,
 } from "./billing-account-service.js";
 
