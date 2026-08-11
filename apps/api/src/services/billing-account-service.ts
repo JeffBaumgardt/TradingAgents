@@ -495,26 +495,10 @@ export async function startTrialSubscription(
   });
 
   if (error) {
-    const sub: ScaffoldSubscription = {
-      planId,
-      interval: "monthly",
-      status: "trialing",
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodEnd,
-      cancelAtPeriodEnd: false,
-    };
-    scaffoldSubscriptions.set(userId, sub);
-    if (!scaffoldUsage.has(userId)) {
-      scaffoldUsage.set(userId, sampleUsageEvents());
-    }
-    return enrichSubscription({
-      planId,
-      interval: "monthly",
-      status: "trialing",
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodEnd,
-      cancelAtPeriodEnd: false,
-    });
+    throw new BillingAccountError(
+      "Unable to start trial right now. Please try again.",
+      503,
+    );
   }
 
   scaffoldSubscriptions.set(userId, {
