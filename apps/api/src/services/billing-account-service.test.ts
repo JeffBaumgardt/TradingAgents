@@ -150,4 +150,62 @@ describe("billing-account-service", () => {
       false,
     );
   });
+
+  it("userCanShareReports requires an active or trialing Pro plan", () => {
+    assert.equal(
+      userCanShareReports({
+        planId: "pro",
+        interval: "monthly",
+        status: "active",
+        currentPeriodStart: "2026-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      }),
+      true,
+    );
+    assert.equal(
+      userCanShareReports({
+        planId: "pro",
+        interval: "monthly",
+        status: "trialing",
+        currentPeriodStart: "2026-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      }),
+      true,
+    );
+    assert.equal(
+      userCanShareReports({
+        planId: "standard",
+        interval: "monthly",
+        status: "active",
+        currentPeriodStart: "2026-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      }),
+      false,
+    );
+    assert.equal(
+      userCanShareReports({
+        planId: "pro",
+        interval: "monthly",
+        status: "expired",
+        currentPeriodStart: "2026-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2026-07-15T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      }),
+      false,
+    );
+    assert.equal(
+      userCanShareReports({
+        planId: "pro",
+        interval: "monthly",
+        status: "canceled",
+        currentPeriodStart: "2026-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      }),
+      false,
+    );
+  });
 });

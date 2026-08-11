@@ -890,12 +890,9 @@ export function userHasActiveSubscription(subscription: UserSubscription): boole
   return true;
 }
 
-/** True when the account may share reports by public link. */
+/** True when the account may share reports by public link (active Pro only). */
 export function userCanShareReports(subscription: UserSubscription): boolean {
-  if (!userHasActiveSubscription(subscription) && subscription.planId !== "pro") {
-    return false;
-  }
-  return subscription.planId === "pro";
+  return userHasActiveSubscription(subscription) && subscription.planId === "pro";
 }
 
 /**
