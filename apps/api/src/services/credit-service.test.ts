@@ -72,7 +72,7 @@ describe("credit-service", () => {
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-01-01T00:00:00.000Z",
         current_period_end: "2027-01-01T00:00:00.000Z",
       },
@@ -88,7 +88,7 @@ describe("credit-service", () => {
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-01-01T00:00:00.000Z",
         current_period_end: "2027-01-01T00:00:00.000Z",
       },
@@ -129,7 +129,7 @@ describe("credit-service", () => {
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },
@@ -145,7 +145,7 @@ describe("credit-service", () => {
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },
@@ -171,7 +171,7 @@ describe("credit-service", () => {
     assert.equal((data as { blocked_low_balance: boolean }).blocked_low_balance, false);
   });
 
-  it("blocks new hosted runs below the 3% remaining threshold", async () => {
+  it("returns not_hosted for cost_source self_pay (product always hosted)", async () => {
     const client = createInMemorySupabase();
     const userId = "user-credit-block";
     await client.from("users").insert({
@@ -184,43 +184,28 @@ describe("credit-service", () => {
       updated_at: new Date().toISOString(),
     });
 
-    const period = await ensureCreditPeriod(
-      client,
-      userId,
-      {
-        plan_id: "hosted",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
-      },
-      new Date("2026-07-15T12:00:00.000Z"),
-    );
-    await client
-      .from("user_credit_periods")
-      .update({ used_credits: period.base_allowance - 100_000 })
-      .eq("id", period.id);
-
     const gate = await assertHostedCreditsForNewRun(
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },
       {
         ticker: "AAPL",
         analysisDate: "2026-07-01",
-        analysts: ["market", "news", "social", "fundamentals"],
-        researchDepth: 3,
-        llmProvider: "openai",
-        thinkLlm: "gpt-5.5",
+        analysts: ["market"],
+        researchDepth: 1,
+        llmProvider: "anthropic",
+        thinkLlm: "claude-sonnet-5",
         outputLanguage: "English",
       },
-      "hosted",
+      "self_pay",
     );
 
-    assert.equal(gate.allowed, false);
-    assert.equal(gate.code, "credits_insufficient");
+    assert.equal(gate.allowed, true);
+    assert.equal(gate.code, "not_hosted");
   });
 
   it("rejects a second hosted run when in-flight estimates exhaust remaining credits", async () => {
@@ -238,7 +223,7 @@ describe("credit-service", () => {
     });
 
     const subscription = {
-      plan_id: "hosted",
+      plan_id: "pro",
       current_period_start: "2026-07-01T00:00:00.000Z",
       current_period_end: "2026-08-01T00:00:00.000Z",
     } as const;
@@ -318,7 +303,7 @@ describe("credit-service", () => {
     });
 
     const subscription = {
-      plan_id: "hosted",
+      plan_id: "pro",
       current_period_start: "2026-07-01T00:00:00.000Z",
       current_period_end: "2026-08-01T00:00:00.000Z",
     } as const;
@@ -423,7 +408,7 @@ describe("credit-service", () => {
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },
@@ -444,7 +429,7 @@ describe("credit-service", () => {
       tokensIn: 10,
       tokensOut: 10,
       subscription: {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },
@@ -458,7 +443,7 @@ describe("credit-service", () => {
       tokensIn: 10,
       tokensOut: 10,
       subscription: {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },
@@ -525,7 +510,7 @@ describe("credit-service", () => {
       tokensIn: 1000,
       tokensOut: 1000,
       subscription: {
-        plan_id: "hosted",
+        plan_id: "pro",
         current_period_start: "2026-07-01T00:00:00.000Z",
         current_period_end: "2026-08-01T00:00:00.000Z",
       },

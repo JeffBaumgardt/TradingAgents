@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { hasActiveSubscription } from "./subscription-access";
 
 describe("hasActiveSubscription", () => {
-  it("requires an active byok or hosted plan", () => {
+  it("requires an active or trialing standard or pro plan", () => {
     assert.equal(hasActiveSubscription(null), false);
     assert.equal(
       hasActiveSubscription({
@@ -22,20 +22,9 @@ describe("hasActiveSubscription", () => {
     );
     assert.equal(
       hasActiveSubscription({
-        planId: "byok",
+        planId: "pro",
         interval: "monthly",
-        status: "canceled",
-        currentPeriodStart: null,
-        currentPeriodEnd: null,
-        cancelAtPeriodEnd: false,
-      }),
-      false,
-    );
-    assert.equal(
-      hasActiveSubscription({
-        planId: "byok",
-        interval: "monthly",
-        status: "active",
+        status: "trialing",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
         currentPeriodEnd: "2099-08-01T00:00:00.000Z",
         cancelAtPeriodEnd: false,
@@ -44,25 +33,14 @@ describe("hasActiveSubscription", () => {
     );
     assert.equal(
       hasActiveSubscription({
-        planId: "hosted",
-        interval: "annual",
+        planId: "standard",
+        interval: "monthly",
         status: "active",
         currentPeriodStart: "2026-07-01T00:00:00.000Z",
-        currentPeriodEnd: "2099-07-01T00:00:00.000Z",
+        currentPeriodEnd: "2099-08-01T00:00:00.000Z",
         cancelAtPeriodEnd: false,
       }),
       true,
-    );
-    assert.equal(
-      hasActiveSubscription({
-        planId: "hosted",
-        interval: "monthly",
-        status: "active",
-        currentPeriodStart: "2026-06-01T00:00:00.000Z",
-        currentPeriodEnd: "2026-07-01T00:00:00.000Z",
-        cancelAtPeriodEnd: false,
-      }),
-      false,
     );
   });
 });

@@ -29,35 +29,36 @@ describe("pricing-content", () => {
     assert.equal(PRICING_PLANS[1]?.monthlyPriceCents, BILLING_CATALOG[1]?.monthlyPriceCents);
   });
 
-  it("applies a 20% annual discount to the BYOK plan", () => {
-    const byok = getPricingPlan("byok");
-    assert.equal(byok.monthlyPriceCents, 300);
-    assert.equal(annualTotalCents(byok.monthlyPriceCents), 2880);
-    assert.equal(annualMonthlyEquivalentCents(byok.monthlyPriceCents), 240);
-    assert.equal(displayPriceCents(byok, "monthly"), 300);
-    assert.equal(displayPriceCents(byok, "annual"), 240);
+  it("applies a 20% annual discount to the Standard plan", () => {
+    const standard = getPricingPlan("standard");
+    assert.equal(standard.monthlyPriceCents, 900);
+    assert.equal(annualTotalCents(standard.monthlyPriceCents), 8640);
+    assert.equal(annualMonthlyEquivalentCents(standard.monthlyPriceCents), 720);
+    assert.equal(displayPriceCents(standard, "monthly"), 900);
+    assert.equal(displayPriceCents(standard, "annual"), 720);
   });
 
-  it("applies a 20% annual discount to the hosted plan", () => {
-    const hosted = getPricingPlan("hosted");
-    assert.equal(hosted.monthlyPriceCents, 1900);
-    assert.equal(hosted.priceProvisional, false);
-    assert.equal(annualTotalCents(hosted.monthlyPriceCents), 18240);
-    assert.equal(annualMonthlyEquivalentCents(hosted.monthlyPriceCents), 1520);
+  it("applies a 20% annual discount to the Pro plan", () => {
+    const pro = getPricingPlan("pro");
+    assert.equal(pro.monthlyPriceCents, 1900);
+    assert.equal(pro.priceProvisional, false);
+    assert.equal(annualTotalCents(pro.monthlyPriceCents), 18240);
+    assert.equal(annualMonthlyEquivalentCents(pro.monthlyPriceCents), 1520);
     assert.equal(formatUsdFromCents(1520), "$15.20");
     assert.ok(
-      hosted.highlights.some((item) => /10M compute credits per month/i.test(item)),
+      pro.highlights.some((item) => /10M compute credits per month/i.test(item)),
     );
   });
 
   it("formats currency and checkout hrefs", () => {
-    assert.equal(formatUsdFromCents(300), "$3");
-    assert.equal(formatUsdFromCents(240), "$2.40");
-    assert.equal(buildCheckoutHref("byok", "annual"), "/checkout?plan=byok&interval=annual");
+    assert.equal(formatUsdFromCents(900), "$9");
+    assert.equal(formatUsdFromCents(720), "$7.20");
+    assert.equal(buildCheckoutHref("standard", "annual"), "/checkout?plan=standard&interval=annual");
   });
 
   it("validates plan and interval ids", () => {
-    assert.equal(isPricingPlanId("byok"), true);
+    assert.equal(isPricingPlanId("standard"), true);
+    assert.equal(isPricingPlanId("pro"), true);
     assert.equal(isPricingPlanId("enterprise"), false);
     assert.equal(isBillingInterval("monthly"), true);
     assert.equal(isBillingInterval("weekly"), false);

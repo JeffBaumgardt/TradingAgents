@@ -26,7 +26,8 @@ export default function RecentSessionsPanel({
         </h1>
         <p className="muted pageIntro">
           Re-open a previous run to read finished reports. In-progress runs continue updating
-          automatically on the run page.
+          automatically on the run page. On Standard, reports stay visible for 7 days — upgrade to
+          Pro to keep full history.
         </p>
         <p className={styles.error} role="alert">
           We could not load your recent sessions. Try refreshing the page.
@@ -46,7 +47,8 @@ export default function RecentSessionsPanel({
       </h1>
       <p className="muted pageIntro">
         Re-open a previous run to read finished reports. In-progress runs continue updating
-        automatically on the run page.
+        automatically on the run page. On Standard, reports stay visible for 7 days — upgrade to
+        Pro to keep full history.
       </p>
       <div className={styles.wrapper}>
         <div className={styles.panel}>

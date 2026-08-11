@@ -7,13 +7,13 @@
 import type { BillingInterval, BillingPlanId } from "@tradingagents/api-types";
 
 const PRICE_ENV_KEYS = {
-  byok: {
-    monthly: "STRIPE_PRICE_BYOK_MONTHLY",
-    annual: "STRIPE_PRICE_BYOK_ANNUAL",
+  standard: {
+    monthly: "STRIPE_PRICE_STANDARD_MONTHLY",
+    annual: "STRIPE_PRICE_STANDARD_ANNUAL",
   },
-  hosted: {
-    monthly: "STRIPE_PRICE_HOSTED_MONTHLY",
-    annual: "STRIPE_PRICE_HOSTED_ANNUAL",
+  pro: {
+    monthly: "STRIPE_PRICE_PRO_MONTHLY",
+    annual: "STRIPE_PRICE_PRO_ANNUAL",
   },
 } as const;
 
@@ -28,16 +28,16 @@ export function getStripePriceId(
 
 export function areStripePricesConfigured(): boolean {
   return (
-    Boolean(getStripePriceId("byok", "monthly")) &&
-    Boolean(getStripePriceId("byok", "annual")) &&
-    Boolean(getStripePriceId("hosted", "monthly")) &&
-    Boolean(getStripePriceId("hosted", "annual"))
+    Boolean(getStripePriceId("standard", "monthly")) &&
+    Boolean(getStripePriceId("standard", "annual")) &&
+    Boolean(getStripePriceId("pro", "monthly")) &&
+    Boolean(getStripePriceId("pro", "annual"))
   );
 }
 
 export function missingStripePriceEnvKeys(): string[] {
   const missing: string[] = [];
-  for (const planId of ["byok", "hosted"] as const) {
+  for (const planId of ["standard", "pro"] as const) {
     for (const interval of ["monthly", "annual"] as const) {
       const envKey = PRICE_ENV_KEYS[planId][interval];
       if (!process.env[envKey]?.trim()) {

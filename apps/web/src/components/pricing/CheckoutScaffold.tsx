@@ -37,7 +37,7 @@ function resolveCheckoutSelection(
   const intervalMissing = intervalParam === null || intervalParam === "";
 
   if (planMissing && intervalMissing) {
-    return { ok: true, planId: "byok", interval: "monthly" };
+    return { ok: true, planId: "pro", interval: "monthly" };
   }
 
   if (!planMissing && !isPricingPlanId(planParam)) {
@@ -56,7 +56,7 @@ function resolveCheckoutSelection(
 
   return {
     ok: true,
-    planId: isPricingPlanId(planParam) ? planParam : "byok",
+    planId: isPricingPlanId(planParam) ? planParam : "pro",
     interval: isBillingInterval(intervalParam) ? intervalParam : "monthly",
   };
 }

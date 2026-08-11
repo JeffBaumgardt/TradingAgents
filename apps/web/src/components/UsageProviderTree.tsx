@@ -62,9 +62,9 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
                   {formatComputeCredits(provider.computeCredits)} credits
                 </span>
                 <span className={styles.providerSplit}>
-                  Hosted {formatTokenCount(provider.hostedTokens)}
+                  Agents Model {formatTokenCount(provider.hostedTokens)}
                   {provider.selfPayTokens > 0
-                    ? ` · Your key ${formatTokenCount(provider.selfPayTokens)}`
+                    ? ` · Legacy ${formatTokenCount(provider.selfPayTokens)}`
                     : ""}
                 </span>
               </span>

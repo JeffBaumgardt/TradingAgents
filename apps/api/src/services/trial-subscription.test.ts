@@ -1,0 +1,48 @@
+/**
+ * apps/api/src/services/trial-subscription.test.ts
+ * No-card free trial start, double-start rejection, and expiry.
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { createInMemorySupabase } from "@tradingagents/supabase/test";
+import { TRIAL_DAYS } from "@tradingagents/api-types";
+import {
+  getBillingAccount,
+  startTrialSubscription,
+  userHasActiveSubscription,
+  BillingAccountError,
+} from "./billing-account-service.js";
+
+describe("startTrialSubscription", () => {
+  it("starts a Pro trial for 14 days without Stripe", async () => {
+    const client = createInMemorySupabase();
+    const userId = `trial-pro-${Date.now()}`;
+    const sub = await startTrialSubscription(client, userId, "pro");
+    assert.equal(sub.planId, "pro");
+    assert.equal(sub.status, "trialing");
+    assert.equal(sub.isTrial, true);
+    assert.ok(sub.currentPeriodStart);
+    assert.ok(sub.currentPeriodEnd);
+    const start = Date.parse(sub.currentPeriodStart!);
+    const end = Date.parse(sub.currentPeriodEnd!);
+    const days = (end - start) / (1000 * 60 * 60 * 24);
+    assert.ok(days >= TRIAL_DAYS - 0.01 && days <= TRIAL_DAYS + 0.01);
+    assert.equal(userHasActiveSubscription(sub), true);
+
+    const account = await getBillingAccount(client, userId);
+    assert.equal(account.subscription.status, "trialing");
+    assert.equal(account.features.shareReports, true);
+  });
+
+  it("rejects a second trial while one is active", async () => {
+    const client = createInMemorySupabase();
+    const userId = `trial-dup-${Date.now()}`;
+    await startTrialSubscription(client, userId, "standard");
+    await assert.rejects(
+      () => startTrialSubscription(client, userId, "pro"),
+      (error: unknown) =>
+        error instanceof BillingAccountError && error.status === 400,
+    );
+  });
+});

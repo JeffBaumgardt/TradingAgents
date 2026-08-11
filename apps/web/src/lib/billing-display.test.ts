@@ -41,7 +41,8 @@ describe("billing-display", () => {
   });
 
   it("labels cost sources clearly", () => {
-    assert.equal(costSourceLabel("hosted"), "Hosted");
-    assert.equal(costSourceLabel("self_pay"), "Your key");
+    assert.equal(costSourceLabel("hosted"), "Agents Model");
+    assert.equal(costSourceLabel("self_pay"), "Legacy (your key)");
   });
 });
+

@@ -9,7 +9,7 @@ import PricingLayout from "@/components/pricing/PricingLayout";
 export const metadata: Metadata = {
   title: "Pricing — TradingAgents",
   description:
-    "Bring your own API key for $3/month, or use hosted models. Annual plans save 20%.",
+    "Standard $9 or Pro $19 — Agents Model included. 14-day free trial, no card. Annual saves 20%.",
 };
 
 export default function PricingPage() {

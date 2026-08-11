@@ -22,8 +22,8 @@ export const LANDING_HERO = {
   imageSrc: "/images/landing/set-b-market-signals.png",
   imageAlt:
     "AI assistant surrounded by floating market data, news, and chart panels",
-  headline: "A multi-agent framework built like a real trading firm",
-  copy: "TradingAgents mirrors the dynamics of real-world trading firms. Specialized LLM-powered agents—from fundamental and technical analysts to researchers, traders, and risk managers—collaboratively evaluate market conditions and inform research decisions through dynamic discussion.",
+  headline: "Multi-agent research on one managed Agents Model",
+  copy: "TradingAgents runs a specialist analyst team, bull/bear debate, risk review, and portfolio decision — powered by our managed Agents Model (Claude Sonnet). Start with a 14-day free trial. No provider keys. Standard or Pro plans for clear credit pools.",
 } as const;
 
 export const LANDING_FRAMEWORK_INTRO =

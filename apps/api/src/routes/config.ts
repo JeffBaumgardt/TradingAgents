@@ -124,8 +124,10 @@ configRoutes.post("/config/resolve", requireUserId(), async (c) => {
     const client = getSupabaseAdmin(c);
     const billing = await getBillingAccount(client, userId);
     const isHostedPlan =
-      billing.subscription.planId === "hosted" &&
-      billing.subscription.status === "active";
+      (billing.subscription.planId === "pro" ||
+        billing.subscription.planId === "standard") &&
+      (billing.subscription.status === "active" ||
+        billing.subscription.status === "trialing");
 
     const resolved = await resolveConfig(userCredentials);
     if (!isHostedPlan) {

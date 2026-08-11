@@ -1,6 +1,7 @@
 /**
  * @file apps/web/src/components/SubscriptionGate.tsx
- * Redirects to pricing when the user has no active BYOK or Hosted subscription.
+ * Ensures an active Standard/Pro plan or free trial before rendering children.
+ * Starts a default Pro trial when the user has no plan yet.
  * Retries briefly after Stripe Checkout so the webhook can land first.
  */
 
@@ -9,7 +10,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import HomePageSkeleton from "@/components/HomePageSkeleton";
-import { fetchBillingAccount } from "@/lib/api-client";
+import { fetchBillingAccount, startBillingTrial } from "@/lib/api-client";
 import { hasActiveSubscription } from "@/lib/subscription-access";
 
 interface SubscriptionGateProps {
@@ -39,18 +40,41 @@ export default function SubscriptionGate({ children }: SubscriptionGateProps) {
       setLoadFailed(false);
       setAllowed(null);
       let sawSuccessfulResponse = false;
+      let triedTrial = false;
 
       for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
         try {
-          const account = await fetchBillingAccount();
+          let account = await fetchBillingAccount();
           if (cancelled) {
             return;
           }
           sawSuccessfulResponse = true;
+
           if (hasActiveSubscription(account.subscription)) {
             setAllowed(true);
             return;
           }
+
+          // Auto-start default Pro trial when user has no entitlement yet.
+          if (
+            !triedTrial &&
+            (account.subscription.status === "none" ||
+              account.subscription.planId == null)
+          ) {
+            triedTrial = true;
+            try {
+              await startBillingTrial("pro");
+              account = await fetchBillingAccount();
+              if (hasActiveSubscription(account.subscription)) {
+                setAllowed(true);
+                return;
+              }
+            } catch {
+              // Fall through to pricing when trial start fails (e.g. already expired).
+            }
+          }
+
+          // Expired trial / canceled — send to pricing after poll budget.
         } catch {
           // Keep polling — a transient API blip after checkout should not
           // immediately bounce the user to pricing.

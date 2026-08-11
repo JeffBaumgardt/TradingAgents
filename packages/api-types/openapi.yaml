@@ -760,7 +760,7 @@ components:
           enum: [true]
     BillingPlanId:
       type: string
-      enum: [byok, hosted]
+      enum: [standard, pro]
     BillingInterval:
       type: string
       enum: [monthly, annual]
@@ -822,7 +822,7 @@ components:
           type: boolean
     BillingAccountResponse:
       type: object
-      required: [subscription, usage, hostedProviderIds]
+      required: [subscription, usage, hostedProviderIds, features, agentsModelDisplayName]
       properties:
         subscription:
           type: object
@@ -835,6 +835,11 @@ components:
           type: array
           items:
             type: string
+        features:
+          type: object
+          additionalProperties: true
+        agentsModelDisplayName:
+          type: string
     CancelSubscriptionResponse:
       type: object
       required: [subscription, accessEndsAt]

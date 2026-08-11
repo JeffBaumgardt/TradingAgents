@@ -15,7 +15,12 @@ import type {
   SessionTradeCheckResponse,
   TradeCheckReport,
 } from "@tradingagents/api-types";
-import { getHostedModelCostEntry, resolveThinkLlm } from "@tradingagents/api-types";
+import {
+  AGENTS_MODEL_ID,
+  AGENTS_MODEL_PROVIDER_ID,
+  getHostedModelCostEntry,
+  resolveThinkLlm,
+} from "@tradingagents/api-types";
 import {
   normalizeTicker,
   sanitizeUserContext,
@@ -28,13 +33,12 @@ import {
 import type { AppSupabaseClient, EventRow, SessionRow } from "@tradingagents/supabase";
 import { canonicalBackendUrlForProvider } from "../lib/provider-backend-urls.js";
 import * as agentsClient from "./agents-client.js";
-import { getBillingAccount } from "./billing-account-service.js";
+import { getBillingAccount, userHasActiveSubscription } from "./billing-account-service.js";
 import {
   assertHostedCreditsForNewRun,
   assertHostedInFlightWithinBalance,
   initSessionUsageCursor,
 } from "./credit-service.js";
-import { getUserCredentialsRaw } from "./credentials-service.js";
 import { resolveRunProviderCredentials } from "./platform-keys-service.js";
 import { startBackgroundRunMetering, stopBackgroundRunMetering } from "./run-metering-service.js";
 
@@ -135,14 +139,25 @@ function sectionsToMarkdown(sections: Record<string, string | null>): string {
 }
 
 export interface ValidateCreateOptions {
-  /** When true, hosted-catalog providers may run without a user-stored API key. */
+  /** When true, platform Agents Model may run without user-stored credentials. */
   allowHostedProvider?: boolean;
   hostedProviderIds?: readonly string[];
 }
 
+/** Product runs always use Agents Model; override client body values. */
+export function forceAgentsModel(body: CreateSessionRequest): CreateSessionRequest {
+  return {
+    ...body,
+    llmProvider: AGENTS_MODEL_PROVIDER_ID,
+    thinkLlm: AGENTS_MODEL_ID,
+    quickThinkLlm: AGENTS_MODEL_ID,
+    deepThinkLlm: AGENTS_MODEL_ID,
+  };
+}
+
 export function validateCreateRequest(
   body: CreateSessionRequest,
-  providerCredentials: ProviderCredentials,
+  _providerCredentials: ProviderCredentials = {},
   options: ValidateCreateOptions = {},
 ): string | null {
   if (!validateTicker(body.ticker)) {
@@ -157,26 +172,12 @@ export function validateCreateRequest(
   if (!validateResearchDepth(body.researchDepth)) {
     return "researchDepth must be 1, 3, or 5";
   }
-  if (!body.llmProvider || !resolveThinkLlm(body)) {
+  const forced = forceAgentsModel(body);
+  if (!forced.llmProvider || !resolveThinkLlm(forced)) {
     return "LLM provider and model selection are required";
   }
-  const providerKey = body.llmProvider.toLowerCase();
-  const hostedAllowed =
-    Boolean(options.allowHostedProvider) &&
-    (options.hostedProviderIds ?? [])
-      .map((id) => id.toLowerCase())
-      .includes(providerKey);
-  const creds = providerCredentials[providerKey];
-  const hasApiKey = Boolean(creds?.apiKey?.trim());
-
-  if (Object.keys(providerCredentials).length === 0 && !hostedAllowed) {
-    return "At least one provider credential is required";
-  }
-  if (!hasApiKey && !hostedAllowed) {
-    if (!creds) {
-      return `No credentials provided for selected provider: ${body.llmProvider}`;
-    }
-    return `API key required for provider: ${body.llmProvider}`;
+  if (!options.allowHostedProvider) {
+    return "An active Standard or Pro plan (or trial) is required to run analysis";
   }
   const userContextError = validateUserContext(body.userContext);
   if (userContextError) {
@@ -190,88 +191,87 @@ export async function createSession(
   body: CreateSessionRequest,
   userId: string,
 ): Promise<Session> {
-  const storedCredentials = await getUserCredentialsRaw(client, userId);
+  const forcedBody = forceAgentsModel(body);
   const billing = await getBillingAccount(client, userId);
-  const isHostedPlan =
-    billing.subscription.planId === "hosted" &&
-    billing.subscription.status === "active";
-  const validationError = validateCreateRequest(body, storedCredentials, {
-    allowHostedProvider: isHostedPlan,
+  if (!userHasActiveSubscription(billing.subscription)) {
+    throw new SessionServiceError(
+      "An active Standard or Pro plan (or trial) is required to start a run.",
+      402,
+      "subscription_required",
+    );
+  }
+
+  const planId = billing.subscription.planId!;
+  const isBillablePlan = planId === "standard" || planId === "pro";
+
+  const validationError = validateCreateRequest(forcedBody, {}, {
+    allowHostedProvider: isBillablePlan,
     hostedProviderIds: billing.hostedProviderIds,
   });
   if (validationError) {
     throw new Error(validationError);
   }
 
-  const resolved = await resolveRunProviderCredentials(client, storedCredentials, {
-    isHostedPlan,
+  const resolved = await resolveRunProviderCredentials(client, {}, {
+    isHostedPlan: isBillablePlan,
     hostedProviderIds: billing.hostedProviderIds,
-    selectedProviderId: body.llmProvider,
+    selectedProviderId: AGENTS_MODEL_PROVIDER_ID,
   });
 
-  const providerKey = body.llmProvider.toLowerCase();
-  const hasUserKey = Boolean(storedCredentials[providerKey]?.apiKey?.trim());
-  if (!hasUserKey && !resolved.usedPlatformKey) {
+  if (!resolved.usedPlatformKey) {
     throw new SessionServiceError(
-      "Hosted inference is not configured for this provider yet. Pick another provider or add your own API key.",
+      "Agents Model inference is not configured yet. Contact support.",
       503,
       "platform_key_unavailable",
     );
   }
 
-  const thinkLlm = resolveThinkLlm(body);
-
-  // Platform keys may only call curated catalog models (blocks custom IDs /
-  // under-priced unknowns that would drain provider spend vs credits).
-  if (resolved.usedPlatformKey) {
-    const hostedModel = getHostedModelCostEntry(body.llmProvider, thinkLlm);
-    if (!hostedModel) {
-      throw new SessionServiceError(
-        `Model "${thinkLlm}" is not available on the hosted plan for ${body.llmProvider}. Choose a listed hosted model, or add your own API key.`,
-        400,
-        "hosted_model_not_allowed",
-      );
-    }
-  }
-
-  if (isHostedPlan) {
-    if (!billing.subscription.currentPeriodStart || !billing.subscription.currentPeriodEnd) {
-      throw new SessionServiceError(
-        "Your hosted subscription is missing billing period dates. Please refresh billing or contact support before starting a run.",
-        402,
-        "credits_period_missing",
-      );
-    }
-    const gate = await assertHostedCreditsForNewRun(
-      client,
-      userId,
-      {
-        plan_id: "hosted",
-        current_period_start: billing.subscription.currentPeriodStart,
-        current_period_end: billing.subscription.currentPeriodEnd,
-      },
-      { ...body, thinkLlm },
-      resolved.costSource,
+  const thinkLlm = AGENTS_MODEL_ID;
+  const hostedModel = getHostedModelCostEntry(AGENTS_MODEL_PROVIDER_ID, thinkLlm);
+  if (!hostedModel) {
+    throw new SessionServiceError(
+      "Agents Model is not available in the product catalog.",
+      500,
+      "hosted_model_not_allowed",
     );
-    if (!gate.allowed) {
-      throw new SessionServiceError(
-        gate.message ?? "Insufficient compute credits for this run.",
-        402,
-        gate.code ?? "credits_insufficient",
-      );
-    }
   }
 
-  // Pin official vendor endpoints whenever a platform key is used so a client
-  // cannot redirect Authorization headers to an attacker-controlled proxy.
-  const backendUrl = resolved.usedPlatformKey
-    ? canonicalBackendUrlForProvider(body.llmProvider)
-    : (body.backendUrl ?? null);
+  if (!billing.subscription.currentPeriodStart || !billing.subscription.currentPeriodEnd) {
+    throw new SessionServiceError(
+      "Your subscription is missing billing period dates. Please refresh billing or contact support before starting a run.",
+      402,
+      "credits_period_missing",
+    );
+  }
+
+  const creditSubscription = {
+    plan_id: planId,
+    current_period_start: billing.subscription.currentPeriodStart,
+    current_period_end: billing.subscription.currentPeriodEnd,
+  };
+
+  const gate = await assertHostedCreditsForNewRun(
+    client,
+    userId,
+    creditSubscription,
+    { ...forcedBody, thinkLlm },
+    "hosted",
+  );
+  if (!gate.allowed) {
+    throw new SessionServiceError(
+      gate.message ?? "Insufficient compute credits for this run.",
+      402,
+      gate.code ?? "credits_insufficient",
+    );
+  }
+
+  // Pin official vendor endpoint whenever a platform key is used.
+  const backendUrl = canonicalBackendUrlForProvider(AGENTS_MODEL_PROVIDER_ID);
 
   const normalized: CreateSessionRequest = {
-    ...body,
-    ticker: normalizeTicker(body.ticker),
-    userContext: sanitizeUserContext(body.userContext),
+    ...forcedBody,
+    ticker: normalizeTicker(forcedBody.ticker),
+    userContext: sanitizeUserContext(forcedBody.userContext),
     thinkLlm,
     backendUrl,
     providerCredentials: resolved.credentials,
@@ -300,32 +300,26 @@ export async function createSession(
   await initSessionUsageCursor(client, {
     sessionId: id,
     userId,
-    providerId: body.llmProvider,
+    providerId: AGENTS_MODEL_PROVIDER_ID,
     quickModelId: thinkLlm,
     deepModelId: thinkLlm,
-    costSource: resolved.costSource,
+    costSource: "hosted",
   });
 
   // Re-check after inserting pending + cursor so concurrent creates that both
   // passed the pre-insert gate cannot all start against the same balance.
-  if (resolved.costSource === "hosted") {
-    const recheck = await assertHostedInFlightWithinBalance(
-      client,
-      userId,
-      {
-        plan_id: "hosted",
-        current_period_start: billing.subscription.currentPeriodStart!,
-        current_period_end: billing.subscription.currentPeriodEnd!,
-      },
+  const recheck = await assertHostedInFlightWithinBalance(
+    client,
+    userId,
+    creditSubscription,
+  );
+  if (!recheck.allowed) {
+    await abortPendingSessionCreate(client, id);
+    throw new SessionServiceError(
+      recheck.message ?? "Insufficient compute credits for this run.",
+      402,
+      recheck.code ?? "credits_insufficient",
     );
-    if (!recheck.allowed) {
-      await abortPendingSessionCreate(client, id);
-      throw new SessionServiceError(
-        recheck.message ?? "Insufficient compute credits for this run.",
-        402,
-        recheck.code ?? "credits_insufficient",
-      );
-    }
   }
 
   let runId: string;
@@ -336,16 +330,7 @@ export async function createSession(
     throw error;
   }
 
-  const meterSubscription =
-    isHostedPlan &&
-    billing.subscription.currentPeriodStart &&
-    billing.subscription.currentPeriodEnd
-      ? {
-          plan_id: "hosted",
-          current_period_start: billing.subscription.currentPeriodStart,
-          current_period_end: billing.subscription.currentPeriodEnd,
-        }
-      : null;
+  const meterSubscription = creditSubscription;
 
   function startMeteringForRun(activeRunId: string): void {
     startBackgroundRunMetering({
@@ -354,7 +339,7 @@ export async function createSession(
       runId: activeRunId,
       userId,
       subscription: meterSubscription,
-      costSource: resolved.costSource,
+      costSource: "hosted",
     });
   }
 

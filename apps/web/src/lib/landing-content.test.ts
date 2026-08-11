@@ -12,8 +12,8 @@ import {
 
 describe("landing-content", () => {
   it("describes the TradingAgents Framework in the hero", () => {
-    assert.match(LANDING_HERO.headline, /multi-agent/i);
-    assert.match(LANDING_HERO.copy, /real-world trading firms/i);
+    assert.match(LANDING_HERO.headline, /multi-agent|Agents Model/i);
+    assert.match(LANDING_HERO.copy, /Agents Model|Claude Sonnet|free trial/i);
   });
 
   it("includes all framework agent teams from the README", () => {

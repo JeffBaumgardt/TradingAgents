@@ -9,10 +9,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import CredentialsGate from "@/components/CredentialsGate";
 import HomePageSkeleton from "@/components/HomePageSkeleton";
 import Wizard from "@/components/Wizard";
-import { fetchBillingAccount } from "@/lib/api-client";
+import { fetchBillingAccount, startBillingTrial } from "@/lib/api-client";
 import { hasActiveSubscription } from "@/lib/subscription-access";
 import styles from "./DashboardNewAnalysisSection.module.css";
 
@@ -62,6 +61,21 @@ export default function DashboardNewAnalysisSection({
           if (hasActiveSubscription(account.subscription)) {
             setSubscribed(true);
             return;
+          }
+          if (
+            account.subscription.status === "none" ||
+            account.subscription.planId == null
+          ) {
+            try {
+              await startBillingTrial("pro");
+              const refreshed = await fetchBillingAccount();
+              if (hasActiveSubscription(refreshed.subscription)) {
+                setSubscribed(true);
+                return;
+              }
+            } catch {
+              // fall through
+            }
           }
           if (!fromCheckout || attempt === maxAttempts - 1) {
             setSubscribed(false);
@@ -125,19 +139,16 @@ export default function DashboardNewAnalysisSection({
 
   if (subscribed) {
     return (
-      <CredentialsGate>
-        <section aria-labelledby="new-analysis-heading">
-          <h2 id="new-analysis-heading" className="pageTitle">
-            Start a new analysis
-          </h2>
-          <p className="muted pageIntro">
-            Walk through a short setup to choose a ticker, optional personal context, and which
-            AI agents should collaborate. When you are ready, the run page streams live progress
-            and finished reports — no refresh needed.
-          </p>
-          <Wizard />
-        </section>
-      </CredentialsGate>
+      <section aria-labelledby="new-analysis-heading">
+        <h2 id="new-analysis-heading" className="pageTitle">
+          Start a new analysis
+        </h2>
+        <p className="muted pageIntro">
+          Walk through a short setup to choose a ticker, optional personal context, research depth,
+          and efficiency. Every run uses our managed Agents Model — no provider keys required.
+        </p>
+        <Wizard />
+      </section>
     );
   }
 

@@ -5,14 +5,14 @@
 
 import type { UserSubscription } from "@tradingagents/api-types";
 
-/** True when the user has an active paid plan (BYOK or Hosted) within period. */
+/** True when the user has an active or trialing Standard/Pro plan within period. */
 export function hasActiveSubscription(subscription: UserSubscription | null | undefined): boolean {
   if (!subscription) {
     return false;
   }
   if (
-    subscription.status !== "active" ||
-    (subscription.planId !== "byok" && subscription.planId !== "hosted")
+    (subscription.status !== "active" && subscription.status !== "trialing") ||
+    (subscription.planId !== "standard" && subscription.planId !== "pro")
   ) {
     return false;
   }
@@ -23,4 +23,12 @@ export function hasActiveSubscription(subscription: UserSubscription | null | un
     }
   }
   return true;
+}
+
+/** True when the user can share reports by public link (Pro only). */
+export function canShareReports(subscription: UserSubscription | null | undefined): boolean {
+  if (!subscription) {
+    return false;
+  }
+  return subscription.planId === "pro";
 }

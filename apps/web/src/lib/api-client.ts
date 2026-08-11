@@ -267,6 +267,22 @@ export async function cancelSubscription(): Promise<CancelSubscriptionResponse> 
   return parseJson<CancelSubscriptionResponse>(response);
 }
 
+/** Start a no-card free trial (defaults to Pro on the server when omitted). */
+export async function startBillingTrial(
+  planId: "standard" | "pro" = "pro",
+): Promise<{ subscription: import("@tradingagents/api-types").UserSubscription; trialEndsAt: string | null }> {
+  const response = await fetch(`${API_BASE}/billing/trial/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await buildUserHeaders()),
+    },
+    body: JSON.stringify({ planId }),
+    cache: "no-store",
+  });
+  return parseJson(response);
+}
+
 /**
  * Start checkout. When Stripe is configured, returns status "ready" with a
  * checkoutUrl (HTTP 200). When not configured, returns status "not_configured"

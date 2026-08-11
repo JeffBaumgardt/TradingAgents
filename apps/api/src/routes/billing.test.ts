@@ -18,11 +18,11 @@ describe("billing routes", () => {
       plans: Array<{ id: string; monthlyPriceCents: number }>;
     };
     assert.equal(body.plans.length, 2);
-    assert.equal(body.plans[0]?.id, "byok");
-    assert.equal(body.plans[0]?.monthlyPriceCents, 300);
+    assert.equal(body.plans[0]?.id, "standard");
+    assert.equal(body.plans[0]?.monthlyPriceCents, 900);
   });
 
-  it("lists curated hosted models with credit multipliers", async () => {
+  it("lists curated Agents Model catalog with credit multipliers", async () => {
     const response = await app.request("/billing/models");
     assert.equal(response.status, 200);
     const body = (await response.json()) as {
@@ -35,23 +35,19 @@ describe("billing routes", () => {
         outputUsdPer1M: number;
       }>;
     };
-    assert.ok(body.models.length >= 20);
+    assert.equal(body.models.length, 1);
     assert.equal(body.referenceOutputUsdPer1M, 0.28 / 1.05);
-    const mini = body.models.find((model) => model.modelId === "gpt-4o-mini");
-    assert.ok(mini);
-    assert.equal(mini?.creditMultiplier, 2.3);
-    assert.ok(
-      body.models.every((model) =>
-        ["openai", "anthropic", "google", "xai"].includes(model.providerId),
-      ),
-    );
+    const agents = body.models.find((model) => model.modelId === "claude-sonnet-5");
+    assert.ok(agents);
+    assert.equal(agents?.providerId, "anthropic");
+    assert.ok((agents?.creditMultiplier ?? 0) > 0);
   });
 
   it("returns 501 scaffold for checkout", async () => {
     const response = await app.request("/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ planId: "hosted", interval: "monthly" }),
+      body: JSON.stringify({ planId: "pro", interval: "monthly" }),
     });
     assert.equal(response.status, 501);
     const body = (await response.json()) as {

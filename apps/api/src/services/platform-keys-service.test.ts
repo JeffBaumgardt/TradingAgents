@@ -52,7 +52,7 @@ describe("platform-keys-service", () => {
     assert.equal(await getPlatformApiKeyPlaintext(client, "openai"), "sk-platform-secret");
   });
 
-  it("prefers user BYOK keys (self_pay) over platform keys", async () => {
+  it("prefers user Standard keys (self_pay) over platform keys", async () => {
     const client = createInMemorySupabase();
     await upsertPlatformApiKey(client, {
       providerId: "anthropic",

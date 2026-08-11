@@ -5,6 +5,11 @@
  */
 
 import { Hono } from "hono";
+import {
+  DEFAULT_TRIAL_PLAN_ID,
+  isBillingPlanId,
+  type BillingPlanId,
+} from "@tradingagents/api-types";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import {
   getOptionalRequestUserId,
@@ -13,7 +18,12 @@ import {
   requireUserId,
 } from "../middleware/user-context.js";
 import { listHostedModelsFromDb } from "../services/model-catalog-service.js";
-import { getBillingAccount, cancelSubscriptionAtPeriodEnd, BillingAccountError } from "../services/billing-account-service.js";
+import {
+  getBillingAccount,
+  cancelSubscriptionAtPeriodEnd,
+  BillingAccountError,
+  startTrialSubscription,
+} from "../services/billing-account-service.js";
 import {
   BillingServiceError,
   createCheckoutSession,
@@ -31,7 +41,6 @@ billingRoutes.get("/billing/models", async (c) => {
     const client = getSupabaseAdmin(c);
     return c.json(await listHostedModelsFromDb(client));
   } catch {
-    // Tests and misconfigured contexts still get the static catalog.
     const { listHostedModelCatalog } = await import("@tradingagents/api-types");
     return c.json(listHostedModelCatalog());
   }
@@ -43,6 +52,34 @@ billingRoutes.get("/billing/account", async (c) => {
   const client = getSupabaseAdmin(c);
   const account = await getBillingAccount(client, userId);
   return c.json(account);
+});
+
+billingRoutes.use("/billing/trial/start", requireUserId());
+billingRoutes.post("/billing/trial/start", async (c) => {
+  const userId = getRequestUserId(c);
+  const client = getSupabaseAdmin(c);
+  let planId: BillingPlanId = DEFAULT_TRIAL_PLAN_ID;
+  try {
+    const body = (await c.req.json()) as { planId?: string };
+    if (body?.planId && isBillingPlanId(body.planId)) {
+      planId = body.planId;
+    }
+  } catch {
+    // empty body OK — defaults to Pro trial
+  }
+
+  try {
+    const subscription = await startTrialSubscription(client, userId, planId);
+    return c.json({
+      subscription,
+      trialEndsAt: subscription.currentPeriodEnd,
+    });
+  } catch (error) {
+    if (error instanceof BillingAccountError) {
+      return c.json({ error: error.message }, error.status as 400);
+    }
+    throw error;
+  }
 });
 
 billingRoutes.use("/billing/subscription/cancel", requireUserId());

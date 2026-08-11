@@ -14,7 +14,11 @@ import type {
   SessionChatMessage,
   SessionChatResponse,
 } from "@tradingagents/api-types";
-import { getHostedModelCostEntry, resolveThinkLlm } from "@tradingagents/api-types";
+import {
+  AGENTS_MODEL_ID,
+  AGENTS_MODEL_PROVIDER_ID,
+  getHostedModelCostEntry,
+} from "@tradingagents/api-types";
 import type { AppSupabaseClient, SessionChatMessageRow, SessionRow } from "@tradingagents/supabase";
 import { canonicalBackendUrlForProvider } from "../lib/provider-backend-urls.js";
 import * as agentsClient from "./agents-client.js";
@@ -24,7 +28,6 @@ import {
   assertHostedFollowUpInFlightWithinBalance,
   initSessionUsageCursor,
 } from "./credit-service.js";
-import { getUserCredentialsRaw } from "./credentials-service.js";
 import { resolveRunProviderCredentials } from "./platform-keys-service.js";
 import { startBackgroundChatMetering } from "./run-metering-service.js";
 import { SessionServiceError } from "./session-service.js";
@@ -32,6 +35,16 @@ import { SessionServiceError } from "./session-service.js";
 const MAX_USER_MESSAGE_CHARS = 12_000;
 const MAX_PRIOR_MESSAGES = 40;
 const MAX_PART_CONTENT = 50_000;
+
+function forceAgentsModelConfig(config: CreateSessionRequest): CreateSessionRequest {
+  return {
+    ...config,
+    llmProvider: AGENTS_MODEL_PROVIDER_ID,
+    thinkLlm: AGENTS_MODEL_ID,
+    quickThinkLlm: AGENTS_MODEL_ID,
+    deepThinkLlm: AGENTS_MODEL_ID,
+  };
+}
 
 function isSoftDeleted(row: SessionRow): boolean {
   return row.status === "deleted" || row.deleted_on != null;
@@ -118,7 +131,8 @@ export async function listChatMessages(
       if (!userHasActiveSubscription(account.subscription)) {
         chatBlockedReason = "subscription_required";
       } else if (
-        account.subscription.planId === "hosted" &&
+        (account.subscription.planId === "pro" ||
+          account.subscription.planId === "standard") &&
         account.usage?.blockedLowBalance
       ) {
         chatBlockedReason = "credits_blocked";
@@ -216,41 +230,38 @@ export async function postChatMessage(
     );
   }
 
-  const config = row.config as CreateSessionRequest;
-  const storedCredentials = await getUserCredentialsRaw(client, userId);
-  const isHostedPlan = account.subscription.planId === "hosted";
-  const resolved = await resolveRunProviderCredentials(client, storedCredentials, {
+  const config = forceAgentsModelConfig(row.config as CreateSessionRequest);
+  const isHostedPlan =
+    account.subscription.planId === "pro" ||
+    account.subscription.planId === "standard";
+  const resolved = await resolveRunProviderCredentials(client, {}, {
     isHostedPlan,
     hostedProviderIds: account.hostedProviderIds,
-    selectedProviderId: config.llmProvider,
+    selectedProviderId: AGENTS_MODEL_PROVIDER_ID,
   });
 
-  const providerKey = config.llmProvider.toLowerCase();
-  const hasUserKey = Boolean(storedCredentials[providerKey]?.apiKey?.trim());
-  if (!hasUserKey && !resolved.usedPlatformKey) {
+  if (!resolved.usedPlatformKey) {
     throw new SessionServiceError(
-      "Hosted inference is not configured for this provider yet. Pick another provider or add your own API key.",
+      "Agents Model inference is not configured yet. Contact support.",
       503,
       "platform_key_unavailable",
     );
   }
 
-  const thinkLlm = resolveThinkLlm(config);
-  if (resolved.usedPlatformKey) {
-    const hostedModel = getHostedModelCostEntry(config.llmProvider, thinkLlm);
-    if (!hostedModel) {
-      throw new SessionServiceError(
-        `Model "${thinkLlm}" is not available on the hosted plan for ${config.llmProvider}.`,
-        400,
-        "hosted_model_not_allowed",
-      );
-    }
+  const thinkLlm = AGENTS_MODEL_ID;
+  const hostedModel = getHostedModelCostEntry(AGENTS_MODEL_PROVIDER_ID, thinkLlm);
+  if (!hostedModel) {
+    throw new SessionServiceError(
+      "Agents Model is not available in the product catalog.",
+      500,
+      "hosted_model_not_allowed",
+    );
   }
 
   if (isHostedPlan) {
     if (!account.subscription.currentPeriodStart || !account.subscription.currentPeriodEnd) {
       throw new SessionServiceError(
-        "Your hosted subscription is missing billing period dates.",
+        "Your subscription is missing billing period dates.",
         402,
         "credits_period_missing",
       );
@@ -259,14 +270,14 @@ export async function postChatMessage(
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: account.subscription.planId ?? "pro",
         current_period_start: account.subscription.currentPeriodStart,
         current_period_end: account.subscription.currentPeriodEnd,
       },
       {
-        llmProvider: config.llmProvider,
+        llmProvider: AGENTS_MODEL_PROVIDER_ID,
         thinkLlm,
-        costSource: resolved.costSource,
+        costSource: "hosted",
       },
     );
     if (!gate.allowed) {
@@ -366,10 +377,10 @@ export async function postChatMessage(
   await initSessionUsageCursor(client, {
     sessionId,
     userId,
-    providerId: config.llmProvider,
+    providerId: AGENTS_MODEL_PROVIDER_ID,
     quickModelId: thinkLlm,
     deepModelId: thinkLlm,
-    costSource: resolved.costSource,
+    costSource: "hosted",
     // Analysis cursors are deleted on run completion. Re-init for this turn with
     // watermarks at 0 so agents StatsCallbackHandler (also starting at 0) meters
     // only follow-up tokens — never replaying the completed analysis totals.
@@ -382,12 +393,12 @@ export async function postChatMessage(
       client,
       userId,
       {
-        plan_id: "hosted",
+        plan_id: account.subscription.planId ?? "pro",
         current_period_start: account.subscription.currentPeriodStart,
         current_period_end: account.subscription.currentPeriodEnd,
       },
       {
-        llmProvider: config.llmProvider,
+        llmProvider: AGENTS_MODEL_PROVIDER_ID,
         thinkLlm,
       },
     );
@@ -403,9 +414,7 @@ export async function postChatMessage(
     }
   }
 
-  const backendUrl = resolved.usedPlatformKey
-    ? canonicalBackendUrlForProvider(config.llmProvider)
-    : (config.backendUrl ?? null);
+  const backendUrl = canonicalBackendUrlForProvider(AGENTS_MODEL_PROVIDER_ID);
 
   let turnId: string;
   try {
@@ -420,11 +429,11 @@ export async function postChatMessage(
       reportSections: (row.report_sections ?? {}) as Record<string, string | null>,
       tradeCheck: (row.trade_check_json ?? null) as Record<string, unknown> | null,
       priorMessages: priorForAgent,
-      llmProvider: config.llmProvider,
+      llmProvider: AGENTS_MODEL_PROVIDER_ID,
       backendUrl,
       thinkLlm,
-      googleThinkingLevel: config.googleThinkingLevel ?? null,
-      openaiReasoningEffort: config.openaiReasoningEffort ?? null,
+      googleThinkingLevel: null,
+      openaiReasoningEffort: null,
       anthropicEffort: config.anthropicEffort ?? null,
       providerCredentials: resolved.credentials,
     }));
@@ -464,7 +473,7 @@ export async function postChatMessage(
     assistantMessageId,
     userId,
     subscription,
-    costSource: resolved.costSource,
+    costSource: "hosted",
     onTerminal: async ({ type, payload }) => {
       if (type === "chat.completed") {
         const parts = truncateParts(asParts(payload.parts));
@@ -660,7 +669,7 @@ export async function buildSessionExportMarkdown(
     `Analysis date: ${row.analysis_date}`,
     `Status: ${row.status}`,
     `Decision: ${row.decision ?? "(none)"}`,
-    `Model: ${config.llmProvider} / ${resolveThinkLlm(config)}`,
+    `Model: Agents Model (${AGENTS_MODEL_ID})`,
     `Research depth: ${config.researchDepth}`,
     `Analysts: ${(config.analysts ?? []).join(", ")}`,
     "",

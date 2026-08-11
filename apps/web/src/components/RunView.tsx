@@ -45,6 +45,7 @@ import {
   truncateText,
 } from "@tradingagents/utils";
 import {
+  fetchBillingAccount,
   fetchSession,
   fetchSessionEvents,
   fetchSessionReport,
@@ -243,6 +244,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const [connected, setConnected] = useState(false);
   /** Owner-only sections (pipeline, messages, stats, feedback) after events load. */
   const [hasPrivateAccess, setHasPrivateAccess] = useState(false);
+  /** Pro (and Pro trial) may share report links; Standard cannot. */
+  const [canShareLink, setCanShareLink] = useState(false);
   const [usesLiveStream, setUsesLiveStream] = useState(
     initialSession ? isLiveSessionStatus(initialSession.status) : true,
   );
@@ -356,6 +359,29 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasPrivateAccess) {
+      setCanShareLink(false);
+      return;
+    }
+    let cancelled = false;
+    void fetchBillingAccount()
+      .then((account) => {
+        if (cancelled) {
+          return;
+        }
+        setCanShareLink(Boolean(account.features?.shareReports));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCanShareLink(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPrivateAccess]);
 
   function touchActivity() {
     setLastActivityAt(Date.now());
@@ -1235,6 +1261,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           sessionId={sessionId}
           ticker={sessionMeta?.config.ticker ?? "Analysis"}
           canShareDigest={Boolean(tradeCheckReport)}
+          canShareLink={canShareLink}
         />
       ) : null}
 

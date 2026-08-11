@@ -11,10 +11,10 @@ import {
 } from "./stripe-prices.js";
 
 const KEYS = [
-  "STRIPE_PRICE_BYOK_MONTHLY",
-  "STRIPE_PRICE_BYOK_ANNUAL",
-  "STRIPE_PRICE_HOSTED_MONTHLY",
-  "STRIPE_PRICE_HOSTED_ANNUAL",
+  "STRIPE_PRICE_STANDARD_MONTHLY",
+  "STRIPE_PRICE_STANDARD_ANNUAL",
+  "STRIPE_PRICE_PRO_MONTHLY",
+  "STRIPE_PRICE_PRO_ANNUAL",
 ] as const;
 
 const previous = new Map<string, string | undefined>();
@@ -46,14 +46,14 @@ afterEach(() => {
 describe("stripe-prices", () => {
   it("resolves price ids from env", () => {
     setPrices({
-      STRIPE_PRICE_BYOK_MONTHLY: "price_byok_m",
-      STRIPE_PRICE_BYOK_ANNUAL: "price_byok_a",
-      STRIPE_PRICE_HOSTED_MONTHLY: "price_hosted_m",
-      STRIPE_PRICE_HOSTED_ANNUAL: "price_hosted_a",
+      STRIPE_PRICE_STANDARD_MONTHLY: "price_standard_m",
+      STRIPE_PRICE_STANDARD_ANNUAL: "price_standard_a",
+      STRIPE_PRICE_PRO_MONTHLY: "price_pro_m",
+      STRIPE_PRICE_PRO_ANNUAL: "price_pro_a",
     });
 
-    assert.equal(getStripePriceId("byok", "monthly"), "price_byok_m");
-    assert.equal(getStripePriceId("hosted", "annual"), "price_hosted_a");
+    assert.equal(getStripePriceId("standard", "monthly"), "price_standard_m");
+    assert.equal(getStripePriceId("pro", "annual"), "price_pro_a");
     assert.equal(areStripePricesConfigured(), true);
     assert.deepEqual(missingStripePriceEnvKeys(), []);
   });
@@ -61,6 +61,6 @@ describe("stripe-prices", () => {
   it("reports missing price env keys", () => {
     setPrices({});
     assert.equal(areStripePricesConfigured(), false);
-    assert.ok(missingStripePriceEnvKeys().includes("STRIPE_PRICE_BYOK_MONTHLY"));
+    assert.ok(missingStripePriceEnvKeys().includes("STRIPE_PRICE_STANDARD_MONTHLY"));
   });
 });

@@ -145,12 +145,7 @@ function migrationTimestamp(date = new Date()): string {
 }
 
 function asProviderId(value: string): HostedModelProviderId | null {
-  if (
-    value === "openai" ||
-    value === "anthropic" ||
-    value === "google" ||
-    value === "xai"
-  ) {
+  if (value === "anthropic") {
     return value;
   }
   return null;

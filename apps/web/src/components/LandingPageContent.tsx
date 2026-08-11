@@ -28,7 +28,7 @@ export default function LandingPageContent({
         <section className={styles.hero} aria-labelledby="landing-hero-heading">
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>
-              TradingAgents Framework · From $3/month
+              TradingAgents Framework · From $9/month
             </p>
             <h1 id="landing-hero-heading" className={styles.heroTitle}>
               {LANDING_HERO.headline}
@@ -130,10 +130,9 @@ export default function LandingPageContent({
               Launch your first multi-agent research run
             </h2>
             <p className={styles.finalCtaCopy}>
-              Choose a plan, add your provider API key, and watch analyst,
-              researcher, trader, and risk agents collaborate on your next
-              ticker. Bring-your-own-key starts at $3/month to help cover
-              infrastructure.
+              Start a free 14-day Pro trial—no card required—then pick Standard or Pro. Watch analyst,
+              researcher, trader, and risk agents collaborate on your next ticker on our managed
+              Agents Model.
             </p>
             <div className={styles.heroActions}>
               <Link href="/pricing" className={styles.primaryButton}>

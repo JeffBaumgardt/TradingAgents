@@ -46,9 +46,9 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
           "When you sign up or sign in, our authentication provider (Clerk) processes your email address, name, profile image, and authentication identifiers. We sync a subset of this profile to our API database.",
       },
       {
-        title: "Provider API keys",
+        title: "Platform LLM processing",
         description:
-          "If you choose to run analyses, you may store LLM provider API keys in your account. Keys are encrypted on the server, associated with your user ID, and are not displayed again in the browser after you save them.",
+          "When you run an analysis, requests are sent to Anthropic (our Agents Model) using platform API keys that we manage. You do not supply provider API keys in the product.",
       },
       {
         title: "Analysis and session data",
@@ -58,12 +58,17 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
       {
         title: "Optional analysis context",
         description:
-          "You may provide optional personal context for a run (for example, investment horizon or constraints). Do not submit sensitive personal data you do not want processed by LLM providers.",
+          "You may provide optional personal context for a run (for example, investment horizon or constraints). Do not submit sensitive personal data you do not want processed by the LLM provider.",
       },
       {
         title: "Technical and usage data",
         description:
           "We automatically collect technical information such as IP address, browser type, device information, and request logs for security, abuse prevention, and service operation.",
+      },
+      {
+        title: "Billing data",
+        description:
+          "If you subscribe, Stripe processes payment method and invoice data. We store subscription plan, interval, status, and period markers so we can enforce access and credit allowances.",
       },
     ],
   },
@@ -83,9 +88,9 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     title: "How we use personal data",
     bullets: [
       "Authenticate you and maintain your session.",
-      "Store your profile and encrypted provider credentials.",
+      "Store your profile and subscription/credit metering data.",
       "Run, persist, and display multi-agent analysis sessions and reports.",
-      "Send your analysis requests to the LLM provider(s) you configure, using your supplied API keys.",
+      "Send analysis requests to Anthropic using platform API keys.",
       "Protect the service, investigate incidents, and enforce acceptable use.",
       "Respond to support and privacy requests.",
     ],
@@ -112,11 +117,6 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
         description:
           "Stores your in-app theme preference after you sign in. Not used to track you across sites.",
       },
-      {
-        title: "tradingagents:credentialsReady (session storage)",
-        description:
-          "Temporary client-side flag indicating whether your account has saved provider credentials during the current browser session.",
-      },
     ],
   },
   {
@@ -127,8 +127,9 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     ],
     bullets: [
       "Clerk — authentication and account management.",
-      "Supabase — application database and encrypted credential storage.",
-      "Your chosen LLM provider(s) — analysis requests are sent using API keys you supply (for example OpenAI, Google, Anthropic, or other configured providers).",
+      "Supabase — application database.",
+      "Anthropic — the platform Agents Model (Claude) used to run multi-agent analysis on your behalf with our API keys.",
+      "Stripe — payment processing when you convert a trial or subscribe to a paid plan.",
       "Hosting and infrastructure providers — to serve the web app, API, and agents service (for example Vercel, Railway, or equivalent in your deployment).",
     ],
   },
@@ -137,8 +138,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     title: "How long we keep data",
     bullets: [
       "Account profile data is kept while your account is active and for a reasonable period afterward unless deletion is requested or required by law.",
-      "Encrypted provider credentials are kept until you delete them or delete your account.",
-      "Analysis sessions and reports are kept while your account is active unless you delete them or request account erasure.",
+      "Analysis sessions and reports are kept while your account is active unless you delete them or request account erasure. Standard plan messaging describes a 7-day visibility window; Pro retains full history in product views.",
       "Server logs and security records are retained for a limited period appropriate for security and troubleshooting.",
       "Cookie acknowledgment is stored for up to one year unless you clear cookies earlier.",
     ],
@@ -147,7 +147,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     id: "security",
     title: "Security",
     paragraphs: [
-      "We apply technical and organizational measures designed to protect personal data, including encryption of provider API keys at rest, authenticated API access, and access controls on backend services. No method of transmission or storage is completely secure; please use a strong, unique password and protect your provider API keys.",
+      "We apply technical and organizational measures designed to protect personal data, including encrypted storage of platform secrets, authenticated API access, and access controls on backend services. No method of transmission or storage is completely secure; please use a strong, unique password for your account.",
     ],
   },
   {

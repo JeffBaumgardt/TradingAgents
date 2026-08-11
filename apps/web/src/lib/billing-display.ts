@@ -4,19 +4,25 @@
  */
 
 import type { ProviderCostSource } from "@tradingagents/api-types";
-import { HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE } from "@tradingagents/api-types";
+import { PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE } from "@tradingagents/api-types";
 
 /** Dollar-emoji spend scale used in the wizard (1 = budget … 5 = frontier). */
 export const CREDIT_SPEND_TIER_MAX = 5;
 
 /**
  * Typical depth-1 multi-agent analysis size used for “runs / month” estimates
- * (~42.6k in + 6.8k out observed on gpt-4o-mini).
+ * on the Agents Model.
  */
-export const TYPICAL_HOSTED_ANALYSIS_TOKENS = 50_000;
+export const TYPICAL_AGENTS_ANALYSIS_TOKENS = 50_000;
+
+/** @deprecated Use {@link TYPICAL_AGENTS_ANALYSIS_TOKENS}. */
+export const TYPICAL_HOSTED_ANALYSIS_TOKENS = TYPICAL_AGENTS_ANALYSIS_TOKENS;
 
 /** Leave ~3% headroom so estimates match the low-balance block floor. */
-export const HOSTED_CREDIT_USABLE_RATIO = 0.97;
+export const AGENTS_CREDIT_USABLE_RATIO = 0.97;
+
+/** @deprecated Use {@link AGENTS_CREDIT_USABLE_RATIO}. */
+export const HOSTED_CREDIT_USABLE_RATIO = AGENTS_CREDIT_USABLE_RATIO;
 
 export function formatTokenCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -87,7 +93,7 @@ export function creditSpendTierLabel(tier: number): string {
   }
 }
 
-/** Estimated Hosted analyses per month at a typical token volume. */
+/** Estimated Agents Model analyses per month at a typical token volume. */
 export function estimateTypicalRunsPerMonth(
   creditMultiplier: number,
   options?: {
@@ -99,9 +105,9 @@ export function estimateTypicalRunsPerMonth(
   if (!Number.isFinite(creditMultiplier) || creditMultiplier <= 0) {
     return 0;
   }
-  const tokens = options?.tokensPerRun ?? TYPICAL_HOSTED_ANALYSIS_TOKENS;
-  const allowance = options?.allowanceCredits ?? HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
-  const usableRatio = options?.usableRatio ?? HOSTED_CREDIT_USABLE_RATIO;
+  const tokens = options?.tokensPerRun ?? TYPICAL_AGENTS_ANALYSIS_TOKENS;
+  const allowance = options?.allowanceCredits ?? PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
+  const usableRatio = options?.usableRatio ?? AGENTS_CREDIT_USABLE_RATIO;
   const creditsPerRun = tokens * creditMultiplier;
   if (creditsPerRun <= 0) {
     return 0;
@@ -123,14 +129,14 @@ export function formatPeriodEnd(iso: string | null | undefined): string {
 
 export function costSourceLabel(source: ProviderCostSource): string {
   if (source === "self_pay") {
-    return "Your key";
+    return "Legacy (your key)";
   }
-  return "Hosted";
+  return "Agents Model";
 }
 
 export function costSourceHint(source: ProviderCostSource): string {
   if (source === "self_pay") {
-    return "Billed by your provider — does not use compute credits";
+    return "Legacy path — not used for product runs";
   }
-  return "Runs on platform keys — counts toward your compute credit allowance";
+  return "Runs on the platform Agents Model — counts toward your compute credit allowance";
 }

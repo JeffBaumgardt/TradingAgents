@@ -20,6 +20,7 @@ import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUser
 import { cancelChatTurn, cancelRun, getChatTurnStreamUrl, getRunStreamUrl, fetchRunStatus, agentsServiceAuthHeaders } from "../services/agents-client.js";
 import {
   getBillingAccount,
+  userCanShareReports,
   userHasActiveSubscription,
 } from "../services/billing-account-service.js";
 import * as chatService from "../services/chat-service.js";
@@ -253,6 +254,28 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
   }
 });
 
+/** Public share-by-link: session UUID is the capability (no ownership check).
+ *  Standard-plan owners cannot share publicly — non-owners receive 404.
+ */
+async function assertShareAllowed(
+  client: ReturnType<typeof getSupabaseAdmin>,
+  session: { userId?: string | null },
+  requesterId: string | null | undefined,
+): Promise<boolean> {
+  if (requesterId && session.userId === requesterId) {
+    return true;
+  }
+  if (!session.userId) {
+    return false;
+  }
+  try {
+    const account = await getBillingAccount(client, session.userId);
+    return userCanShareReports(account.subscription);
+  } catch {
+    return false;
+  }
+}
+
 /** Public share-by-link: session UUID is the capability (no ownership check). */
 sessionRoutes.get("/sessions/:id", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
@@ -264,6 +287,10 @@ sessionRoutes.get("/sessions/:id", optionalUserId(), async (c) => {
   const requesterId = getOptionalRequestUserId(c);
   if (requesterId && session.userId === requesterId) {
     return c.json(session);
+  }
+
+  if (!(await assertShareAllowed(client, session, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
   }
 
   return c.json(sessionService.toShareSession(session));
@@ -294,6 +321,15 @@ sessionRoutes.get("/sessions/:id/report", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
+
+  const parent = await sessionService.getSession(client, id);
+  if (!parent) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, parent, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
   const report = await sessionService.getSessionReport(client, id, undefined, {
     allowSideEffects: false,
     ...(requesterId ? { requesterId } : {}),
@@ -314,6 +350,15 @@ sessionRoutes.get("/sessions/:id/trade-check", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
+
+  const parent = await sessionService.getSession(client, id);
+  if (!parent) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, parent, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
   const tradeCheck = await sessionService.getSessionTradeCheck(client, id, undefined, {
     allowSideEffects: false,
     ...(requesterId ? { requesterId } : {}),
@@ -373,11 +418,11 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
 
     const account = await getBillingAccount(client, userId);
     const creditSubscription =
-      account.subscription.planId === "hosted" &&
+      (account.subscription.planId === "pro" || account.subscription.planId === "standard") &&
       account.subscription.currentPeriodStart &&
       account.subscription.currentPeriodEnd
         ? {
-            plan_id: "hosted",
+            plan_id: account.subscription.planId ?? "pro",
             current_period_start: account.subscription.currentPeriodStart,
             current_period_end: account.subscription.currentPeriodEnd,
           }
@@ -617,11 +662,11 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
 
   const account = await getBillingAccount(client, userId);
   const creditSubscription =
-    account.subscription.planId === "hosted" &&
+    (account.subscription.planId === "pro" || account.subscription.planId === "standard") &&
     account.subscription.currentPeriodStart &&
     account.subscription.currentPeriodEnd
       ? {
-          plan_id: "hosted",
+          plan_id: account.subscription.planId ?? "pro",
           current_period_start: account.subscription.currentPeriodStart,
           current_period_end: account.subscription.currentPeriodEnd,
         }
@@ -805,6 +850,14 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
 sessionRoutes.get("/sessions/:id/export.md", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
+  const session = await sessionService.getSession(client, sessionIdParam(c));
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, session, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
   const markdown = await chatService.buildSessionExportMarkdown(
     client,
     sessionIdParam(c),
@@ -814,8 +867,7 @@ sessionRoutes.get("/sessions/:id/export.md", optionalUserId(), async (c) => {
     return c.json({ error: "Session not found" }, 404);
   }
 
-  const session = await sessionService.getSession(client, sessionIdParam(c));
-  const ticker = session?.ticker ?? "session";
+  const ticker = session.ticker ?? "session";
   const filename = `${ticker.toLowerCase()}-tradingagents-export.md`;
 
   return new Response(markdown, {

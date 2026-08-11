@@ -124,17 +124,15 @@ describe("validateCreateRequest userContext", () => {
     outputLanguage: "English",
     analysts: ["market"] as ["market"],
     researchDepth: 1 as const,
-    llmProvider: "openai",
-    thinkLlm: "gpt-4o-mini",
-  };
-  const credentials = {
-    openai: { apiKey: "sk-test" },
+    llmProvider: "anthropic",
+    thinkLlm: "claude-sonnet-5",
   };
 
   it("rejects userContext with control characters", () => {
     const error = validateCreateRequest(
       { ...baseBody, userContext: "hello\x00world" },
-      credentials,
+      {},
+      { allowHostedProvider: true },
     );
     assert.match(error ?? "", /invalid characters/);
   });
@@ -142,13 +140,14 @@ describe("validateCreateRequest userContext", () => {
   it("rejects oversized userContext", () => {
     const error = validateCreateRequest(
       { ...baseBody, userContext: "a".repeat(8193) },
-      credentials,
+      {},
+      { allowHostedProvider: true },
     );
     assert.match(error ?? "", /at most/);
   });
 });
 
-describe("validateCreateRequest hosted providers", () => {
+describe("validateCreateRequest product access", () => {
   const baseBody = {
     ticker: "SPY",
     analysisDate: "2026-06-26",
@@ -156,29 +155,15 @@ describe("validateCreateRequest hosted providers", () => {
     analysts: ["market"] as ["market"],
     researchDepth: 1 as const,
     llmProvider: "anthropic",
-    thinkLlm: "claude-sonnet-4",
+    thinkLlm: "claude-sonnet-5",
   };
 
-  it("rejects a provider without a stored key when hosted is not allowed", () => {
-    const error = validateCreateRequest(baseBody, {
-      openai: { apiKey: "sk-test" },
-    });
-    assert.match(error ?? "", /No credentials provided for selected provider/);
+  it("rejects when platform plan access is not allowed", () => {
+    const error = validateCreateRequest(baseBody, {});
+    assert.match(error ?? "", /Standard or Pro/);
   });
 
-  it("allows a hosted catalog provider without a user-stored key", () => {
-    const error = validateCreateRequest(
-      baseBody,
-      { openai: { apiKey: "sk-test" } },
-      {
-        allowHostedProvider: true,
-        hostedProviderIds: ["openai", "anthropic", "google"],
-      },
-    );
-    assert.equal(error, null);
-  });
-
-  it("allows a fully keyless hosted create for a catalog provider", () => {
+  it("allows product create when platform plan access is allowed", () => {
     const error = validateCreateRequest(
       baseBody,
       {},
@@ -188,17 +173,5 @@ describe("validateCreateRequest hosted providers", () => {
       },
     );
     assert.equal(error, null);
-  });
-
-  it("still requires a key for providers outside the hosted catalog", () => {
-    const error = validateCreateRequest(
-      { ...baseBody, llmProvider: "ollama" },
-      { openai: { apiKey: "sk-test" } },
-      {
-        allowHostedProvider: true,
-        hostedProviderIds: ["openai", "anthropic"],
-      },
-    );
-    assert.match(error ?? "", /No credentials provided for selected provider/);
   });
 });

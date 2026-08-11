@@ -6,7 +6,10 @@
  */
 
 import {
-  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  STANDARD_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  monthlyCreditAllowanceForPlan,
+  isBillingPlanId,
   getModelCreditMultiplier,
   resolveThinkLlm,
   type CreateSessionRequest,
@@ -179,10 +182,10 @@ export async function getPlanCreditConfig(
   return {
     plan_id: planId,
     monthly_credit_allowance:
-      planId === "hosted" ? HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE : 0,
+      isBillingPlanId(planId) ? monthlyCreditAllowanceForPlan(planId) : 0,
     low_balance_block_ratio: 0.03,
     low_balance_warn_ratio: 0.1,
-    max_rollover_periods: planId === "hosted" ? 1 : 0,
+    max_rollover_periods: isBillingPlanId(planId) ? 1 : 0,
     estimated_tokens_by_depth: DEFAULT_ESTIMATED_TOKENS,
     reference_output_usd_per_1m: 0.266667,
     updated_at: new Date().toISOString(),
@@ -371,7 +374,7 @@ export async function estimateRunCredits(
     return 0;
   }
 
-  const config = await getPlanCreditConfig(client, "hosted");
+  const config = await getPlanCreditConfig(client, "pro");
   const depthKey = String(body.researchDepth);
   const tokensByDepth = config.estimated_tokens_by_depth ?? DEFAULT_ESTIMATED_TOKENS;
   const baseTokens = asNumber(tokensByDepth[depthKey], DEFAULT_ESTIMATED_TOKENS[depthKey] ?? 250_000);
@@ -417,7 +420,7 @@ export async function assertHostedCreditsForFollowUp(
     costSource: ProviderCostSource;
   },
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted" || input.costSource !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id) || input.costSource !== "hosted") {
     return { allowed: true, code: "not_hosted" };
   }
 
@@ -482,7 +485,7 @@ export async function assertHostedFollowUpInFlightWithinBalance(
   >,
   input: { llmProvider: string; thinkLlm: string },
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id)) {
     return { allowed: true, code: "not_hosted" };
   }
 
@@ -663,7 +666,7 @@ export async function assertHostedInFlightWithinBalance(
     "plan_id" | "current_period_start" | "current_period_end"
   >,
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id)) {
     return { allowed: true, code: "not_hosted" };
   }
 
@@ -702,7 +705,7 @@ export async function assertHostedCreditsForNewRun(
   body: CreateSessionRequest,
   costSource: ProviderCostSource,
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted" || costSource !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id) || costSource !== "hosted") {
     return { allowed: true, code: "not_hosted" };
   }
 

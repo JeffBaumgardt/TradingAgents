@@ -65,7 +65,7 @@ function parseCheckoutBody(body: unknown): {
   const intervalRaw = typeof payload.interval === "string" ? payload.interval : null;
 
   if (!isBillingPlanId(planIdRaw)) {
-    throw new BillingServiceError("planId must be 'byok' or 'hosted'", 400);
+    throw new BillingServiceError("planId must be 'standard' or 'pro'", 400);
   }
   if (!isBillingInterval(intervalRaw)) {
     throw new BillingServiceError("interval must be 'monthly' or 'annual'", 400);
