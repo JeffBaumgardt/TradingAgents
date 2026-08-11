@@ -603,7 +603,16 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
 sessionRoutes.get("/sessions/:id/chat", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
-  const result = await chatService.listChatMessages(client, sessionIdParam(c), {
+  const id = sessionIdParam(c);
+  const parent = await sessionService.getSession(client, id);
+  if (!parent) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, parent, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const result = await chatService.listChatMessages(client, id, {
     requesterId: requesterId ?? null,
   });
   if (result === "not_found") {
