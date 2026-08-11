@@ -3,7 +3,7 @@
  * TypeScript types aligned with packages/api-types/openapi.yaml.
  */
 
-/** Placeholder returned for stored secret credential fields (never the real value). */
+/** @deprecated Personal-key masking placeholder; product runs use platform keys only. */
 export const SECRET_CREDENTIAL_PLACEHOLDER = "********";
 
 export type AnalystType = "market" | "social" | "news" | "fundamentals";
@@ -192,10 +192,11 @@ export interface ProviderCredentialDefinition {
 }
 
 export interface StoredCredentialsResponse {
+  /** @deprecated Personal credentials storage removed. */
   providerCredentials: ProviderCredentials;
 }
 
-/** Per-provider credential values supplied for the current browser session. */
+/** Provider credential bags used on the API → agents-service hop only. */
 export type ProviderCredentials = Partial<
   Record<string, Record<string, string>>
 >;
@@ -261,7 +262,7 @@ export interface CreateSessionRequest {
   openaiReasoningEffort?: "low" | "medium" | "high";
   anthropicEffort?: "low" | "medium" | "high";
   checkpointEnabled?: boolean;
-  /** Loaded server-side from stored user credentials; not accepted from clients. */
+  /** Injected server-side from platform keys for agents-service; never accepted from clients. */
   providerCredentials?: ProviderCredentials;
 }
 

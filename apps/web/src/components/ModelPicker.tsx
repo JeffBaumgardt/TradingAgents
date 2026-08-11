@@ -22,7 +22,7 @@ interface ModelPickerProps {
   models: ModelOption[];
   value: string;
   onChange: (modelId: string) => void;
-  /** When false (BYOK / self-pay), hide 💵 and run estimates; still sort by effort. */
+  /** When false, hide 💵 and run estimates; still sort by effort. */
   showCreditSpend?: boolean;
   labelledBy?: string;
   describedBy?: string;

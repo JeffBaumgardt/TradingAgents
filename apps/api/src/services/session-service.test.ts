@@ -131,7 +131,6 @@ describe("validateCreateRequest userContext", () => {
   it("rejects userContext with control characters", () => {
     const error = validateCreateRequest(
       { ...baseBody, userContext: "hello\x00world" },
-      {},
       { allowHostedProvider: true },
     );
     assert.match(error ?? "", /invalid characters/);
@@ -140,7 +139,6 @@ describe("validateCreateRequest userContext", () => {
   it("rejects oversized userContext", () => {
     const error = validateCreateRequest(
       { ...baseBody, userContext: "a".repeat(8193) },
-      {},
       { allowHostedProvider: true },
     );
     assert.match(error ?? "", /at most/);
@@ -159,19 +157,14 @@ describe("validateCreateRequest product access", () => {
   };
 
   it("rejects when platform plan access is not allowed", () => {
-    const error = validateCreateRequest(baseBody, {});
+    const error = validateCreateRequest(baseBody);
     assert.match(error ?? "", /Standard or Pro/);
   });
 
   it("allows product create when platform plan access is allowed", () => {
-    const error = validateCreateRequest(
-      baseBody,
-      {},
-      {
-        allowHostedProvider: true,
-        hostedProviderIds: ["anthropic"],
-      },
-    );
+    const error = validateCreateRequest(baseBody, {
+      allowHostedProvider: true,
+    });
     assert.equal(error, null);
   });
 });

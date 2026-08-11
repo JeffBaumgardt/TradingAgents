@@ -77,25 +77,6 @@ async function getUserRowByEmail(
   return (data as UserRow | null) ?? null;
 }
 
-async function migrateUserCredentials(
-  client: AppSupabaseClient,
-  fromUserId: string,
-  toUserId: string,
-): Promise<void> {
-  if (fromUserId === toUserId) {
-    return;
-  }
-
-  const { error } = await client
-    .from("user_credentials")
-    .update({ user_id: toUserId })
-    .eq("user_id", fromUserId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-}
-
 async function rekeyUser(
   client: AppSupabaseClient,
   existing: UserRow,
@@ -106,8 +87,6 @@ async function rekeyUser(
   if (existing.id === nextId) {
     return;
   }
-
-  await migrateUserCredentials(client, existing.id, nextId);
 
   const { error: deleteError } = await client.from("users").delete().eq("id", existing.id);
   if (deleteError) {

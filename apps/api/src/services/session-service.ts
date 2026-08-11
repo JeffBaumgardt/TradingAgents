@@ -7,7 +7,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type {
   CreateSessionRequest,
-  ProviderCredentials,
   Session,
   SessionListResponse,
   SessionReport,
@@ -139,9 +138,8 @@ function sectionsToMarkdown(sections: Record<string, string | null>): string {
 }
 
 export interface ValidateCreateOptions {
-  /** When true, platform Agents Model may run without user-stored credentials. */
+  /** When true, the user has an active Standard/Pro plan or trial. */
   allowHostedProvider?: boolean;
-  hostedProviderIds?: readonly string[];
 }
 
 /** Product runs always use Agents Model; override client body values. */
@@ -157,7 +155,6 @@ export function forceAgentsModel(body: CreateSessionRequest): CreateSessionReque
 
 export function validateCreateRequest(
   body: CreateSessionRequest,
-  _providerCredentials: ProviderCredentials = {},
   options: ValidateCreateOptions = {},
 ): string | null {
   if (!validateTicker(body.ticker)) {
@@ -204,15 +201,14 @@ export async function createSession(
   const planId = billing.subscription.planId!;
   const isBillablePlan = planId === "standard" || planId === "pro";
 
-  const validationError = validateCreateRequest(forcedBody, {}, {
+  const validationError = validateCreateRequest(forcedBody, {
     allowHostedProvider: isBillablePlan,
-    hostedProviderIds: billing.hostedProviderIds,
   });
   if (validationError) {
     throw new Error(validationError);
   }
 
-  const resolved = await resolveRunProviderCredentials(client, {}, {
+  const resolved = await resolveRunProviderCredentials(client, {
     isHostedPlan: isBillablePlan,
     hostedProviderIds: billing.hostedProviderIds,
     selectedProviderId: AGENTS_MODEL_PROVIDER_ID,

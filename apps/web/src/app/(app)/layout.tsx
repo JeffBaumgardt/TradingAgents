@@ -1,12 +1,14 @@
 /**
  * @file apps/web/src/app/(app)/layout.tsx
- * Authenticated app shell with header and session state.
+ * Authenticated app shell with subscription / trial access control.
  */
 
+import { Suspense } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SiteShell, { SiteShellMain } from "@/components/SiteShell";
-import { UserSessionProvider } from "@/context/UserSessionContext";
+import SubscriptionGate from "@/components/SubscriptionGate";
+import HomePageSkeleton from "@/components/HomePageSkeleton";
 
 export default function AppLayout({
   children,
@@ -14,12 +16,14 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <UserSessionProvider>
-      <SiteShell>
-        <SiteHeader />
-        <SiteShellMain>{children}</SiteShellMain>
-        <SiteFooter />
-      </SiteShell>
-    </UserSessionProvider>
+    <SiteShell>
+      <SiteHeader />
+      <SiteShellMain>
+        <Suspense fallback={<HomePageSkeleton />}>
+          <SubscriptionGate>{children}</SubscriptionGate>
+        </Suspense>
+      </SiteShellMain>
+      <SiteFooter />
+    </SiteShell>
   );
 }

@@ -10,15 +10,12 @@ import type {
   CheckoutResponse,
   ConfigOptions,
   CreateSessionRequest,
-  CredentialsSchemaResponse,
   FeedbackRequest,
   FeedbackResponse,
   ModelMode,
   PostChatMessageRequest,
   PostChatMessageResponse,
-  ProviderCredentials,
   ProviderModelsResponse,
-  ResolvedConfigResponse,
   Session,
   SessionChatResponse,
   SessionEventsResponse,
@@ -27,7 +24,6 @@ import type {
   SessionTradeCheckResponse,
   SseEventMap,
   SseEventType,
-  StoredCredentialsResponse,
   UpdateUserRequest,
   User,
 } from "@tradingagents/api-types";
@@ -102,56 +98,7 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Fetch credential field definitions for the setup screen. */
-export async function fetchCredentialsSchema(): Promise<CredentialsSchemaResponse> {
-  const response = await fetch(`${API_BASE}/config/credentials/schema`, {
-    cache: "no-store",
-  });
-  return parseJson<CredentialsSchemaResponse>(response);
-}
-
-/** Load stored credentials (secret fields are masked). */
-export async function fetchUserCredentials(): Promise<ProviderCredentials> {
-  const response = await fetch(`${API_BASE}/credentials`, {
-    headers: await buildUserHeaders(),
-    cache: "no-store",
-  });
-  const body = await parseJson<StoredCredentialsResponse>(response);
-  return body.providerCredentials;
-}
-
-/** Persist credentials server-side; response values are always masked. */
-export async function saveUserCredentials(
-  providerCredentials: ProviderCredentials,
-): Promise<ProviderCredentials> {
-  const response = await fetch(`${API_BASE}/credentials`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...(await buildUserHeaders()),
-    },
-    body: JSON.stringify({ providerCredentials }),
-    cache: "no-store",
-  });
-  const body = await parseJson<StoredCredentialsResponse>(response);
-  return body.providerCredentials;
-}
-
-/** Resolve config options filtered to providers the user has credentials for. */
-export async function resolveConfig(): Promise<ResolvedConfigResponse> {
-  const response = await fetch(`${API_BASE}/config/resolve`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(await buildUserHeaders()),
-    },
-    body: JSON.stringify({}),
-    cache: "no-store",
-  });
-  return parseJson<ResolvedConfigResponse>(response);
-}
-
-/** Fetch wizard dropdown/checkbox options from the API (unfiltered legacy). */
+/** Fetch wizard dropdown/checkbox options from the API. */
 export async function fetchConfigOptions(): Promise<ConfigOptions> {
   const response = await fetch(`${API_BASE}/config/options`, {
     cache: "no-store",
@@ -159,38 +106,19 @@ export async function fetchConfigOptions(): Promise<ConfigOptions> {
   return parseJson<ConfigOptions>(response);
 }
 
-/** Fetch LLM model options for a provider and thinking mode. */
+/** Fetch LLM model options for a provider and thinking mode (public catalog). */
 export async function fetchProviderModels(
   provider: string,
   mode: ModelMode,
 ): Promise<ProviderModelsResponse> {
   const response = await fetch(
-    `${API_BASE}/config/providers/${encodeURIComponent(provider)}/models`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(await buildUserHeaders()),
-      },
-      body: JSON.stringify({ mode }),
-      cache: "no-store",
-    },
+    `${API_BASE}/config/providers/${encodeURIComponent(provider)}/models?mode=${encodeURIComponent(mode)}`,
+    { cache: "no-store" },
   );
-
-  // Hosted providers without a personal key may fail the credentialed POST;
-  // fall back to the public catalog so the wizard can still list models.
-  if (response.status === 403 || response.status === 400) {
-    const publicResponse = await fetch(
-      `${API_BASE}/config/providers/${encodeURIComponent(provider)}/models?mode=${encodeURIComponent(mode)}`,
-      { cache: "no-store" },
-    );
-    return parseJson<ProviderModelsResponse>(publicResponse);
-  }
-
   return parseJson<ProviderModelsResponse>(response);
 }
 
-/** Create a new analysis session. Credentials are loaded server-side. */
+/** Create a new analysis session. Platform keys are injected server-side only. */
 export async function createSession(config: CreateSessionRequest): Promise<Session> {
   const { providerCredentials: _ignored, ...payload } = config;
   const response = await fetch(`${API_BASE}/sessions`, {

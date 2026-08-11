@@ -224,7 +224,9 @@ sessionRoutes.get("/sessions", requireUserId(), async (c) => {
 });
 
 sessionRoutes.post("/sessions", requireUserId(), async (c) => {
-  const body = (await c.req.json()) as CreateSessionRequest;
+  const rawBody = (await c.req.json()) as CreateSessionRequest;
+  // Clients never supply provider keys; ignore any spoofed field.
+  const { providerCredentials: _ignored, ...body } = rawBody;
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
 

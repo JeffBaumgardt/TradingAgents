@@ -6,11 +6,7 @@
 
 import "server-only";
 import { auth } from "@clerk/nextjs/server";
-import type {
-  CredentialsSchemaResponse,
-  Session,
-  SessionListResponse,
-} from "@tradingagents/api-types";
+import type { Session, SessionListResponse } from "@tradingagents/api-types";
 import { API_BASE } from "@/lib/api-client";
 
 const SESSIONS_REVALIDATE_SECONDS = 15;
@@ -89,12 +85,4 @@ export async function fetchSessionServer(sessionId: string): Promise<Session> {
     cache: "no-store",
   });
   return parseJson<Session>(response);
-}
-
-/** Credential field definitions — always fetch fresh so deploy-time schema changes show up. */
-export async function fetchCredentialsSchemaServer(): Promise<CredentialsSchemaResponse> {
-  const response = await fetchWithTimeout(`${API_BASE}/config/credentials/schema`, {
-    cache: "no-store",
-  });
-  return parseJson<CredentialsSchemaResponse>(response);
 }

@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/HomePageSkeleton.tsx
- * Placeholder while client session credentials hydrate from sessionStorage.
+ * Placeholder while subscription / dashboard state loads.
  */
 
 import skeleton from "./skeleton.module.css";

@@ -234,7 +234,7 @@ export async function postChatMessage(
   const isHostedPlan =
     account.subscription.planId === "pro" ||
     account.subscription.planId === "standard";
-  const resolved = await resolveRunProviderCredentials(client, {}, {
+  const resolved = await resolveRunProviderCredentials(client, {
     isHostedPlan,
     hostedProviderIds: account.hostedProviderIds,
     selectedProviderId: AGENTS_MODEL_PROVIDER_ID,

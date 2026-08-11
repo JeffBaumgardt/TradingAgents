@@ -8,7 +8,6 @@
 import type {
   ConfigOptions,
   CreateSessionRequest,
-  CredentialsSchemaResponse,
   ProviderCredentials,
   ProviderModelsResponse,
   ResolvedConfigResponse,
@@ -132,12 +131,12 @@ export async function checkAgentsHealth(): Promise<AgentsHealthStatus> {
   }
 }
 
-export async function fetchCredentialsSchema(): Promise<CredentialsSchemaResponse> {
-  return request<CredentialsSchemaResponse>("/internal/config/credentials/schema");
-}
-
+/**
+ * Resolve provider labels/schema for product config. Pass empty credentials —
+ * platform keys are never forwarded on this hop.
+ */
 export async function resolveConfig(
-  providerCredentials: ProviderCredentials,
+  providerCredentials: ProviderCredentials = {},
 ): Promise<ResolvedConfigResponse> {
   return request<ResolvedConfigResponse>("/internal/config/resolve", {
     method: "POST",
@@ -149,21 +148,7 @@ export async function fetchConfigOptions(): Promise<ConfigOptions> {
   return request<ConfigOptions>("/internal/config/options");
 }
 
-export async function fetchProviderModels(
-  provider: string,
-  mode: "all" | "quick" | "deep" = "all",
-  providerCredentials: ProviderCredentials = {},
-): Promise<ProviderModelsResponse> {
-  return request<ProviderModelsResponse>(
-    `/internal/config/providers/${encodeURIComponent(provider)}/models`,
-    {
-      method: "POST",
-      body: JSON.stringify({ mode, providerCredentials }),
-    },
-  );
-}
-
-/** Static model catalog — no user/platform credentials required. */
+/** Static model catalog — no platform credentials required. */
 export async function fetchProviderModelsPublic(
   provider: string,
   mode: "all" | "quick" | "deep" = "all",

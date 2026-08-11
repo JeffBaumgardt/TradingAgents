@@ -32,7 +32,7 @@ describe("isPublicPath", () => {
   it("requires authentication for app routes", () => {
     assert.equal(isPublicPath("/dashboard"), false);
     assert.equal(isPublicPath("/onboarding"), false);
-    assert.equal(isPublicPath("/settings/credentials"), false);
+    assert.equal(isPublicPath("/settings/billing"), false);
   });
 
   it("does not treat other paths as public by prefix accident", () => {
