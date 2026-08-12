@@ -27,26 +27,24 @@ export default function LandingPageContent({
       <div className={styles.page}>
         <section className={styles.hero} aria-labelledby="landing-hero-heading">
           <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>
-              TradingAgents Framework · From $9/month
-            </p>
+            <p className={styles.eyebrow}>{LANDING_HERO.eyebrow}</p>
             <h1 id="landing-hero-heading" className={styles.heroTitle}>
               {LANDING_HERO.headline}
             </h1>
             <p className={styles.heroIntro}>{LANDING_HERO.copy}</p>
             <div className={styles.heroActions}>
-              <Link href="/pricing" className={styles.primaryButton}>
-                Get Started
+              <Link href="/sign-up" className={styles.primaryButton}>
+                {LANDING_HERO.primaryCta}
               </Link>
-              <Link href="/sign-in" className={styles.secondaryButton}>
-                Sign in
+              <Link href="/pricing" className={styles.secondaryButton}>
+                See plans
               </Link>
             </div>
             <ul
               className={styles.heroHighlights}
               aria-label="Product highlights"
             >
-              <li>Subscription required to run research</li>
+              <li>14-day free trial — no credit card needed</li>
               <li>Research only — not financial advice</li>
             </ul>
           </div>
@@ -127,19 +125,18 @@ export default function LandingPageContent({
         >
           <div className={styles.finalCtaInner}>
             <h2 id="final-cta-heading" className={styles.finalCtaTitle}>
-              Launch your first multi-agent research run
+              Start free for 14 days
             </h2>
             <p className={styles.finalCtaCopy}>
-              Start a free 14-day Pro trial—no card required—then pick Standard or Pro. Watch analyst,
-              researcher, trader, and risk agents collaborate on your next ticker on our managed
-              Agents Model.
+              No credit card needed. Launch your first multi-agent research run on our managed Agents
+              Model, then choose Standard or Pro when you&apos;re ready.
             </p>
             <div className={styles.heroActions}>
-              <Link href="/pricing" className={styles.primaryButton}>
-                Get Started
+              <Link href="/sign-up" className={styles.primaryButton}>
+                Start free trial
               </Link>
-              <Link href="/sign-up" className={styles.secondaryButton}>
-                Create account
+              <Link href="/pricing" className={styles.secondaryButton}>
+                Compare plans
               </Link>
             </div>
           </div>

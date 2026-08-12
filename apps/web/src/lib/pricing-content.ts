@@ -61,6 +61,10 @@ const PRO_CREDIT_LABEL = formatComputeCredits(PRO_MONTHLY_COMPUTE_CREDIT_ALLOWAN
 
 export const PRICING_SHARED_FEATURES = [
   {
+    title: "14-day free trial",
+    description: "No credit card required. Full access to the Agents Model while you try the product.",
+  },
+  {
     title: "Agents Model included",
     description:
       "Every run uses our managed Claude Sonnet Agents Model — no provider keys to set up.",
@@ -68,10 +72,6 @@ export const PRICING_SHARED_FEATURES = [
   {
     title: "Multi-agent research pipeline",
     description: "Analysts, debate, risk, and portfolio management in one research run.",
-  },
-  {
-    title: "14-day free trial",
-    description: `No credit card required. Credits count during the trial (${TRIAL_DAYS} days).`,
   },
 ] as const;
 
@@ -113,14 +113,14 @@ export const PRICING_PLANS: PricingPlan[] = BILLING_CATALOG.map((plan) => ({
 }));
 
 export const PRICING_PAGE = {
-  eyebrow: "Simple pricing",
+  eyebrow: "14-day free trial · No credit card needed",
   title: "One Agents Model. Two clear plans.",
   intro:
-    "Every subscription runs on our managed Agents Model (Claude Sonnet). Pick Standard for a lighter credit pool, or Pro for full credits and report sharing by link. Both include a 14-day free trial — no credit card required.",
+    "Start free for 14 days — no credit card required. Every plan includes our managed Agents Model (Claude Sonnet). Pick Standard for a lighter credit pool, or Pro for full credits and report sharing by link.",
   annualNote: `Annual billing saves ${ANNUAL_DISCOUNT_PERCENT}% versus paying month to month.`,
   provisionalNote:
-    "Credits meter against Agents Model token usage. Payments run through Stripe after your free trial — we only ask for a card when you subscribe.",
-  infraFraming: `Free trial lasts ${TRIAL_DAYS} days on either plan (we default new users to Pro). Trial credits count toward your monthly allowance; when the trial ends, subscribe with Stripe to keep running analyses.`,
+    "Credits meter against Agents Model token usage. We only ask for a card when you subscribe after the free trial.",
+  infraFraming: `Both plans include a ${TRIAL_DAYS}-day free trial with no credit card (we default new users to Pro). Trial credits count toward your monthly allowance; subscribe with Stripe when the trial ends to keep running analyses.`,
 } as const;
 
 export function getPricingPlan(planId: BillingPlanId): PricingPlan {
