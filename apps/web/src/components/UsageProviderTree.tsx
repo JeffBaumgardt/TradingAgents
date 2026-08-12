@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/UsageProviderTree.tsx
- * Collapsible provider → model usage tree (numbers only; no per-row bars).
+ * Collapsible provider → model usage tree (credit totals only).
  */
 
 "use client";
@@ -8,15 +8,7 @@
 import { useState } from "react";
 import type { UsageModelBreakdown, UsageProviderBreakdown } from "@tradingagents/api-types";
 import { AGENTS_MODEL_DISPLAY_NAME } from "@tradingagents/api-types";
-import ProviderCostBadge from "@/components/ProviderCostBadge";
-import {
-  formatComputeCredits,
-  formatCreditMultiplier,
-  formatCreditSpendDollars,
-  formatTokenCount,
-  creditSpendTierFromMultiplier,
-  creditSpendTierLabel,
-} from "@/lib/billing-display";
+import { formatComputeCredits } from "@/lib/billing-display";
 import styles from "./BillingPageContent.module.css";
 
 interface UsageProviderTreeProps {
@@ -58,16 +50,7 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
                 <span className={styles.providerName}>{provider.providerLabel}</span>
               </span>
               <span className={styles.providerAggregate}>
-                <span>
-                  {formatTokenCount(provider.tokensTotal)} tokens ·{" "}
-                  {formatComputeCredits(provider.computeCredits)} credits
-                </span>
-                <span className={styles.providerSplit}>
-                  Agents Model {formatTokenCount(provider.hostedTokens)}
-                  {provider.selfPayTokens > 0
-                    ? ` · Legacy ${formatTokenCount(provider.selfPayTokens)}`
-                    : ""}
-                </span>
+                <span>{formatComputeCredits(provider.computeCredits)} credits</span>
               </span>
             </button>
 
@@ -75,31 +58,14 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
               <ul id={panelId} className={styles.modelTree}>
                 {models.map((model) => (
                   <li
-                    key={`${model.providerId}-${model.modelId}-${model.costSource}`}
+                    key={`${model.providerId}-${model.modelId}`}
                     className={styles.modelTreeRow}
                   >
                     <div className={styles.modelTitleRow}>
                       <strong className={styles.modelId}>{AGENTS_MODEL_DISPLAY_NAME}</strong>
-                      <span
-                        className={styles.spendDollars}
-                        title={`${creditSpendTierLabel(creditSpendTierFromMultiplier(model.creditMultiplier))} spend`}
-                        aria-label={`${creditSpendTierLabel(creditSpendTierFromMultiplier(model.creditMultiplier))} spend`}
-                      >
-                        {formatCreditSpendDollars(model.creditMultiplier)}
-                      </span>
-                      <span
-                        className={styles.multiplierChip}
-                        title="Compute credit multiplier from API output $/1M tokens"
-                      >
-                        {formatCreditMultiplier(model.creditMultiplier)}
-                      </span>
-                      <ProviderCostBadge source={model.costSource} />
                     </div>
                     <p className={styles.modelStats}>
-                      {formatTokenCount(model.tokensTotal)} tokens
-                      {model.computeCredits > 0
-                        ? ` · ${formatComputeCredits(model.computeCredits)} compute credits`
-                        : " · excluded from allowance"}
+                      {formatComputeCredits(model.computeCredits)} compute credits
                     </p>
                   </li>
                 ))}

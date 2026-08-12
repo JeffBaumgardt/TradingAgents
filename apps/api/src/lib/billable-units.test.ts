@@ -6,43 +6,39 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   AGENTS_MODEL_ID,
+  AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN,
   AGENTS_MODEL_PROVIDER_ID,
-  creditMultiplierFromOutputUsdPer1M,
+  COMPUTE_CREDIT_MARGIN,
+  PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  computeAgentsModelCredits,
   getHostedModelCostEntry,
-  getModelCreditMultiplier,
 } from "@tradingagents/api-types";
 import { computeCredits } from "./billable-units.js";
 
 describe("billable-units / compute credits", () => {
-  it("meters Agents Model against its catalog output price", () => {
+  it("uses $2 input / $10 output list prices for Agents Model", () => {
     const agents = getHostedModelCostEntry(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID);
     assert.ok(agents);
-    const multiplier = getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID);
-    assert.equal(multiplier, 1);
-    assert.ok(creditMultiplierFromOutputUsdPer1M(agents.outputUsdPer1M) > 1);
+    assert.equal(agents.inputUsdPer1M, 2);
+    assert.equal(agents.outputUsdPer1M, 10);
+    assert.equal(AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN, 5);
   });
 
-  it("charges hosted traffic and zeroes self-pay compute credits", () => {
-    const multiplier = getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID);
+  it("charges 1 credit per input token and 5 per output token, plus margin", () => {
     assert.equal(
       computeCredits({
         tokensIn: 100,
         tokensOut: 100,
         providerId: AGENTS_MODEL_PROVIDER_ID,
         modelId: AGENTS_MODEL_ID,
-        costSource: "hosted",
       }),
-      Math.round(200 * multiplier),
+      Math.round((100 * 1 + 100 * 5) * COMPUTE_CREDIT_MARGIN),
     );
-    assert.equal(
-      computeCredits({
-        tokensIn: 1000,
-        tokensOut: 1000,
-        providerId: AGENTS_MODEL_PROVIDER_ID,
-        modelId: AGENTS_MODEL_ID,
-        costSource: "self_pay",
-      }),
-      0,
-    );
+  });
+
+  it("maps 10M credits to about 2M output tokens after margin", () => {
+    const creditsForTwoMillionOutput = computeAgentsModelCredits(0, 2_000_000);
+    assert.equal(creditsForTwoMillionOutput, Math.round(2_000_000 * 5 * COMPUTE_CREDIT_MARGIN));
+    assert.ok(Math.abs(creditsForTwoMillionOutput - PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE) < 600_000);
   });
 });

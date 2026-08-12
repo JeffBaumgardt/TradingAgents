@@ -130,7 +130,6 @@ export interface UsageEventRow {
   tokens_in: number;
   tokens_out: number;
   billable_units: number;
-  cost_source: string;
   usage_kind?: string;
   credit_period_id: number | null;
   created_at: string;
@@ -142,7 +141,6 @@ export interface SessionUsageCursorRow {
   provider_id: string;
   quick_model_id: string;
   deep_model_id: string;
-  cost_source: string;
   usage_kind?: string;
   last_tokens_in: number;
   last_tokens_out: number;

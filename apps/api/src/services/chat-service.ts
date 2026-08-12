@@ -277,7 +277,6 @@ export async function postChatMessage(
       {
         llmProvider: AGENTS_MODEL_PROVIDER_ID,
         thinkLlm,
-        costSource: "hosted",
       },
     );
     if (!gate.allowed) {
@@ -380,7 +379,6 @@ export async function postChatMessage(
     providerId: AGENTS_MODEL_PROVIDER_ID,
     quickModelId: thinkLlm,
     deepModelId: thinkLlm,
-    costSource: "hosted",
     // Analysis cursors are deleted on run completion. Re-init for this turn with
     // watermarks at 0 so agents StatsCallbackHandler (also starting at 0) meters
     // only follow-up tokens — never replaying the completed analysis totals.
@@ -473,7 +471,6 @@ export async function postChatMessage(
     assistantMessageId,
     userId,
     subscription,
-    costSource: "hosted",
     onTerminal: async ({ type, payload }) => {
       if (type === "chat.completed") {
         const parts = truncateParts(asParts(payload.parts));

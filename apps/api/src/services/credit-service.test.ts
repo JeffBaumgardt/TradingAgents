@@ -158,7 +158,6 @@ describe("credit-service", () => {
         thinkLlm: "gpt-5.5",
         outputLanguage: "English",
       },
-      "hosted",
     );
 
     assert.equal(gate.allowed, false);
@@ -169,43 +168,6 @@ describe("credit-service", () => {
       .eq("id", period.id)
       .maybeSingle();
     assert.equal((data as { blocked_low_balance: boolean }).blocked_low_balance, false);
-  });
-
-  it("returns not_hosted for cost_source self_pay (product always hosted)", async () => {
-    const client = createInMemorySupabase();
-    const userId = "user-credit-block";
-    await client.from("users").insert({
-      id: userId,
-      email: null,
-      first_name: null,
-      last_name: null,
-      image_url: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-
-    const gate = await assertHostedCreditsForNewRun(
-      client,
-      userId,
-      {
-        plan_id: "pro",
-        current_period_start: "2099-07-01T00:00:00.000Z",
-        current_period_end: "2099-08-01T00:00:00.000Z",
-      },
-      {
-        ticker: "AAPL",
-        analysisDate: "2026-07-01",
-        analysts: ["market"],
-        researchDepth: 1,
-        llmProvider: "anthropic",
-        thinkLlm: "claude-sonnet-5",
-        outputLanguage: "English",
-      },
-      "self_pay",
-    );
-
-    assert.equal(gate.allowed, true);
-    assert.equal(gate.code, "not_hosted");
   });
 
   it("rejects a second hosted run when in-flight estimates exhaust remaining credits", async () => {
@@ -245,7 +207,7 @@ describe("credit-service", () => {
       outputLanguage: "English",
     };
 
-    const estimate = await estimateRunCredits(client, runBody, "hosted");
+    const estimate = await estimateRunCredits(client, runBody);
     // Leave enough for one estimate, but not two concurrent ones.
     await client
       .from("user_credit_periods")
@@ -273,7 +235,6 @@ describe("credit-service", () => {
       providerId: "openai",
       quickModelId: "gpt-5.5",
       deepModelId: "gpt-5.5",
-      costSource: "hosted",
     });
 
     const gate = await assertHostedCreditsForNewRun(
@@ -281,7 +242,6 @@ describe("credit-service", () => {
       userId,
       subscription,
       runBody,
-      "hosted",
     );
 
     assert.equal(gate.allowed, false);
@@ -324,7 +284,7 @@ describe("credit-service", () => {
       thinkLlm: "gpt-5.5",
       outputLanguage: "English",
     };
-    const estimate = await estimateRunCredits(client, runBody, "hosted");
+    const estimate = await estimateRunCredits(client, runBody);
     await client
       .from("user_credit_periods")
       .update({ used_credits: Math.max(0, period.base_allowance - estimate - 1_000) })
@@ -352,7 +312,6 @@ describe("credit-service", () => {
         providerId: "openai",
         quickModelId: "gpt-5.5",
         deepModelId: "gpt-5.5",
-        costSource: "hosted",
       });
     }
 
@@ -390,20 +349,6 @@ describe("credit-service", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
-    await client.from("model_credit_multipliers").upsert({
-      provider_id: "openai",
-      model_id: "gpt-5.5",
-      display_name: "GPT-5.5",
-      provider_label: "OpenAI",
-      input_usd_per_1m: 5,
-      output_usd_per_1m: 30,
-      credit_multiplier: 100,
-      modes: ["deep"],
-      notes: null,
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    });
-
     await ensureCreditPeriod(
       client,
       userId,
@@ -417,12 +362,12 @@ describe("credit-service", () => {
     await initSessionUsageCursor(client, {
       sessionId,
       userId,
-      providerId: "openai",
-      quickModelId: "gpt-5.5",
-      deepModelId: "gpt-5.5",
-      costSource: "hosted",
+      providerId: "anthropic",
+      quickModelId: "claude-sonnet-5",
+      deepModelId: "claude-sonnet-5",
     });
 
+    // 10 in × 1.05 + 10 out × 5.25 = 63 credits
     const first = await meterSessionStats(client, {
       sessionId,
       userId,
@@ -434,8 +379,8 @@ describe("credit-service", () => {
         current_period_end: "2099-08-01T00:00:00.000Z",
       },
     });
-    assert.equal(first.chargedCredits, 2000);
-    assert.equal(first.sessionCredits, 2000);
+    assert.equal(first.chargedCredits, 63);
+    assert.equal(first.sessionCredits, 63);
 
     const second = await meterSessionStats(client, {
       sessionId,
@@ -449,73 +394,33 @@ describe("credit-service", () => {
       },
     });
     assert.equal(second.chargedCredits, 0);
-    assert.equal(second.sessionCredits, 2000);
+    assert.equal(second.sessionCredits, 63);
 
-    const estimated = await estimateRunCredits(
-      client,
-      {
-        ticker: "AAPL",
-        analysisDate: "2026-07-01",
-        analysts: ["market"],
-        researchDepth: 1,
-        llmProvider: "openai",
-        thinkLlm: "gpt-5.5",
-        outputLanguage: "English",
-      },
-      "hosted",
-    );
-    assert.ok(estimated > 0);
-  });
-
-  it("does not charge credits for self_pay traffic", async () => {
-    const client = createInMemorySupabase();
-    const userId = "user-selfpay";
-    const sessionId = "session-selfpay";
-    await client.from("users").insert({
-      id: userId,
-      email: null,
-      first_name: null,
-      last_name: null,
-      image_url: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    await client.from("sessions").insert({
-      id: sessionId,
-      user_id: userId,
-      ticker: "AAPL",
-      analysis_date: "2026-07-01",
-      status: "running",
-      config: {},
-      run_id: null,
-      report_markdown: null,
-      report_sections: null,
-      decision: null,
-      error: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    await initSessionUsageCursor(client, {
+    await client.from("session_usage_cursors").delete().eq("session_id", sessionId);
+    const afterCursorDeleted = await meterSessionStats(client, {
       sessionId,
       userId,
-      providerId: "openai",
-      quickModelId: "gpt-5.5",
-      deepModelId: "gpt-5.5",
-      costSource: "self_pay",
-    });
-
-    const meter = await meterSessionStats(client, {
-      sessionId,
-      userId,
-      tokensIn: 1000,
-      tokensOut: 1000,
+      tokensIn: 10,
+      tokensOut: 10,
       subscription: {
         plan_id: "pro",
         current_period_start: "2099-07-01T00:00:00.000Z",
         current_period_end: "2099-08-01T00:00:00.000Z",
       },
     });
-    assert.equal(meter.chargedCredits, 0);
-    assert.equal(meter.costSource, "self_pay");
+    assert.equal(afterCursorDeleted.chargedCredits, 0);
+    assert.equal(afterCursorDeleted.sessionCredits, 63);
+    assert.ok(afterCursorDeleted.remaining != null);
+
+    const estimated = await estimateRunCredits(client, {
+      ticker: "AAPL",
+      analysisDate: "2026-07-01",
+      analysts: ["market"],
+      researchDepth: 1,
+      llmProvider: "anthropic",
+      thinkLlm: "claude-sonnet-5",
+      outputLanguage: "English",
+    });
+    assert.ok(estimated > 0);
   });
 });

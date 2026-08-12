@@ -65,12 +65,11 @@ describe("platform-keys-service", () => {
       selectedProviderId: "openai",
     });
 
-    assert.equal(resolved.costSource, "hosted");
     assert.equal(resolved.usedPlatformKey, true);
     assert.equal(resolved.credentials.openai?.apiKey, "sk-platform-openai");
   });
 
-  it("does not mark costSource hosted when the platform key row is missing", async () => {
+  it("does not inject credentials when the platform key row is missing", async () => {
     const client = createInMemorySupabase();
 
     const resolved = await resolveRunProviderCredentials(client, {
@@ -79,7 +78,6 @@ describe("platform-keys-service", () => {
       selectedProviderId: "openai",
     });
 
-    assert.equal(resolved.costSource, "self_pay");
     assert.equal(resolved.usedPlatformKey, false);
     assert.equal(resolved.credentials.openai?.apiKey, undefined);
   });

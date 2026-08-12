@@ -1,16 +1,15 @@
 /**
  * apps/api/src/lib/billable-units.ts
  *
- * Convert raw tokens into compute credits using the curated hosted cost catalog.
- * Self-pay traffic still records raw tokens but 0 compute credits.
+ * Convert raw tokens into compute credits.
+ * 1 input token = 1 credit, 1 output token = 5 credits, then 5% margin.
  */
 
-import type { ProviderCostSource } from "@tradingagents/api-types";
-import { getModelCreditMultiplier } from "@tradingagents/api-types";
+import { computeAgentsModelCredits } from "@tradingagents/api-types";
 
-/** @deprecated Prefer {@link getModelCreditMultiplier}. */
-export function getModelBillableWeight(providerId: string, modelId: string): number {
-  return getModelCreditMultiplier(providerId, modelId);
+/** @deprecated Prefer {@link computeAgentsModelCredits}. */
+export function getModelBillableWeight(_providerId: string, _modelId: string): number {
+  return 1;
 }
 
 export function computeBillableUnits(input: {
@@ -18,24 +17,16 @@ export function computeBillableUnits(input: {
   tokensOut: number;
   providerId: string;
   modelId: string;
-  costSource: ProviderCostSource;
 }): number {
   return computeCredits(input);
 }
 
-/** Normalize hosted tokens into compute credits via output-cost multipliers. */
+/** Normalize tokens into compute credits (input × 1 + output × 5 × margin). */
 export function computeCredits(input: {
   tokensIn: number;
   tokensOut: number;
   providerId: string;
   modelId: string;
-  costSource: ProviderCostSource;
 }): number {
-  if (input.costSource === "self_pay") {
-    return 0;
-  }
-
-  const raw = Math.max(0, input.tokensIn) + Math.max(0, input.tokensOut);
-  const multiplier = getModelCreditMultiplier(input.providerId, input.modelId);
-  return Math.round(raw * multiplier);
+  return computeAgentsModelCredits(input.tokensIn, input.tokensOut);
 }

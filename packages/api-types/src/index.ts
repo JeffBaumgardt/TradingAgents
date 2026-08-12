@@ -222,7 +222,7 @@ export interface ResolvedConfigResponse extends ConfigOptions {
 export interface ModelOption {
   id: string;
   label: string;
-  /** Hosted compute-credit multiplier (tokens × this ≈ credits). */
+  /** @deprecated Product bills weighted input/output credits, not a single multiplier. */
   creditMultiplier?: number;
   capabilities?: {
     anthropicEffort?: boolean;
@@ -609,8 +609,9 @@ export function billingAnnualMonthlyEquivalentCents(
 
 /**
  * Monthly Pro compute-credit allowance.
- * One credit ≈ one token at the margin-adjusted reference rate
- * (~$0.2667/1M output = $0.28/1.05).
+ * 10M credits ≈ 2M output tokens (1 input token = 1 credit, 1 output token = 5,
+ * then 5% platform margin). $19/mo is positioned 1:1 with a direct Anthropic
+ * monthly sub, with margin covering platform cost.
  */
 export const PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
 
@@ -659,12 +660,6 @@ export type SubscriptionStatus =
   | "past_due"
   | "expired";
 
-/**
- * Who pays for model inference on a given run.
- * Product traffic is always platform-billed (`hosted`); `self_pay` remains for historical events.
- */
-export type ProviderCostSource = "hosted" | "self_pay";
-
 export interface UserSubscription {
   planId: BillingPlanId | null;
   interval: BillingInterval | null;
@@ -695,18 +690,14 @@ export interface UsageModelBreakdown {
   modelId: string;
   /** Raw prompt + completion tokens observed. */
   tokensTotal: number;
-  /**
-   * Normalized compute credits that count toward the hosted allowance.
-   * Self-pay traffic is tracked in tokensTotal but contributes 0 here.
-   */
+  /** Normalized compute credits that count toward the plan allowance. */
   computeCredits: number;
   /**
-   * Output-cost multiplier vs the margin-adjusted credit reference rate
-   * Product unit: 1 credit ≈ 1 Agents Model token. Applied as: credits ≈ tokens × creditMultiplier.
+   * @deprecated Unused in product UI. Credits are input×1 + output×5 × margin,
+   * not tokens × a single multiplier.
    */
   creditMultiplier: number;
-  costSource: ProviderCostSource;
-  /** Share of hosted compute credits in the period (0–1). */
+  /** Share of compute credits in the period (0–1). */
   shareOfCredits: number;
 }
 
@@ -715,8 +706,6 @@ export interface UsageProviderBreakdown {
   providerLabel: string;
   tokensTotal: number;
   computeCredits: number;
-  selfPayTokens: number;
-  hostedTokens: number;
   shareOfCredits: number;
 }
 
@@ -741,13 +730,12 @@ export interface BillingUsageSummary {
    */
   blockedLowBalance: boolean;
   tokensTotal: number;
-  selfPayTokens: number;
-  hostedTokens: number;
   byProvider: UsageProviderBreakdown[];
   byModel: UsageModelBreakdown[];
 }
 
 export type {
+  AgentsModelCreditRates,
   HostedModelCostEntry,
   HostedModelProviderId,
 } from "./hosted-model-catalog.js";
@@ -756,14 +744,23 @@ export {
   AGENTS_MODEL_CREDIT_MULTIPLIER,
   AGENTS_MODEL_DISPLAY_NAME,
   AGENTS_MODEL_ID,
+  AGENTS_MODEL_INPUT_CREDITS_PER_TOKEN,
+  AGENTS_MODEL_INPUT_USD_PER_1M,
+  AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN,
+  AGENTS_MODEL_OUTPUT_USD_PER_1M,
   AGENTS_MODEL_PROVIDER_ID,
+  AGENTS_MODEL_TYPICAL_OUTPUT_SHARE,
   COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M,
   COMPUTE_CREDIT_MARGIN,
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   HOSTED_MODEL_CATALOG,
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,
   PRODUCT_MODEL_CATALOG,
+  PRO_MONTHLY_OUTPUT_TOKEN_EQUIVALENT,
+  computeAgentsModelCredits,
   creditMultiplierFromOutputUsdPer1M,
+  estimateAgentsModelCreditsFromTokenVolume,
+  getAgentsModelCreditRates,
   getHostedModelCostEntry,
   getModelCreditMultiplier,
   listHostedModelCatalog,
@@ -811,7 +808,7 @@ export interface StreamStatsEvent {
   tool_calls: number;
   tokens_in: number;
   tokens_out: number;
-  /** Hosted compute credits charged for this run so far (0 when self-pay). */
+  /** Compute credits charged for this run so far. */
   compute_credits?: number;
   /** Remaining hosted credits in the current billing period (hosted only). */
   remaining_compute_credits?: number;

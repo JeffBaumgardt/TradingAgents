@@ -34,7 +34,6 @@ describe("billing-account-service", () => {
     assert.equal(account.usage?.rolloverComputeCredits, 0);
     assert.equal(account.usage?.blockedLowBalance, false);
     assert.ok((account.usage?.byModel.length ?? 0) > 0);
-    assert.equal(account.usage?.selfPayTokens ?? 0, 0);
     assert.ok((account.usage?.usedComputeCredits ?? 0) > 0);
     assert.ok((account.usage?.byModel[0]?.creditMultiplier ?? 0) > 0);
     assert.equal(account.agentsModelDisplayName, "Agents Model");

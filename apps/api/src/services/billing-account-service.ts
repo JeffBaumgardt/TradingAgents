@@ -20,7 +20,6 @@ import {
   type BillingPlanId,
   type BillingUsageSummary,
   type CancelSubscriptionResponse,
-  type ProviderCostSource,
   type UsageModelBreakdown,
   type UsageProviderBreakdown,
   type UserSubscription,
@@ -55,7 +54,6 @@ interface UsageEventRow {
   tokens_in: number;
   tokens_out: number;
   billable_units: number;
-  cost_source: ProviderCostSource;
 }
 
 type StoredSubscriptionStatus =
@@ -168,18 +166,11 @@ function buildUsageSummary(
 
   let usedComputeCreditsFromEvents = 0;
   let tokensTotal = 0;
-  let selfPayTokens = 0;
-  let hostedTokens = 0;
 
   for (const event of events) {
     const tokens = event.tokens_in + event.tokens_out;
     tokensTotal += tokens;
     usedComputeCreditsFromEvents += event.billable_units;
-    if (event.cost_source === "self_pay") {
-      selfPayTokens += tokens;
-    } else {
-      hostedTokens += tokens;
-    }
 
     const modelKey = `${event.provider_id}::${event.model_id}`;
     const existingModel = modelMap.get(modelKey);
@@ -194,7 +185,6 @@ function buildUsageSummary(
         tokensTotal: tokens,
         computeCredits: event.billable_units,
         creditMultiplier: getModelCreditMultiplier(event.provider_id, event.model_id),
-        costSource: event.cost_source,
         shareOfCredits: 0,
       });
     }
@@ -203,19 +193,12 @@ function buildUsageSummary(
     if (existingProvider) {
       existingProvider.tokensTotal += tokens;
       existingProvider.computeCredits += event.billable_units;
-      if (event.cost_source === "self_pay") {
-        existingProvider.selfPayTokens += tokens;
-      } else {
-        existingProvider.hostedTokens += tokens;
-      }
     } else {
       providerMap.set(event.provider_id, {
         providerId: event.provider_id,
         providerLabel: providerLabel(event.provider_id),
         tokensTotal: tokens,
         computeCredits: event.billable_units,
-        selfPayTokens: event.cost_source === "self_pay" ? tokens : 0,
-        hostedTokens: event.cost_source === "hosted" ? tokens : 0,
         shareOfCredits: 0,
       });
     }
@@ -254,8 +237,6 @@ function buildUsageSummary(
     usedRatio,
     blockedLowBalance: allowance.blockedLowBalance,
     tokensTotal,
-    selfPayTokens,
-    hostedTokens,
     byProvider,
     byModel,
   };
@@ -267,21 +248,18 @@ function sampleUsageEvents(): UsageEventRow[] {
     modelId: string;
     tokensIn: number;
     tokensOut: number;
-    costSource: ProviderCostSource;
   }> = [
     {
       providerId: AGENTS_MODEL_PROVIDER_ID,
       modelId: AGENTS_MODEL_ID,
       tokensIn: 180_000,
       tokensOut: 90_000,
-      costSource: "hosted",
     },
     {
       providerId: AGENTS_MODEL_PROVIDER_ID,
       modelId: AGENTS_MODEL_ID,
       tokensIn: 40_000,
       tokensOut: 20_000,
-      costSource: "hosted",
     },
   ];
 
@@ -295,9 +273,7 @@ function sampleUsageEvents(): UsageEventRow[] {
       tokensOut: sample.tokensOut,
       providerId: sample.providerId,
       modelId: sample.modelId,
-      costSource: sample.costSource,
     }),
-    cost_source: sample.costSource,
   }));
 }
 
@@ -309,7 +285,7 @@ async function loadUsageEventsForPeriod(
 ): Promise<UsageEventRow[]> {
   const { data, error } = await client
     .from("usage_events")
-    .select("provider_id, model_id, tokens_in, tokens_out, billable_units, cost_source")
+    .select("provider_id, model_id, tokens_in, tokens_out, billable_units")
     .eq("user_id", userId)
     .gte("created_at", periodStart)
     .lte("created_at", periodEnd);
@@ -324,7 +300,6 @@ async function loadUsageEventsForPeriod(
     tokens_in: Number(row.tokens_in) || 0,
     tokens_out: Number(row.tokens_out) || 0,
     billable_units: Number(row.billable_units) || 0,
-    cost_source: row.cost_source === "self_pay" ? "self_pay" : "hosted",
   }));
 }
 

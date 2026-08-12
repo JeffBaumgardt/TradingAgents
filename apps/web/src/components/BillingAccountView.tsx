@@ -10,12 +10,11 @@ import { useState } from "react";
 import type { BillingAccountResponse } from "@tradingagents/api-types";
 import {
   AGENTS_MODEL_DISPLAY_NAME,
-  COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   getBillingPlan,
 } from "@tradingagents/api-types";
 import CancelSubscriptionDialog from "@/components/CancelSubscriptionDialog";
 import { ApiClientError, cancelSubscription } from "@/lib/api-client";
-import { formatComputeCredits, formatPeriodEnd, formatTokenCount } from "@/lib/billing-display";
+import { formatComputeCredits, formatPeriodEnd } from "@/lib/billing-display";
 import { formatUsdFromCents } from "@/lib/pricing-content";
 import styles from "./BillingPageContent.module.css";
 
@@ -40,7 +39,8 @@ export default function BillingAccountView({
       ? getBillingPlan(subscription.planId)
       : null;
   const isPro = plan?.id === "pro";
-  const isTrial = subscription.status === "trialing" || Boolean(subscription.isTrial);
+  const isTrial =
+    subscription.status === "trialing" || Boolean(subscription.isTrial);
   const canCancel =
     Boolean(onAccountChange) &&
     Boolean(plan) &&
@@ -105,7 +105,10 @@ export default function BillingAccountView({
         </p>
       ) : null}
 
-      <section className={styles.planCard} aria-labelledby="current-plan-heading">
+      <section
+        className={styles.planCard}
+        aria-labelledby="current-plan-heading"
+      >
         <div className={styles.planHeader}>
           <div>
             <p className={styles.eyebrow}>Current plan</p>
@@ -160,8 +163,9 @@ export default function BillingAccountView({
         {isTrial && subscription.currentPeriodEnd ? (
           <p className={styles.periodNote} role="status">
             Free trial ends{" "}
-            <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>. Credit usage still
-            counts during the trial. We’ll ask for a payment method only when you subscribe.
+            <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>.
+            Credit usage still counts during the trial. We’ll ask for a payment
+            method only when you subscribe.
           </p>
         ) : subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd ? (
           <p className={styles.periodNote} role="status">
@@ -173,28 +177,6 @@ export default function BillingAccountView({
             Current billing period ends{" "}
             <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>
             {" — compute credit allowance resets then."}
-          </p>
-        ) : null}
-      </section>
-
-      <section className={styles.planCard} aria-labelledby="agents-model-heading">
-        <h2 id="agents-model-heading" className={styles.sectionTitle}>
-          Agents Model
-        </h2>
-        <p className={styles.breakdownIntro}>
-          All analyses use our managed <strong>{modelName}</strong>. There is no provider or model
-          picker — compute credits meter solely against this model.
-        </p>
-        <ul className={styles.breakdownIntro}>
-          <li>
-            Report sharing:{" "}
-            {planFeatures.shareReports ? "enabled (Pro)" : "Pro only — upgrade to share by link"}
-          </li>
-        </ul>
-        {!planFeatures.shareReports ? (
-          <p className={styles.sampleNote} role="note">
-            Sharing finished reports by link is a Pro feature.{" "}
-            <Link href="/checkout?plan=pro&interval=monthly">Upgrade to Pro</Link>
           </p>
         ) : null}
       </section>
@@ -213,30 +195,27 @@ export default function BillingAccountView({
             {usage.isSample ? (
               <p className={styles.sampleNote} role="note">
                 Sample usage for review — live metering charges{" "}
-                {formatComputeCredits(usage.baseAllowanceComputeCredits)} compute credits per month
-                on this plan.
+                {formatComputeCredits(usage.baseAllowanceComputeCredits)}{" "}
+                compute credits per month on this plan.
               </p>
             ) : null}
             {usage.blockedLowBalance ? (
               <p className={styles.sampleNote} role="alert">
-                New runs are blocked for the rest of this billing period because remaining credits
-                fell below the low-balance threshold (about 3% of your allowance). Allowance resets{" "}
+                New runs are blocked for the rest of this billing period because
+                remaining credits fell below the low-balance threshold (about 3%
+                of your allowance). Allowance resets{" "}
                 {formatPeriodEnd(usage.periodEnd)}.
               </p>
             ) : null}
             <div className={styles.progressMeta}>
               <span>
-                {formatComputeCredits(usage.usedComputeCredits)} used of{" "}
-                {formatComputeCredits(usage.allowanceComputeCredits)} available
+                {formatComputeCredits(usage.usedComputeCredits)} used (≈
+                {formatComputeCredits(usage.remainingComputeCredits)} remaining)
+                of {formatComputeCredits(usage.allowanceComputeCredits)}{" "}
+                available
               </span>
               <span>{Math.round(usage.usedRatio * 100)}% of allowance</span>
             </div>
-            <p className={styles.breakdownIntro}>
-              Remaining: {formatComputeCredits(usage.remainingComputeCredits)} · Tokens recorded:{" "}
-              {formatTokenCount(usage.tokensTotal)} · 1 credit ≈ 1 token at Agents Model rate
-              (reference ${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M.toFixed(3)}/1M output ×
-              model multiplier)
-            </p>
             <div
               className={styles.progressTrack}
               role="progressbar"
@@ -251,29 +230,13 @@ export default function BillingAccountView({
               />
             </div>
           </section>
-
-          {usage.byModel.length > 0 ? (
-            <section className={styles.breakdownCard} aria-labelledby="breakdown-heading">
-              <h2 id="breakdown-heading" className={styles.sectionTitle}>
-                Usage detail
-              </h2>
-              <ul className={styles.breakdownIntro}>
-                {usage.byModel.map((row) => (
-                  <li key={`${row.providerId}-${row.modelId}`}>
-                    {AGENTS_MODEL_DISPLAY_NAME}: {formatComputeCredits(row.computeCredits)} credits (
-                    {formatTokenCount(row.tokensTotal)} tokens, ×{row.creditMultiplier})
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
         </>
       ) : (
         <section className={styles.usageCard}>
           <h2 className={styles.sectionTitle}>Credit usage</h2>
           <p className={styles.breakdownIntro}>
-            Usage appears once you have an active Standard or Pro plan (or trial) and start running
-            analyses.
+            Usage appears once you have an active Standard or Pro plan (or
+            trial) and start running analyses.
           </p>
           <Link href="/pricing" className={styles.primaryButton}>
             View plans

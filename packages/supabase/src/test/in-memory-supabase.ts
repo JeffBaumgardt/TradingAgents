@@ -51,7 +51,7 @@ function defaultPlanConfigs(): Map<string, PlanCreditConfigRow> {
     low_balance_warn_ratio: 0.1,
     max_rollover_periods: 1,
     estimated_tokens_by_depth: { "1": 100_000, "3": 280_000, "5": 550_000 },
-    reference_output_usd_per_1m: 0.266667,
+    reference_output_usd_per_1m: 10,
     updated_at: now,
   } as const;
   return new Map([
@@ -602,7 +602,8 @@ export function createInMemorySupabase(): AppSupabaseClient {
           args?.p_period_id == null || args.p_period_id === ""
             ? null
             : Number(args.p_period_id);
-        const multiplier = Math.max(0, Number(args?.p_credit_multiplier ?? 1));
+        const inputRate = Math.max(0, Number(args?.p_input_credits_per_token ?? 1));
+        const outputRate = Math.max(0, Number(args?.p_output_credits_per_token ?? 5));
         const warnRatio = Number(args?.p_warn_ratio ?? 0.1);
         const cursor = usageCursors.get(sessionId);
         if (!cursor) {
@@ -617,7 +618,6 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 exhausted: false,
                 should_warn: false,
                 warn_message: null,
-                cost_source: "self_pay",
                 delta_tokens_in: 0,
                 delta_tokens_out: 0,
               },
@@ -636,7 +636,7 @@ export function createInMemorySupabase(): AppSupabaseClient {
           let remaining: number | null = null;
           let total: number | null = null;
           let usedRatio: number | null = null;
-          if (cursor.cost_source === "hosted" && periodId != null) {
+          if (periodId != null) {
             const period = creditPeriods.get(periodId);
             if (period) {
               total = period.base_allowance + period.rollover_credits;
@@ -655,7 +655,6 @@ export function createInMemorySupabase(): AppSupabaseClient {
                 exhausted: false,
                 should_warn: false,
                 warn_message: null,
-                cost_source: cursor.cost_source,
                 delta_tokens_in: 0,
                 delta_tokens_out: 0,
               },
@@ -663,54 +662,52 @@ export function createInMemorySupabase(): AppSupabaseClient {
           );
         }
 
+        if (periodId == null) {
+          return Promise.resolve(err("metering requires p_period_id"));
+        }
+        const period = creditPeriods.get(periodId);
+        if (!period) {
+          return Promise.resolve(err("credit period not found"));
+        }
+
         let charge = 0;
         let remaining: number | null = null;
-        let total: number | null = null;
+        let total: number | null = period.base_allowance + period.rollover_credits;
         let usedRatio: number | null = null;
         let exhausted = false;
         let shouldWarn = false;
         let warnMessage: string | null = null;
 
-        if (cursor.cost_source === "hosted") {
-          if (periodId == null) {
-            return Promise.resolve(err("hosted metering requires p_period_id"));
-          }
-          const period = creditPeriods.get(periodId);
-          if (!period) {
-            return Promise.resolve(err("credit period not found"));
-          }
-          total = period.base_allowance + period.rollover_credits;
-          const deltaCredits = Math.round((deltaIn + deltaOut) * multiplier);
-          const nextUsed = period.used_credits + deltaCredits;
-          if (deltaCredits > 0 && nextUsed > total) {
-            charge = Math.max(0, total - period.used_credits);
-            exhausted = true;
-          } else {
-            charge = deltaCredits;
-            exhausted = total - (period.used_credits + charge) <= 0;
-          }
-          const updatedPeriod = {
-            ...period,
-            used_credits: period.used_credits + charge,
-            blocked_low_balance: period.blocked_low_balance || exhausted,
-            updated_at: new Date().toISOString(),
-          };
-          creditPeriods.set(periodId, updatedPeriod);
-          total = updatedPeriod.base_allowance + updatedPeriod.rollover_credits;
-          remaining = Math.max(0, total - updatedPeriod.used_credits);
-          usedRatio = total > 0 ? Math.min(1, updatedPeriod.used_credits / total) : 1;
-          if (
-            !cursor.low_credit_warned &&
-            !exhausted &&
-            total > 0 &&
-            remaining / total <= warnRatio
-          ) {
-            shouldWarn = true;
-            warnMessage = `Compute credits are running low — ${remaining.toLocaleString()} of ${total.toLocaleString()} remaining this period.`;
-          }
+        const deltaCredits = Math.round(deltaIn * inputRate + deltaOut * outputRate);
+        const nextUsed = period.used_credits + deltaCredits;
+        if (deltaCredits > 0 && nextUsed > total) {
+          charge = Math.max(0, total - period.used_credits);
+          exhausted = true;
+        } else {
+          charge = deltaCredits;
+          exhausted = total - (period.used_credits + charge) <= 0;
+        }
+        const updatedPeriod = {
+          ...period,
+          used_credits: period.used_credits + charge,
+          blocked_low_balance: period.blocked_low_balance || exhausted,
+          updated_at: new Date().toISOString(),
+        };
+        creditPeriods.set(periodId, updatedPeriod);
+        total = updatedPeriod.base_allowance + updatedPeriod.rollover_credits;
+        remaining = Math.max(0, total - updatedPeriod.used_credits);
+        usedRatio = total > 0 ? Math.min(1, updatedPeriod.used_credits / total) : 1;
+        if (
+          !cursor.low_credit_warned &&
+          !exhausted &&
+          total > 0 &&
+          remaining / total <= warnRatio
+        ) {
+          shouldWarn = true;
+          warnMessage = `Compute credits are running low — ${remaining.toLocaleString()} of ${total.toLocaleString()} remaining this period.`;
         }
 
-        const event = {
+        usageEvents.push({
           id: nextUsageEventId++,
           user_id: userId,
           session_id: sessionId,
@@ -718,12 +715,10 @@ export function createInMemorySupabase(): AppSupabaseClient {
           model_id: modelId,
           tokens_in: deltaIn,
           tokens_out: deltaOut,
-          billable_units: cursor.cost_source === "hosted" ? charge : 0,
-          cost_source: cursor.cost_source,
+          billable_units: charge,
           credit_period_id: periodId,
           created_at: new Date().toISOString(),
-        };
-        usageEvents.push(event);
+        });
 
         const updatedCursor = {
           ...cursor,
@@ -746,7 +741,6 @@ export function createInMemorySupabase(): AppSupabaseClient {
               exhausted,
               should_warn: shouldWarn,
               warn_message: warnMessage,
-              cost_source: cursor.cost_source,
               delta_tokens_in: deltaIn,
               delta_tokens_out: deltaOut,
             },

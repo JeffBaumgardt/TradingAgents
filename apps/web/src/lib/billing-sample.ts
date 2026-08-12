@@ -9,23 +9,18 @@ import {
   AGENTS_MODEL_ID,
   AGENTS_MODEL_PROVIDER_ID,
   PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
-  getModelCreditMultiplier,
+  computeAgentsModelCredits,
   planFeaturesFor,
 } from "@tradingagents/api-types";
 
-function agentsModelRow(tokensTotal: number): UsageModelBreakdown {
-  const creditMultiplier = getModelCreditMultiplier(
-    AGENTS_MODEL_PROVIDER_ID,
-    AGENTS_MODEL_ID,
-  );
+function agentsModelRow(tokensIn: number, tokensOut: number): UsageModelBreakdown {
   return {
     providerId: AGENTS_MODEL_PROVIDER_ID,
     providerLabel: "Agents Model",
     modelId: AGENTS_MODEL_ID,
-    tokensTotal,
-    computeCredits: Math.round(tokensTotal * creditMultiplier),
-    creditMultiplier,
-    costSource: "hosted",
+    tokensTotal: tokensIn + tokensOut,
+    computeCredits: computeAgentsModelCredits(tokensIn, tokensOut),
+    creditMultiplier: 0,
     shareOfCredits: 0,
   };
 }
@@ -38,8 +33,8 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
   periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
   const byModel: UsageModelBreakdown[] = [
-    agentsModelRow(220_000),
-    agentsModelRow(80_000),
+    agentsModelRow(160_000, 40_000),
+    agentsModelRow(60_000, 15_000),
   ];
 
   const usedComputeCredits = byModel.reduce((sum, row) => sum + row.computeCredits, 0);
@@ -74,16 +69,12 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       usedRatio: Math.min(1, usedComputeCredits / allowance),
       blockedLowBalance: false,
       tokensTotal,
-      selfPayTokens: 0,
-      hostedTokens: tokensTotal,
       byProvider: [
         {
           providerId: AGENTS_MODEL_PROVIDER_ID,
           providerLabel: "Agents Model",
           tokensTotal,
           computeCredits: usedComputeCredits,
-          selfPayTokens: 0,
-          hostedTokens: tokensTotal,
           shareOfCredits: 1,
         },
       ],

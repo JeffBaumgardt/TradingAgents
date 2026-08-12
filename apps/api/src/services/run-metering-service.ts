@@ -35,7 +35,6 @@ export function startBackgroundRunMetering(input: {
   runId: string;
   userId: string;
   subscription: MeterSubscription | null;
-  costSource: "hosted" | "self_pay";
 }): void {
   const key = meterKey("run", input.sessionId);
   if (activeMeters.has(key)) {
@@ -71,7 +70,7 @@ export function startBackgroundRunMetering(input: {
         controller.signal,
       );
     } catch (error) {
-      if (input.costSource === "hosted" && !controller.signal.aborted) {
+      if (!controller.signal.aborted) {
         const message =
           error instanceof Error ? error.message : "Credit metering failed";
         try {
@@ -109,7 +108,6 @@ export function startBackgroundChatMetering(input: {
   assistantMessageId: string;
   userId: string;
   subscription: MeterSubscription | null;
-  costSource: "hosted" | "self_pay";
   onTerminal?: (event: {
     type: "chat.completed" | "chat.error";
     payload: Record<string, unknown>;
@@ -149,7 +147,6 @@ export function startBackgroundChatMetering(input: {
           sessionId: input.sessionId,
           userId: input.userId,
           subscription: input.subscription,
-          costSource: input.costSource,
           streamUrl: getChatTurnStreamUrl(input.turnId),
           terminalEvents: ["chat.completed", "chat.error"],
           onExhausted: async (meter) => {
@@ -235,7 +232,6 @@ async function consumeSseForMetering(
     sessionId: string;
     userId: string;
     subscription: MeterSubscription | null;
-    costSource: "hosted" | "self_pay";
     streamUrl: string;
     terminalEvents: string[];
     onExhausted: (meter: {
@@ -298,7 +294,7 @@ async function consumeSseForMetering(
           subscription: input.subscription,
         });
 
-        if (meter.exhausted && meter.costSource === "hosted") {
+        if (meter.exhausted) {
           await input.onExhausted(meter);
           try {
             await reader.cancel();
@@ -344,6 +340,8 @@ async function consumeSseForMetering(
             .eq("session_id", input.sessionId);
         } catch {
           // Best-effort; metering already recorded usage_events.
+          // meterSessionStats reconstructs session credits from those rows
+          // so a late browser stats frame does not persist compute_credits: 0.
         }
         return;
       }

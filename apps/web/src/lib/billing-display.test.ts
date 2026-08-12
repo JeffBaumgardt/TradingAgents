@@ -5,7 +5,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  costSourceLabel,
   creditSpendTierFromMultiplier,
   estimateTypicalRunsPerMonth,
   formatComputeCredits,
@@ -40,9 +39,5 @@ describe("billing-display", () => {
     assert.equal(estimateTypicalRunsPerMonth(16.5), 6);
   });
 
-  it("labels cost sources clearly", () => {
-    assert.equal(costSourceLabel("hosted"), "Agents Model");
-    assert.equal(costSourceLabel("self_pay"), "Legacy (your key)");
-  });
 });
 

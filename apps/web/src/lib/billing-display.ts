@@ -3,7 +3,6 @@
  * Formatting helpers for subscription + usage UI.
  */
 
-import type { ProviderCostSource } from "@tradingagents/api-types";
 import { PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE } from "@tradingagents/api-types";
 
 /** Dollar-emoji spend scale used in the wizard (1 = budget … 5 = frontier). */
@@ -127,16 +126,3 @@ export function formatPeriodEnd(iso: string | null | undefined): string {
   }).format(new Date(iso));
 }
 
-export function costSourceLabel(source: ProviderCostSource): string {
-  if (source === "self_pay") {
-    return "Legacy (your key)";
-  }
-  return "Agents Model";
-}
-
-export function costSourceHint(source: ProviderCostSource): string {
-  if (source === "self_pay") {
-    return "Legacy path — not used for product runs";
-  }
-  return "Runs on the platform Agents Model — counts toward your compute credit allowance";
-}

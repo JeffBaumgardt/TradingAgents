@@ -70,7 +70,6 @@ export async function loadPlatformCredentials(
 
 /**
  * Resolve provider credentials for a product run from platform keys only.
- * Fail closed: never mark traffic as hosted unless a platform key was injected.
  */
 export async function resolveRunProviderCredentials(
   client: AppSupabaseClient,
@@ -81,14 +80,12 @@ export async function resolveRunProviderCredentials(
   },
 ): Promise<{
   credentials: ProviderCredentials;
-  costSource: "hosted" | "self_pay";
   usedPlatformKey: boolean;
 }> {
   const selected = options.selectedProviderId.toLowerCase().trim();
   if (!selected || !options.isHostedPlan) {
     return {
       credentials: {},
-      costSource: "self_pay",
       usedPlatformKey: false,
     };
   }
@@ -99,7 +96,6 @@ export async function resolveRunProviderCredentials(
   if (!hostedOk) {
     return {
       credentials: {},
-      costSource: "self_pay",
       usedPlatformKey: false,
     };
   }
@@ -109,7 +105,6 @@ export async function resolveRunProviderCredentials(
 
   return {
     credentials,
-    costSource: usedPlatformKey ? "hosted" : "self_pay",
     usedPlatformKey,
   };
 }

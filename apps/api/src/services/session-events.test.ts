@@ -98,4 +98,59 @@ describe("getStoredEvents", () => {
       status: "completed",
     });
   });
+
+  it("fills stats compute_credits from usage_events after the meter cursor is gone", async () => {
+    const client = createInMemorySupabase();
+    const sessionId = "session-events-credits";
+    const userId = "user-1";
+    const now = new Date().toISOString();
+
+    await client.from("sessions").insert({
+      id: sessionId,
+      user_id: userId,
+      ticker: "NVDA",
+      analysis_date: "2026-08-11",
+      status: "completed",
+      config: {
+        ticker: "NVDA",
+        analysisDate: "2026-08-11",
+        outputLanguage: "English",
+        analysts: ["market"],
+        researchDepth: 3,
+        llmProvider: "anthropic",
+        thinkLlm: "claude-sonnet-5",
+      },
+      created_at: now,
+      updated_at: now,
+    });
+    await client.from("usage_events").insert({
+      user_id: userId,
+      session_id: sessionId,
+      provider_id: "anthropic",
+      model_id: "claude-sonnet-5",
+      tokens_in: 407_000,
+      tokens_out: 50_700,
+      billable_units: 457_700,
+      credit_period_id: 1,
+      created_at: now,
+    });
+    await client.from("events").insert({
+      session_id: sessionId,
+      type: "stats",
+      payload: {
+        llm_calls: 26,
+        tool_calls: 25,
+        tokens_in: 407_000,
+        tokens_out: 50_700,
+        compute_credits: 0,
+        remaining_compute_credits: 2_900_000,
+      },
+      created_at: now,
+    });
+
+    const events = await getStoredEvents(client, sessionId);
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.payload.compute_credits, 457_700);
+    assert.equal(events[0]?.payload.remaining_compute_credits, 2_900_000);
+  });
 });

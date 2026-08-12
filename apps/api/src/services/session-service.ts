@@ -36,6 +36,7 @@ import { getBillingAccount, userHasActiveSubscription } from "./billing-account-
 import {
   assertHostedCreditsForNewRun,
   assertHostedInFlightWithinBalance,
+  getRecordedSessionMeter,
   initSessionUsageCursor,
 } from "./credit-service.js";
 import { resolveRunProviderCredentials } from "./platform-keys-service.js";
@@ -251,7 +252,6 @@ export async function createSession(
     userId,
     creditSubscription,
     { ...forcedBody, thinkLlm },
-    "hosted",
   );
   if (!gate.allowed) {
     throw new SessionServiceError(
@@ -299,7 +299,6 @@ export async function createSession(
     providerId: AGENTS_MODEL_PROVIDER_ID,
     quickModelId: thinkLlm,
     deepModelId: thinkLlm,
-    costSource: "hosted",
   });
 
   // Re-check after inserting pending + cursor so concurrent creates that both
@@ -335,7 +334,6 @@ export async function createSession(
       runId: activeRunId,
       userId,
       subscription: meterSubscription,
-      costSource: "hosted",
     });
   }
 
@@ -999,5 +997,52 @@ export async function getStoredEvents(
     offset += EVENTS_PAGE_SIZE;
   }
 
-  return events;
+  return patchStoredStatsCredits(client, sessionId, events);
+}
+
+async function patchStoredStatsCredits(
+  client: AppSupabaseClient,
+  sessionId: string,
+  events: EventRow[],
+): Promise<EventRow[]> {
+  const hasStats = events.some((event) => event.type === "stats");
+  if (!hasStats) {
+    return events;
+  }
+
+  const { data: sessionRow } = await client
+    .from("sessions")
+    .select("user_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+  const userId = (sessionRow as { user_id?: string } | null)?.user_id;
+  if (!userId) {
+    return events;
+  }
+
+  const recorded = await getRecordedSessionMeter(client, {
+    sessionId,
+    userId,
+    subscription: null,
+  });
+  if (!recorded || recorded.sessionCredits <= 0) {
+    return events;
+  }
+
+  return events.map((event) => {
+    if (event.type !== "stats") {
+      return event;
+    }
+    const existing = event.payload.compute_credits;
+    if (typeof existing === "number" && existing > 0) {
+      return event;
+    }
+    return {
+      ...event,
+      payload: {
+        ...event.payload,
+        compute_credits: recorded.sessionCredits,
+      },
+    };
+  });
 }

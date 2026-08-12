@@ -883,7 +883,10 @@ components:
           type: string
         creditMultiplier:
           type: number
-          description: Hosted compute-credit multiplier (tokens × this ≈ credits).
+          deprecated: true
+          description: |
+            Deprecated. Product bills weighted credits (input × 1.05 + output × 5.25),
+            not tokens × a single multiplier.
         capabilities:
           type: object
           additionalProperties:

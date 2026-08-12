@@ -83,6 +83,20 @@ interface RunStats {
   elapsedSeconds: number;
 }
 
+/** Session credits only increase. A late 0 after the meter cursor is deleted must not wipe the total. */
+function nextSessionComputeCredits(
+  previous: number | null,
+  incoming: number | undefined,
+): number | null {
+  if (typeof incoming !== "number" || !Number.isFinite(incoming)) {
+    return previous;
+  }
+  if (previous == null) {
+    return incoming;
+  }
+  return Math.max(previous, incoming);
+}
+
 interface RunErrorState {
   message: string;
   failedAgent?: string | null;
@@ -553,10 +567,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           toolCalls: payload.tool_calls,
           tokensIn: payload.tokens_in,
           tokensOut: payload.tokens_out,
-          computeCredits:
-            typeof payload.compute_credits === "number"
-              ? payload.compute_credits
-              : prev.computeCredits,
+          computeCredits: nextSessionComputeCredits(
+            prev.computeCredits,
+            payload.compute_credits,
+          ),
           remainingComputeCredits:
             typeof payload.remaining_compute_credits === "number"
               ? payload.remaining_compute_credits

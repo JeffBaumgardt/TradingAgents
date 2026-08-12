@@ -4,8 +4,8 @@
  * input/output $/1M or credit multipliers need updating.
  *
  * Price source: LiteLLM public model catalog (https://api.litellm.ai/).
- * Multipliers: outputUsdPer1M ÷ COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M
- * (includes the 5% operator margin baked into that reference).
+ * Output/input list-price ratio (Agents Model: $10 / $2 = 5 credits per
+ * output token). Live billing applies 5% margin in computeAgentsModelCredits.
  *
  * Usage (from repo root):
  *   pnpm --filter @tradingagents/api sync-model-prices

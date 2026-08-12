@@ -66,7 +66,6 @@ async function relayAgentsFrame(
   dataLine: string,
   options?: {
     runId?: string | null;
-    costSource?: "hosted" | "self_pay" | null;
     subscription?: {
       plan_id: string;
       current_period_start: string;
@@ -115,7 +114,7 @@ async function relayAgentsFrame(
         await sessionService.persistEvent(client, sessionId, "credit.warning", warning);
       }
 
-      if (meter.exhausted && meter.costSource === "hosted") {
+      if (meter.exhausted) {
         const exhausted = {
           remainingComputeCredits: meter.remaining ?? 0,
           message: "Compute credits exhausted — this run has been stopped.",
@@ -144,22 +143,17 @@ async function relayAgentsFrame(
 
       return false;
     } catch (error) {
-      // Fail closed only when this run is spending platform credits.
-      const isHostedSpend = options?.costSource === "hosted";
-      if (isHostedSpend) {
-        const message = "Run stopped because credit metering failed.";
-        const hint = error instanceof Error ? error.message : "Unknown metering error";
-        if (options?.runId) {
-          try {
-            await cancelRun(options.runId, { message, hint });
-          } catch {
-            // Best-effort.
-          }
+      const message = "Run stopped because credit metering failed.";
+      const hint = error instanceof Error ? error.message : "Unknown metering error";
+      if (options?.runId) {
+        try {
+          await cancelRun(options.runId, { message, hint });
+        } catch {
+          // Best-effort.
         }
-        await relayRunError(stream, client, sessionId, message, hint);
-        return true;
       }
-      // Self-pay: relay the raw stats frame without enrichment.
+      await relayRunError(stream, client, sessionId, message, hint);
+      return true;
     }
   }
 
@@ -430,16 +424,6 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
           }
         : null;
 
-    const { data: cursorRow } = await client
-      .from("session_usage_cursors")
-      .select("cost_source")
-      .eq("session_id", id)
-      .maybeSingle();
-    const costSource =
-      (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
-        ? ("hosted" as const)
-        : ("self_pay" as const);
-
     if (!liveOnly) {
       const stored = await sessionService.getStoredEvents(client, id);
       for (const event of stored) {
@@ -498,8 +482,7 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
     let buffer = "";
     const frameOptions = {
       runId: session.runId,
-      costSource,
-      subscription: costSource === "hosted" ? creditSubscription : null,
+      subscription: creditSubscription,
     };
 
     while (true) {
@@ -683,16 +666,6 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
         }
       : null;
 
-  const { data: cursorRow } = await client
-    .from("session_usage_cursors")
-    .select("cost_source")
-    .eq("session_id", id)
-    .maybeSingle();
-  const costSource =
-    (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
-      ? ("hosted" as const)
-      : ("self_pay" as const);
-
   return streamSSE(c, async (stream) => {
     async function failStream(message: string) {
       const payload = {
@@ -800,7 +773,7 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
               });
             }
 
-            if (meter.exhausted && costSource === "hosted") {
+            if (meter.exhausted) {
               const exhausted = {
                 remainingComputeCredits: meter.remaining ?? 0,
                 message: "Compute credits exhausted — this chat turn has been stopped.",
@@ -821,8 +794,16 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
               return;
             }
             continue;
-          } catch {
-            // Fall through and relay raw stats for self-pay.
+          } catch (error) {
+            const message = "Chat stopped because credit metering failed.";
+            const hint = error instanceof Error ? error.message : "Unknown metering error";
+            try {
+              await cancelChatTurn(turnId, { message, hint });
+            } catch {
+              // Best-effort.
+            }
+            await failStream(message);
+            return;
           }
         }
 
