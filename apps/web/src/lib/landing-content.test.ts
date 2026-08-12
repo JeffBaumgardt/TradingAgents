@@ -2,8 +2,7 @@
  * @file apps/web/src/lib/landing-content.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   LANDING_AGENT_TEAMS,
   LANDING_HERO,
@@ -12,16 +11,16 @@ import {
 
 describe("landing-content", () => {
   it("describes the TradingAgents Framework in the hero", () => {
-    assert.match(LANDING_HERO.headline, /multi-agent|Agents Model/i);
-    assert.match(LANDING_HERO.copy, /14-day free trial|free for 14 days/i);
-    assert.match(LANDING_HERO.copy, /no credit card/i);
-    assert.match(LANDING_HERO.eyebrow, /14-day free trial/i);
-    assert.match(LANDING_HERO.eyebrow, /no credit card/i);
+    expect(LANDING_HERO.headline).toMatch(/multi-agent|Agents Model/i);
+    expect(LANDING_HERO.copy).toMatch(/14-day free trial|free for 14 days/i);
+    expect(LANDING_HERO.copy).toMatch(/no credit card/i);
+    expect(LANDING_HERO.eyebrow).toMatch(/14-day free trial/i);
+    expect(LANDING_HERO.eyebrow).toMatch(/no credit card/i);
   });
 
   it("includes all framework agent teams from the README", () => {
     const slugs = LANDING_AGENT_TEAMS.map((team) => team.slug);
-    assert.deepEqual(slugs, [
+    expect(slugs).toEqual([
       "analyst-team",
       "researcher-team",
       "trader-agent",
@@ -31,50 +30,50 @@ describe("landing-content", () => {
 
   it("lists the four analyst roles with README definitions", () => {
     const analystTeam = LANDING_AGENT_TEAMS.find((team) => team.slug === "analyst-team");
-    assert.ok(analystTeam?.agents);
-    assert.equal(analystTeam.agents.length, 4);
+    expect(analystTeam?.agents).toBeTruthy();
+    expect(analystTeam.agents.length).toBe(4);
 
     const names = analystTeam.agents.map((agent) => agent.name);
-    assert.deepEqual(names, [
+    expect(names).toEqual([
       "Fundamentals Analyst",
       "Sentiment Analyst",
       "News Analyst",
       "Technical Analyst",
     ]);
 
-    assert.match(analystTeam.agents[0].description, /intrinsic values/i);
-    assert.match(analystTeam.agents[1].description, /StockTwits/i);
-    assert.match(analystTeam.agents[2].description, /macroeconomic/i);
-    assert.match(analystTeam.agents[3].description, /MACD and RSI/i);
+    expect(analystTeam.agents[0].description).toMatch(/intrinsic values/i);
+    expect(analystTeam.agents[1].description).toMatch(/StockTwits/i);
+    expect(analystTeam.agents[2].description).toMatch(/macroeconomic/i);
+    expect(analystTeam.agents[3].description).toMatch(/MACD and RSI/i);
   });
 
   it("includes the Portfolio Manager role under risk management", () => {
     const riskTeam = LANDING_AGENT_TEAMS.find((team) => team.slug === "risk-and-portfolio");
-    assert.ok(riskTeam);
-    assert.match(riskTeam.summary, /Portfolio Manager/i);
-    assert.equal(riskTeam.agents?.[0]?.name, "Portfolio Manager");
+    expect(riskTeam).toBeTruthy();
+    expect(riskTeam.summary).toMatch(/Portfolio Manager/i);
+    expect(riskTeam.agents?.[0]?.name).toBe("Portfolio Manager");
   });
 
   it("frames the SPY success story as a collaborative testimonial arc", () => {
-    assert.match(LANDING_SUCCESS_STORY.eyebrow, /SPY/i);
-    assert.match(LANDING_SUCCESS_STORY.headline, /one idea/i);
-    assert.match(LANDING_SUCCESS_STORY.quote, /0 DTE/i);
-    assert.match(LANDING_SUCCESS_STORY.attribution.name, /Alex/i);
+    expect(LANDING_SUCCESS_STORY.eyebrow).toMatch(/SPY/i);
+    expect(LANDING_SUCCESS_STORY.headline).toMatch(/one idea/i);
+    expect(LANDING_SUCCESS_STORY.quote).toMatch(/0 DTE/i);
+    expect(LANDING_SUCCESS_STORY.attribution.name).toMatch(/Alex/i);
 
     const beatSlugs = LANDING_SUCCESS_STORY.beats.map((beat) => beat.slug);
-    assert.deepEqual(beatSlugs, [
+    expect(beatSlugs).toEqual([
       "opening-thesis",
       "agents-push-back",
       "shared-theory",
     ]);
 
-    assert.match(LANDING_SUCCESS_STORY.beats[0].copy, /Hold/i);
-    assert.match(LANDING_SUCCESS_STORY.beats[1].copy, /pushed back|challenge/i);
-    assert.match(LANDING_SUCCESS_STORY.beats[2].copy, /Iron Condor/i);
+    expect(LANDING_SUCCESS_STORY.beats[0].copy).toMatch(/Hold/i);
+    expect(LANDING_SUCCESS_STORY.beats[1].copy).toMatch(/pushed back|challenge/i);
+    expect(LANDING_SUCCESS_STORY.beats[2].copy).toMatch(/Iron Condor/i);
 
     for (const beat of LANDING_SUCCESS_STORY.beats) {
-      assert.match(beat.imageSrc, /^\/images\/landing\/spy-story-/);
-      assert.ok(beat.imageAlt.length > 20);
+      expect(beat.imageSrc).toMatch(/^\/images\/landing\/spy-story-/);
+      expect(beat.imageAlt.length > 20).toBeTruthy();
     }
   });
 });

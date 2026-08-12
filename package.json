@@ -10,10 +10,11 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "dev:web": "turbo dev --filter=@trading-agents/web",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "test": "turbo test --filter=@trading-agents/web --filter=@tradingagents/api"
   },
   "devDependencies": {
-    "turbo": "^2.3.3"
+    "turbo": "^2.10.9"
   },
   "packageManager": "pnpm@9.15.0"
 }

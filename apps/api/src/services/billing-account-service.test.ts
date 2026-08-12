@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import { PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE } from "@tradingagents/api-types";
 import {

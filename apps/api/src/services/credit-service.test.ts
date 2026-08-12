@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import type { CreateSessionRequest } from "@tradingagents/api-types";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import {

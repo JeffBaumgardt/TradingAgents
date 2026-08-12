@@ -4,7 +4,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import type { AppSupabaseClient } from "@tradingagents/supabase";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import { TRIAL_DAYS } from "@tradingagents/api-types";

@@ -3,8 +3,7 @@
  * Guards Clerk appearance wiring against theme token regressions.
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { CLERK_THEME_CSS_VARS, clerkAppearance } from "./clerk-appearance";
 
 const CLERK_CSS_VAR_PATTERN = /^var\(--clerk-[a-z0-9-]+\)$/;
@@ -55,10 +54,7 @@ describe("clerkAppearance", () => {
 
       if (value.startsWith("var(--clerk-")) {
         const token = value.slice(4, -1);
-        assert.ok(
-          CLERK_THEME_CSS_VARS.includes(token as (typeof CLERK_THEME_CSS_VARS)[number]),
-          `Unexpected CSS variable reference: ${value}`,
-        );
+        expect(CLERK_THEME_CSS_VARS.includes(token as (typeof CLERK_THEME_CSS_VARS)[number])).toBeTruthy();
       }
     }
   });
@@ -75,25 +71,25 @@ describe("clerkAppearance", () => {
       }
 
       if (value.includes("#") || value.includes("rgba(")) {
-        assert.fail(`Hardcoded color found in clerk appearance: ${value}`);
+        throw new Error(`Hardcoded color found in clerk appearance: ${value}`);
       }
 
       if (value.includes("var(--clerk-")) {
-        assert.match(value, /var\(--clerk-[a-z0-9-]+\)/);
+        expect(value).toMatch(/var\(--clerk-[a-z0-9-]+\)/);
       }
     }
   });
 
   it("uses CSS variables for primary form actions and surfaces", () => {
-    assert.match(String(clerkAppearance.elements.formButtonPrimary.backgroundColor), CLERK_CSS_VAR_PATTERN);
-    assert.match(String(clerkAppearance.elements.card.backgroundColor), CLERK_CSS_VAR_PATTERN);
-    assert.match(String(clerkAppearance.variables.colorBackground), CLERK_CSS_VAR_PATTERN);
-    assert.match(String(clerkAppearance.variables.colorInput), CLERK_CSS_VAR_PATTERN);
+    expect(String(clerkAppearance.elements.formButtonPrimary.backgroundColor)).toMatch(CLERK_CSS_VAR_PATTERN);
+    expect(String(clerkAppearance.elements.card.backgroundColor)).toMatch(CLERK_CSS_VAR_PATTERN);
+    expect(String(clerkAppearance.variables.colorBackground)).toMatch(CLERK_CSS_VAR_PATTERN);
+    expect(String(clerkAppearance.variables.colorInput)).toMatch(CLERK_CSS_VAR_PATTERN);
   });
 
   it("hides duplicate Clerk card headings in favor of AuthPageShell", () => {
-    assert.equal(clerkAppearance.elements.headerTitle.display, "none");
-    assert.equal(clerkAppearance.elements.headerSubtitle.display, "none");
+    expect(clerkAppearance.elements.headerTitle.display).toBe("none");
+    expect(clerkAppearance.elements.headerSubtitle.display).toBe("none");
   });
 
   it("styles OAuth buttons with theme tokens", () => {
@@ -103,22 +99,19 @@ describe("clerkAppearance", () => {
     for (const key of colorLikeKeys) {
       const styleValue = buttonStyles[key];
       if (typeof styleValue === "string") {
-        assert.ok(isThemeTokenReference(styleValue), `OAuth button ${key} should use theme tokens: ${styleValue}`);
+        expect(isThemeTokenReference(styleValue)).toBeTruthy();
       }
 
       const hoverStyles = buttonStyles["&:hover"];
       if (hoverStyles && typeof hoverStyles === "object") {
         for (const [hoverKey, hoverValue] of Object.entries(hoverStyles)) {
           if (typeof hoverValue === "string" && colorLikeKeys.includes(hoverKey)) {
-            assert.ok(
-              isThemeTokenReference(hoverValue),
-              `OAuth button hover ${hoverKey} should use theme tokens: ${hoverValue}`,
-            );
+            expect(isThemeTokenReference(hoverValue)).toBeTruthy();
           }
         }
       }
     }
 
-    assert.match(String(clerkAppearance.elements.socialButtonsBlockButtonText.color), CLERK_CSS_VAR_PATTERN);
+    expect(String(clerkAppearance.elements.socialButtonsBlockButtonText.color)).toMatch(CLERK_CSS_VAR_PATTERN);
   });
 });

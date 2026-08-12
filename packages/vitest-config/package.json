@@ -1,0 +1,17 @@
+{
+  "name": "@tradingagents/vitest-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./node": "./node.mjs",
+    "./react": "./react.mjs"
+  },
+  "peerDependencies": {
+    "vitest": "^4.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
+}

@@ -2,13 +2,11 @@
  * @file apps/web/src/components/SubscriptionGate.test.ts
  * Unit tests for SubscriptionGate access orchestration (evaluateSubscriptionGate).
  *
- * Web tests run under node:test without a React runner; the gate's async
- * decision path is extracted to subscription-gate-check for deterministic
- * coverage of what the component renders.
+ * Pure orchestration tests (no React render). The gate's async decision
+ * path is extracted to subscription-gate-check for deterministic coverage.
  */
 
-import assert from "node:assert/strict";
-import { describe, it, mock } from "node:test";
+import { describe, it, expect, vi } from "vitest";
 import type { UserSubscription } from "@tradingagents/api-types";
 import {
   evaluateSubscriptionGate,
@@ -75,8 +73,8 @@ function nonePlan(): UserSubscription {
 
 describe("SubscriptionGate evaluateSubscriptionGate", () => {
   it("returns ready for an active paid subscription without starting a trial", async () => {
-    const fetchBillingAccount = mock.fn(async () => account(activePro()));
-    const startBillingTrial = mock.fn(async () => {
+    const fetchBillingAccount = vi.fn(async () => account(activePro()));
+    const startBillingTrial = vi.fn(async () => {
       throw new Error("should not start trial");
     });
 
@@ -85,13 +83,13 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       { fetchBillingAccount, startBillingTrial },
     );
 
-    assert.deepEqual(result, { kind: "ready" });
-    assert.equal(fetchBillingAccount.mock.callCount(), 1);
-    assert.equal(startBillingTrial.mock.callCount(), 0);
+    expect(result).toEqual({ kind: "ready" });
+    expect(fetchBillingAccount.mock.calls.length).toBe(1);
+    expect(startBillingTrial.mock.calls.length).toBe(0);
   });
 
   it("returns ready for an open free trial without restarting trial", async () => {
-    const startBillingTrial = mock.fn(async () => {
+    const startBillingTrial = vi.fn(async () => {
       throw new Error("should not start trial");
     });
 
@@ -103,13 +101,13 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.deepEqual(result, { kind: "ready" });
-    assert.equal(startBillingTrial.mock.callCount(), 0);
+    expect(result).toEqual({ kind: "ready" });
+    expect(startBillingTrial.mock.calls.length).toBe(0);
   });
 
   it("shows trial_expired modal state when the free trial has ended (day 14)", async () => {
     const expired = expiredTrial("pro");
-    const startBillingTrial = mock.fn(async () => {
+    const startBillingTrial = vi.fn(async () => {
       throw new Error("should not restart trial");
     });
 
@@ -121,17 +119,17 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.equal(result.kind, "trial_expired");
+    expect(result.kind).toBe("trial_expired");
     if (result.kind !== "trial_expired") {
       return;
     }
-    assert.equal(result.subscription.status, "expired");
-    assert.equal(result.subscription.planId, "pro");
-    assert.equal(startBillingTrial.mock.callCount(), 0);
+    expect(result.subscription.status).toBe("expired");
+    expect(result.subscription.planId).toBe("pro");
+    expect(startBillingTrial.mock.calls.length).toBe(0);
 
     // Component maps this state to TrialEndedModal variant="trial_expired"
     const copy = getTrialEndedModalCopy("trial_expired");
-    assert.equal(copy.title, "Your free trial is over");
+    expect(copy.title).toBe("Your free trial is over");
   });
 
   it("shows trial_expired for Standard day-14 trials", async () => {
@@ -145,23 +143,23 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.equal(result.kind, "trial_expired");
+    expect(result.kind).toBe("trial_expired");
     if (result.kind === "trial_expired") {
-      assert.equal(result.subscription.planId, "standard");
+      expect(result.subscription.planId).toBe("standard");
     }
   });
 
   it("auto-starts a Pro trial for users with no plan and becomes ready", async () => {
     let fetches = 0;
-    const fetchBillingAccount = mock.fn(async () => {
+    const fetchBillingAccount = vi.fn(async () => {
       fetches += 1;
       if (fetches === 1) {
         return account(nonePlan());
       }
       return account(openTrial());
     });
-    const startBillingTrial = mock.fn(async (planId: "standard" | "pro") => {
-      assert.equal(planId, "pro");
+    const startBillingTrial = vi.fn(async (planId: "standard" | "pro") => {
+      expect(planId).toBe("pro");
       return { subscription: openTrial(), trialEndsAt: openTrial().currentPeriodEnd };
     });
 
@@ -170,14 +168,14 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       { fetchBillingAccount, startBillingTrial },
     );
 
-    assert.deepEqual(result, { kind: "ready" });
-    assert.equal(startBillingTrial.mock.callCount(), 1);
-    assert.equal(fetchBillingAccount.mock.callCount(), 2);
+    expect(result).toEqual({ kind: "ready" });
+    expect(startBillingTrial.mock.calls.length).toBe(1);
+    expect(fetchBillingAccount.mock.calls.length).toBe(2);
   });
 
   it("falls through to subscription_required when trial start fails and plan stays none", async () => {
-    const fetchBillingAccount = mock.fn(async () => account(nonePlan()));
-    const startBillingTrial = mock.fn(async () => {
+    const fetchBillingAccount = vi.fn(async () => account(nonePlan()));
+    const startBillingTrial = vi.fn(async () => {
       throw new Error("A free trial has already been used for this account");
     });
 
@@ -186,11 +184,11 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       { fetchBillingAccount, startBillingTrial },
     );
 
-    assert.equal(result.kind, "subscription_required");
+    expect(result.kind).toBe("subscription_required");
     if (result.kind === "subscription_required") {
-      assert.equal(result.subscription.status, "none");
+      expect(result.subscription.status).toBe("none");
     }
-    assert.equal(startBillingTrial.mock.callCount(), 1);
+    expect(startBillingTrial.mock.calls.length).toBe(1);
   });
 
   it("maps canceled paid access to subscription_required modal state", async () => {
@@ -212,9 +210,9 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.equal(result.kind, "subscription_required");
+    expect(result.kind).toBe("subscription_required");
     if (result.kind === "subscription_required") {
-      assert.equal(result.subscription.status, "canceled");
+      expect(result.subscription.status).toBe("canceled");
     }
   });
 
@@ -231,13 +229,13 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.deepEqual(result, { kind: "error" });
+    expect(result).toEqual({ kind: "error" });
   });
 
   it("polls after checkout until the subscription becomes active", async () => {
     let fetches = 0;
     const waits: number[] = [];
-    const fetchBillingAccount = mock.fn(async () => {
+    const fetchBillingAccount = vi.fn(async () => {
       fetches += 1;
       // Still expired until webhook lands on 3rd attempt
       if (fetches < 3) {
@@ -245,7 +243,7 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       }
       return account(activePro());
     });
-    const startBillingTrial = mock.fn(async () => {
+    const startBillingTrial = vi.fn(async () => {
       throw new Error("should not start trial after expiry");
     });
 
@@ -260,15 +258,15 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.deepEqual(result, { kind: "ready" });
-    assert.equal(fetchBillingAccount.mock.callCount(), 3);
-    assert.equal(startBillingTrial.mock.callCount(), 0);
-    assert.ok(waits.length >= 2);
-    assert.ok(fetches <= SUBSCRIPTION_GATE_POLL_ATTEMPTS);
+    expect(result).toEqual({ kind: "ready" });
+    expect(fetchBillingAccount.mock.calls.length).toBe(3);
+    expect(startBillingTrial.mock.calls.length).toBe(0);
+    expect(waits.length >= 2).toBeTruthy();
+    expect(fetches <= SUBSCRIPTION_GATE_POLL_ATTEMPTS).toBeTruthy();
   });
 
   it("after checkout poll budget exhausts, still surfaces trial_expired", async () => {
-    const fetchBillingAccount = mock.fn(async () => account(expiredTrial()));
+    const fetchBillingAccount = vi.fn(async () => account(expiredTrial()));
     let waitCount = 0;
 
     const result = await evaluateSubscriptionGate(
@@ -284,9 +282,9 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.equal(result.kind, "trial_expired");
-    assert.equal(fetchBillingAccount.mock.callCount(), SUBSCRIPTION_GATE_POLL_ATTEMPTS);
-    assert.equal(waitCount, SUBSCRIPTION_GATE_POLL_ATTEMPTS - 1);
+    expect(result.kind).toBe("trial_expired");
+    expect(fetchBillingAccount.mock.calls.length).toBe(SUBSCRIPTION_GATE_POLL_ATTEMPTS);
+    expect(waitCount).toBe(SUBSCRIPTION_GATE_POLL_ATTEMPTS - 1);
   });
 
   it("returns cancelled when isCancelled trips after a fetch", async () => {
@@ -305,22 +303,22 @@ describe("SubscriptionGate evaluateSubscriptionGate", () => {
       },
     );
 
-    assert.deepEqual(result, { kind: "cancelled" });
+    expect(result).toEqual({ kind: "cancelled" });
   });
 });
 
 describe("SubscriptionGate gateStateFromDecision", () => {
   it("maps trial_expired and try_start_trial decisions to UI states", () => {
     const expired = expiredTrial();
-    assert.deepEqual(gateStateFromDecision({ kind: "trial_expired" }, expired), {
+    expect(gateStateFromDecision({ kind: "trial_expired" }, expired)).toEqual({
       kind: "trial_expired",
       subscription: expired,
     });
-    assert.deepEqual(gateStateFromDecision({ kind: "try_start_trial" }, nonePlan()), {
+    expect(gateStateFromDecision({ kind: "try_start_trial" }, nonePlan())).toEqual({
       kind: "subscription_required",
       subscription: nonePlan(),
     });
-    assert.deepEqual(gateStateFromDecision({ kind: "ready" }, activePro()), {
+    expect(gateStateFromDecision({ kind: "ready" }, activePro())).toEqual({
       kind: "ready",
     });
   });
@@ -357,7 +355,7 @@ describe("SubscriptionGate UI mapping contract", () => {
         startBillingTrial: async () => undefined,
       },
     );
-    assert.equal(uiKindForState(expiredResult), "trial_ended_modal");
+    expect(uiKindForState(expiredResult)).toBe("trial_ended_modal");
 
     const readyResult = await evaluateSubscriptionGate(
       { fromCheckout: false },
@@ -366,6 +364,6 @@ describe("SubscriptionGate UI mapping contract", () => {
         startBillingTrial: async () => undefined,
       },
     );
-    assert.equal(uiKindForState(readyResult), "children");
+    expect(uiKindForState(readyResult)).toBe("children");
   });
 });

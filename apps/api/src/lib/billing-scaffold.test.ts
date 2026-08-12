@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "vitest";
 import { isBillingScaffoldEnabled } from "./billing-scaffold.js";
 
 const ORIGINAL_ENV = {

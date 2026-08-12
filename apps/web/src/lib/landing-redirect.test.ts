@@ -2,8 +2,7 @@
  * @file apps/web/src/lib/landing-redirect.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   LANDING_PATH,
   LOGGED_IN_HOME_PATH,
@@ -12,46 +11,34 @@ import {
 
 describe("shouldRedirectAuthenticatedUserFromLanding", () => {
   it("redirects signed-in users away from the landing page", () => {
-    assert.equal(
-      shouldRedirectAuthenticatedUserFromLanding({
+    expect(shouldRedirectAuthenticatedUserFromLanding({
         userId: "user_123",
         pathname: LANDING_PATH,
-      }),
-      true,
-    );
+      })).toBe(true);
   });
 
   it("allows signed-out visitors to view the landing page", () => {
-    assert.equal(
-      shouldRedirectAuthenticatedUserFromLanding({
+    expect(shouldRedirectAuthenticatedUserFromLanding({
         userId: null,
         pathname: LANDING_PATH,
-      }),
-      false,
-    );
+      })).toBe(false);
 
-    assert.equal(
-      shouldRedirectAuthenticatedUserFromLanding({
+    expect(shouldRedirectAuthenticatedUserFromLanding({
         userId: undefined,
         pathname: LANDING_PATH,
-      }),
-      false,
-    );
+      })).toBe(false);
   });
 
   it("does not redirect authenticated users on other routes", () => {
-    assert.equal(
-      shouldRedirectAuthenticatedUserFromLanding({
+    expect(shouldRedirectAuthenticatedUserFromLanding({
         userId: "user_123",
         pathname: LOGGED_IN_HOME_PATH,
-      }),
-      false,
-    );
+      })).toBe(false);
   });
 });
 
 describe("logged-in home path", () => {
   it("uses /dashboard as the authenticated entry point", () => {
-    assert.equal(LOGGED_IN_HOME_PATH, "/dashboard");
+    expect(LOGGED_IN_HOME_PATH).toBe("/dashboard");
   });
 });

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "next lint",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.5",
@@ -25,10 +26,16 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.4",
+    "@tradingagents/vitest-config": "workspace:*",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "tsx": "^4.19.4",
-    "typescript": "^5.7.2"
+    "@vitejs/plugin-react": "^6.0.5",
+    "happy-dom": "^20.11.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   }
 }

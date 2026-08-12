@@ -104,6 +104,25 @@ pnpm --filter @trading-agents/web dev
 pnpm --filter @tradingagents/agents-service dev
 ```
 
+## Testing (web)
+
+`@trading-agents/web` uses **Vitest + Testing Library + happy-dom**.
+
+```bash
+# From repo root
+pnpm test
+# or
+pnpm --filter @trading-agents/web test
+pnpm --filter @trading-agents/web test:watch
+```
+
+Naming:
+
+- `*.test.ts` — pure lib / orchestration helpers (no DOM)
+- `*.test.tsx` — React component tests (query by role/label)
+
+`apps/api` and `packages/utils` still use `tsx --test` + Node's built-in test runner.
+
 ## Operations
 
 See [docs/ops/README.md](./ops/README.md) for AWS deployment guidance per app.

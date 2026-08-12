@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import {
   AGENTS_MODEL_ID,
   AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN,

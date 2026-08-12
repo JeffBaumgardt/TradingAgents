@@ -3,8 +3,7 @@
  * localStorage helpers for post-run feedback nudge preferences.
  */
 
-import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import {
   dismissFeedbackForSession,
   isFeedbackDismissedForSession,
@@ -46,16 +45,16 @@ afterEach(() => {
 
 describe("feedback-prefs", () => {
   it("tracks forever opt-out and per-session dismiss", () => {
-    assert.equal(isFeedbackOptedOut(), false);
-    assert.equal(isFeedbackDismissedForSession("session-1"), false);
+    expect(isFeedbackOptedOut()).toBe(false);
+    expect(isFeedbackDismissedForSession("session-1")).toBe(false);
 
     dismissFeedbackForSession("session-1");
-    assert.equal(isFeedbackDismissedForSession("session-1"), true);
-    assert.equal(localStorageMock.getItem(SESSION_KEY), "1");
-    assert.equal(isFeedbackOptedOut(), false);
+    expect(isFeedbackDismissedForSession("session-1")).toBe(true);
+    expect(localStorageMock.getItem(SESSION_KEY)).toBe("1");
+    expect(isFeedbackOptedOut()).toBe(false);
 
     setFeedbackOptOut();
-    assert.equal(isFeedbackOptedOut(), true);
-    assert.equal(localStorageMock.getItem(OPT_OUT_KEY), "1");
+    expect(isFeedbackOptedOut()).toBe(true);
+    expect(localStorageMock.getItem(OPT_OUT_KEY)).toBe("1");
   });
 });

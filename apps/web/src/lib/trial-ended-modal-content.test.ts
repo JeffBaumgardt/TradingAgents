@@ -2,8 +2,7 @@
  * @file apps/web/src/lib/trial-ended-modal-content.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   getTrialEndedModalCopy,
   TRIAL_ENDED_MODAL_COPY,
@@ -12,16 +11,16 @@ import {
 describe("getTrialEndedModalCopy", () => {
   it("returns trial-over messaging for trial_expired", () => {
     const copy = getTrialEndedModalCopy("trial_expired");
-    assert.equal(copy, TRIAL_ENDED_MODAL_COPY.trial_expired);
-    assert.equal(copy.title, "Your free trial is over");
-    assert.equal(copy.eyebrow, "Trial ended");
-    assert.match(copy.intro, /Thanks for trying TradingAgents/i);
-    assert.match(copy.intro, /Subscribe/i);
+    expect(copy).toBe(TRIAL_ENDED_MODAL_COPY.trial_expired);
+    expect(copy.title).toBe("Your free trial is over");
+    expect(copy.eyebrow).toBe("Trial ended");
+    expect(copy.intro).toMatch(/Thanks for trying TradingAgents/i);
+    expect(copy.intro).toMatch(/Subscribe/i);
   });
 
   it("returns distinct copy for generic subscription_required", () => {
     const copy = getTrialEndedModalCopy("subscription_required");
-    assert.equal(copy.title, "Subscribe to keep using TradingAgents");
-    assert.notEqual(copy.title, getTrialEndedModalCopy("trial_expired").title);
+    expect(copy.title).toBe("Subscribe to keep using TradingAgents");
+    expect(copy.title).not.toBe(getTrialEndedModalCopy("trial_expired").title);
   });
 });
