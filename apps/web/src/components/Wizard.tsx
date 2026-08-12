@@ -222,16 +222,33 @@ export default function Wizard() {
 
   return (
     <div className={styles.panel}>
-      <header className={styles.header}>
-        <p className={styles.stepMeta}>
-          Step {step} of {TOTAL_STEPS}
-        </p>
-        <h3 className={styles.stepTitle}>{STEP_TITLES[step]}</h3>
-        <p className={styles.stepDescription}>{STEP_DESCRIPTIONS[step]}</p>
-        <p className={styles.hint}>
-          Runs use <strong>{AGENTS_MODEL_DISPLAY_NAME}</strong> ({AGENTS_MODEL_ID}) —
-          included on every Standard and Pro plan.
-        </p>
+      <header className={styles.stepHeader}>
+        <div className={styles.stepHeading}>
+          <h3 className={styles.stepTitle}>{STEP_TITLES[step]}</h3>
+          <p className={styles.stepDescription}>{STEP_DESCRIPTIONS[step]}</p>
+          <p className={styles.hint}>
+            Runs use <strong>{AGENTS_MODEL_DISPLAY_NAME}</strong> — included on every Standard and
+            Pro plan.
+          </p>
+        </div>
+        <div className={styles.stepMeta}>
+          <p className={styles.stepIndicator}>
+            Step {step} of {TOTAL_STEPS}
+          </p>
+          <div
+            className={styles.progressTrack}
+            role="progressbar"
+            aria-label={`Step ${step} of ${TOTAL_STEPS}`}
+            aria-valuemin={1}
+            aria-valuemax={TOTAL_STEPS}
+            aria-valuenow={step}
+          >
+            <div
+              className={styles.progressFill}
+              style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+            />
+          </div>
+        </div>
       </header>
 
       <div className={styles.body}>
