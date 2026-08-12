@@ -37,6 +37,14 @@ export const AGENTS_MODEL_ID = "claude-sonnet-5";
 /**
  * Operator margin baked into credit metering. Multipliers = list output price
  * ÷ (base reference ÷ margin).
+ *
+ * KNOB 1 — product credit scale:
+ * credits = tokens × (outputUsdPer1M / REFERENCE)
+ *
+ * Today REFERENCE ≈ $0.2667 / 1M tokens and Agents Model output is $10 / 1M,
+ * so the multiplier is 37.5. That is why a 250k-token depth-3 preflight is
+ * 9,375,000 credits. Lower outputUsdPer1M (or raise the reference) to shrink
+ * billed credits without changing token estimates.
  */
 export const COMPUTE_CREDIT_MARGIN = 1.05;
 
@@ -45,7 +53,7 @@ export const COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M = 0.28;
 
 /**
  * Credit unit after margin: base ÷ margin (≈ $0.2667/1M output tokens).
- * One compute credit ≈ one token at this rate.
+ * One compute credit ≈ one token at this cheap-model reference rate.
  */
 export const COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M =
   COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M / COMPUTE_CREDIT_MARGIN;
@@ -65,6 +73,7 @@ export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
     displayName: AGENTS_MODEL_DISPLAY_NAME,
     modes: ["quick", "deep"],
     inputUsdPer1M: 2,
+    /** $10 / 1M output → multiplier 37.5 vs the $0.2667 credit reference. */
     outputUsdPer1M: 10,
     notes: "Introductory pricing through 2026-08-31; then $3/$15.",
   },

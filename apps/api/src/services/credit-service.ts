@@ -23,6 +23,15 @@ import type {
   UserSubscriptionRow,
 } from "@tradingagents/supabase";
 
+/**
+ * KNOB 2 — preflight token guesses by research depth (not measured usage).
+ * Also stored on plan_credit_configs.estimated_tokens_by_depth.
+ *
+ * credits ≈ estimatedTokens[depth] × max(1, analystCount / 4) × multiplier
+ *
+ * Depth 3 default: 250_000 × 37.5 = 9_375_000 (the number a “simple” medium
+ * run currently reserves before any tokens are used).
+ */
 const DEFAULT_ESTIMATED_TOKENS: Record<string, number> = {
   "1": 80_000,
   "3": 250_000,
@@ -382,8 +391,18 @@ export async function estimateRunCredits(
 
   const thinkLlm = resolveThinkLlm(body);
   const thinkMult = await loadMultiplier(client, body.llmProvider, thinkLlm);
+  const estimatedCredits = Math.round(baseTokens * analystFactor * thinkMult);
 
-  return Math.round(baseTokens * analystFactor * thinkMult);
+  console.info("[credits] preflight estimate", {
+    researchDepth: body.researchDepth,
+    analysts: body.analysts?.length ?? 0,
+    baseTokens,
+    analystFactor,
+    multiplier: thinkMult,
+    estimatedCredits,
+  });
+
+  return estimatedCredits;
 }
 
 /** Typical follow-up chat turn (~8k tokens) × model multiplier. */

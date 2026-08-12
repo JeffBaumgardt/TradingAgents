@@ -32,6 +32,8 @@ describe("hosted-model-catalog", () => {
       getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID),
       creditMultiplierFromOutputUsdPer1M(10),
     );
+    assert.equal(getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID), 37.5);
+    assert.equal(Math.round(250_000 * 37.5), 9_375_000);
   });
 
   it("lists catalog entries with computed multipliers", () => {
