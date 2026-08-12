@@ -50,7 +50,7 @@ function defaultPlanConfigs(): Map<string, PlanCreditConfigRow> {
     low_balance_block_ratio: 0.03,
     low_balance_warn_ratio: 0.1,
     max_rollover_periods: 1,
-    estimated_tokens_by_depth: { "1": 80_000, "3": 250_000, "5": 500_000 },
+    estimated_tokens_by_depth: { "1": 100_000, "3": 280_000, "5": 550_000 },
     reference_output_usd_per_1m: 0.266667,
     updated_at: now,
   } as const;

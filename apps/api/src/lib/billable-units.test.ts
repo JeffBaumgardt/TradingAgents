@@ -18,11 +18,8 @@ describe("billable-units / compute credits", () => {
     const agents = getHostedModelCostEntry(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID);
     assert.ok(agents);
     const multiplier = getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID);
-    assert.equal(
-      multiplier,
-      creditMultiplierFromOutputUsdPer1M(agents.outputUsdPer1M),
-    );
-    assert.ok(multiplier > 1);
+    assert.equal(multiplier, 1);
+    assert.ok(creditMultiplierFromOutputUsdPer1M(agents.outputUsdPer1M) > 1);
   });
 
   it("charges hosted traffic and zeroes self-pay compute credits", () => {

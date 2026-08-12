@@ -19,9 +19,9 @@ import {
 } from "@tradingagents/api-types";
 
 const ESTIMATED_TOKENS_BY_DEPTH: Record<string, number> = {
-  "1": 80_000,
-  "3": 250_000,
-  "5": 500_000,
+  "1": 100_000,
+  "3": 280_000,
+  "5": 550_000,
 };
 
 function main() {
@@ -33,9 +33,7 @@ function main() {
   console.log(`  catalog output $/1M:     ${entry?.outputUsdPer1M}`);
   console.log(`  credit reference $/1M:   ${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M}`);
   console.log(`  multiplier:              ${multiplier}`);
-  console.log(
-    `  formula:                 tokens × (${entry?.outputUsdPer1M} / ${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M})`,
-  );
+  console.log(`  formula:                 credits = (tokensIn + tokensOut) × ${multiplier}`);
   console.log("");
   console.log("Preflight estimates (guessed tokens, not measured):\n");
   console.log("  depth  tokens     × mult   = credits     vs Standard     vs Pro");
@@ -54,11 +52,10 @@ function main() {
   }
 
   console.log("");
-  console.log("9,375,000 = depth 3 (250,000 tokens) × 37.5");
+  console.log("Shallow sample (2026-08-11): 71.6k in + 16.6k out = 88.2k tokens");
+  console.log(`  billed at ×${multiplier} = ${Math.round(88_200 * multiplier).toLocaleString()} credits`);
   console.log("");
-  console.log("After a sample run, read tokensIn + tokensOut from the run stats");
-  console.log("panel (or session_usage_cursors) and multiply by the multiplier above.");
-  console.log("Tune outputUsdPer1M (multiplier) and/or estimated_tokens_by_depth.");
+  console.log("1 credit = 1 Agents Model token. Tune DEFAULT_ESTIMATED_TOKENS after more samples.");
 }
 
 main();

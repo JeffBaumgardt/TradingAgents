@@ -702,7 +702,7 @@ export interface UsageModelBreakdown {
   computeCredits: number;
   /**
    * Output-cost multiplier vs the margin-adjusted credit reference rate
-   * (~$0.2667/1M output). Applied as: credits ≈ tokens × creditMultiplier.
+   * Product unit: 1 credit ≈ 1 Agents Model token. Applied as: credits ≈ tokens × creditMultiplier.
    */
   creditMultiplier: number;
   costSource: ProviderCostSource;
@@ -753,6 +753,7 @@ export type {
 } from "./hosted-model-catalog.js";
 
 export {
+  AGENTS_MODEL_CREDIT_MULTIPLIER,
   AGENTS_MODEL_DISPLAY_NAME,
   AGENTS_MODEL_ID,
   AGENTS_MODEL_PROVIDER_ID,

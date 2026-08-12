@@ -6,6 +6,9 @@
  */
 
 import {
+  AGENTS_MODEL_CREDIT_MULTIPLIER,
+  AGENTS_MODEL_ID,
+  AGENTS_MODEL_PROVIDER_ID,
   PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   STANDARD_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
   monthlyCreditAllowanceForPlan,
@@ -24,18 +27,18 @@ import type {
 } from "@tradingagents/supabase";
 
 /**
- * KNOB 2 — preflight token guesses by research depth (not measured usage).
+ * Preflight token guesses by research depth (not measured usage).
  * Also stored on plan_credit_configs.estimated_tokens_by_depth.
  *
- * credits ≈ estimatedTokens[depth] × max(1, analystCount / 4) × multiplier
+ * credits ≈ estimatedTokens[depth] × max(1, analystCount / 4) × 1
  *
- * Depth 3 default: 250_000 × 37.5 = 9_375_000 (the number a “simple” medium
- * run currently reserves before any tokens are used).
+ * Depth 1 calibrated from a live shallow run: 71.6k in + 16.6k out ≈ 88.2k
+ * tokens. 100k leaves ~13% headroom so preflight does not under-reserve.
  */
 const DEFAULT_ESTIMATED_TOKENS: Record<string, number> = {
-  "1": 80_000,
-  "3": 250_000,
-  "5": 500_000,
+  "1": 100_000,
+  "3": 280_000,
+  "5": 550_000,
 };
 
 export interface CreditBalance {
@@ -206,6 +209,13 @@ async function loadMultiplier(
   providerId: string,
   modelId: string,
 ): Promise<number> {
+  if (
+    providerId.toLowerCase() === AGENTS_MODEL_PROVIDER_ID &&
+    modelId === AGENTS_MODEL_ID
+  ) {
+    return AGENTS_MODEL_CREDIT_MULTIPLIER;
+  }
+
   const { data, error } = await client
     .from("model_credit_multipliers")
     .select("credit_multiplier")

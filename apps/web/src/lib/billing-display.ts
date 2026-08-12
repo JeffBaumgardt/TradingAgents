@@ -13,7 +13,7 @@ export const CREDIT_SPEND_TIER_MAX = 5;
  * Typical depth-1 multi-agent analysis size used for “runs / month” estimates
  * on the Agents Model.
  */
-export const TYPICAL_AGENTS_ANALYSIS_TOKENS = 50_000;
+export const TYPICAL_AGENTS_ANALYSIS_TOKENS = 90_000;
 
 /** @deprecated Use {@link TYPICAL_AGENTS_ANALYSIS_TOKENS}. */
 export const TYPICAL_HOSTED_ANALYSIS_TOKENS = TYPICAL_AGENTS_ANALYSIS_TOKENS;

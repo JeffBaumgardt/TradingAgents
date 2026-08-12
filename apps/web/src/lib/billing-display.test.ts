@@ -36,8 +36,8 @@ describe("billing-display", () => {
   });
 
   it("estimates typical monthly runs from a multiplier", () => {
-    assert.equal(estimateTypicalRunsPerMonth(2.3), 84);
-    assert.equal(estimateTypicalRunsPerMonth(16.5), 11);
+    assert.equal(estimateTypicalRunsPerMonth(2.3), 46);
+    assert.equal(estimateTypicalRunsPerMonth(16.5), 6);
   });
 
   it("labels cost sources clearly", () => {

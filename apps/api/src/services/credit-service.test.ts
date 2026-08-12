@@ -130,15 +130,15 @@ describe("credit-service", () => {
       userId,
       {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2026-08-01T00:00:00.000Z",
+        current_period_end: "2026-09-01T00:00:00.000Z",
       },
-      new Date("2026-07-15T12:00:00.000Z"),
+      new Date("2026-08-11T18:00:00.000Z"),
     );
-    // Plenty of room above 3%, but not enough for a huge frontier estimate.
+    // Above the 3% block floor (300k) but below a depth-5 preflight (~550k).
     await client
       .from("user_credit_periods")
-      .update({ used_credits: period.base_allowance - 500_000 })
+      .update({ used_credits: period.base_allowance - 400_000 })
       .eq("id", period.id);
 
     const gate = await assertHostedCreditsForNewRun(
@@ -146,8 +146,8 @@ describe("credit-service", () => {
       userId,
       {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2026-08-01T00:00:00.000Z",
+        current_period_end: "2026-09-01T00:00:00.000Z",
       },
       {
         ticker: "AAPL",
@@ -189,8 +189,8 @@ describe("credit-service", () => {
       userId,
       {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2099-07-01T00:00:00.000Z",
+        current_period_end: "2099-08-01T00:00:00.000Z",
       },
       {
         ticker: "AAPL",
@@ -224,15 +224,15 @@ describe("credit-service", () => {
 
     const subscription = {
       plan_id: "pro",
-      current_period_start: "2026-07-01T00:00:00.000Z",
-      current_period_end: "2026-08-01T00:00:00.000Z",
+      current_period_start: "2099-07-01T00:00:00.000Z",
+      current_period_end: "2099-08-01T00:00:00.000Z",
     } as const;
 
     const period = await ensureCreditPeriod(
       client,
       userId,
       subscription,
-      new Date("2026-07-15T12:00:00.000Z"),
+      new Date("2099-07-15T12:00:00.000Z"),
     );
 
     const runBody: CreateSessionRequest = {
@@ -304,15 +304,15 @@ describe("credit-service", () => {
 
     const subscription = {
       plan_id: "pro",
-      current_period_start: "2026-07-01T00:00:00.000Z",
-      current_period_end: "2026-08-01T00:00:00.000Z",
+      current_period_start: "2099-07-01T00:00:00.000Z",
+      current_period_end: "2099-08-01T00:00:00.000Z",
     } as const;
 
     const period = await ensureCreditPeriod(
       client,
       userId,
       subscription,
-      new Date("2026-07-15T12:00:00.000Z"),
+      new Date("2099-07-15T12:00:00.000Z"),
     );
 
     const runBody: CreateSessionRequest = {
@@ -409,10 +409,10 @@ describe("credit-service", () => {
       userId,
       {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2099-07-01T00:00:00.000Z",
+        current_period_end: "2099-08-01T00:00:00.000Z",
       },
-      new Date("2026-07-15T12:00:00.000Z"),
+      new Date("2099-07-15T12:00:00.000Z"),
     );
     await initSessionUsageCursor(client, {
       sessionId,
@@ -430,8 +430,8 @@ describe("credit-service", () => {
       tokensOut: 10,
       subscription: {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2099-07-01T00:00:00.000Z",
+        current_period_end: "2099-08-01T00:00:00.000Z",
       },
     });
     assert.equal(first.chargedCredits, 2000);
@@ -444,8 +444,8 @@ describe("credit-service", () => {
       tokensOut: 10,
       subscription: {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2099-07-01T00:00:00.000Z",
+        current_period_end: "2099-08-01T00:00:00.000Z",
       },
     });
     assert.equal(second.chargedCredits, 0);
@@ -511,8 +511,8 @@ describe("credit-service", () => {
       tokensOut: 1000,
       subscription: {
         plan_id: "pro",
-        current_period_start: "2026-07-01T00:00:00.000Z",
-        current_period_end: "2026-08-01T00:00:00.000Z",
+        current_period_start: "2099-07-01T00:00:00.000Z",
+        current_period_end: "2099-08-01T00:00:00.000Z",
       },
     });
     assert.equal(meter.chargedCredits, 0);

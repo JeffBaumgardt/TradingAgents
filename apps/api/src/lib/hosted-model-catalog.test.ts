@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  AGENTS_MODEL_CREDIT_MULTIPLIER,
   AGENTS_MODEL_ID,
   AGENTS_MODEL_PROVIDER_ID,
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
@@ -25,15 +26,11 @@ describe("hosted-model-catalog", () => {
     }
   });
 
-  it("normalizes multipliers from output $/1M against the credit reference rate", () => {
+  it("bills 1 credit per Agents Model token", () => {
     assert.equal(COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M, 0.28 / 1.05);
     assert.equal(creditMultiplierFromOutputUsdPer1M(0.28 / 1.05), 1);
-    assert.equal(
-      getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID),
-      creditMultiplierFromOutputUsdPer1M(10),
-    );
-    assert.equal(getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID), 37.5);
-    assert.equal(Math.round(250_000 * 37.5), 9_375_000);
+    assert.equal(getModelCreditMultiplier(AGENTS_MODEL_PROVIDER_ID, AGENTS_MODEL_ID), 1);
+    assert.equal(AGENTS_MODEL_CREDIT_MULTIPLIER, 1);
   });
 
   it("lists catalog entries with computed multipliers", () => {
