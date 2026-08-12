@@ -1,15 +1,19 @@
 /**
  * @file apps/web/src/components/pricing/CheckoutScaffold.tsx
- * Clerk account first, then Stripe Managed Payments Checkout.
+ * Free trial first (no card), optional Stripe pay for conversion.
  */
 
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useState } from "react";
-import { createCheckoutSession, ApiClientError } from "@/lib/api-client";
+import {
+  createCheckoutSession,
+  startBillingTrial,
+  ApiClientError,
+} from "@/lib/api-client";
 import {
   buildCheckoutSignInHref,
   buildCheckoutSignUpHref,
@@ -21,6 +25,7 @@ import {
   getPricingPlan,
   isBillingInterval,
   isPricingPlanId,
+  TRIAL_DAYS,
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/pricing-content";
@@ -62,9 +67,11 @@ function resolveCheckoutSelection(
 }
 
 export default function CheckoutScaffold() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { isLoaded, isSignedIn } = useAuth();
-  const [pending, setPending] = useState(false);
+  const [pendingStripe, setPendingStripe] = useState(false);
+  const [pendingTrial, setPendingTrial] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [subscriptionActivated, setSubscriptionActivated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,8 +81,28 @@ export default function CheckoutScaffold() {
     searchParams.get("interval"),
   );
 
+  async function handleStartTrial(planId: BillingPlanId) {
+    setPendingTrial(true);
+    setError(null);
+    setMessage(null);
+    setSubscriptionActivated(false);
+
+    try {
+      await startBillingTrial(planId);
+      router.push("/dashboard?checkout=1");
+    } catch (caught) {
+      if (caught instanceof ApiClientError) {
+        setError(caught.message);
+      } else {
+        setError("Could not start your free trial. Please try again.");
+      }
+    } finally {
+      setPendingTrial(false);
+    }
+  }
+
   async function handlePayWithStripe(planId: BillingPlanId, interval: BillingInterval) {
-    setPending(true);
+    setPendingStripe(true);
     setError(null);
     setMessage(null);
     setSubscriptionActivated(false);
@@ -91,9 +118,8 @@ export default function CheckoutScaffold() {
         return;
       }
 
-      // Stripe env not configured on the API — surface that clearly.
       setSubscriptionActivated(Boolean(result.subscriptionActivated));
-          setMessage(
+      setMessage(
         result.subscriptionActivated
           ? "Stripe isn’t connected yet, so we activated a temporary review subscription (BILLING_SCAFFOLD). Connect STRIPE_SECRET_KEY on the API to take real payments."
           : (result.message ??
@@ -106,7 +132,7 @@ export default function CheckoutScaffold() {
         setError("Could not start Stripe Checkout. Please try again later.");
       }
     } finally {
-      setPending(false);
+      setPendingStripe(false);
     }
   }
 
@@ -142,16 +168,21 @@ export default function CheckoutScaffold() {
   const { planId, interval } = selection;
   const plan = getPricingPlan(planId);
   const price = displayPriceCents(plan, interval);
+  const priceLabel = formatUsdFromCents(price);
   const signUpHref = buildCheckoutSignUpHref(planId, interval);
   const signInHref = buildCheckoutSignInHref(planId, interval);
-  const payLabel = pending
+  const busy = pendingStripe || pendingTrial;
+  const trialLabel = pendingTrial
+    ? "Starting free trial…"
+    : `Start free ${TRIAL_DAYS}-day trial`;
+  const payLabel = pendingStripe
     ? "Opening Stripe Checkout…"
-    : `Subscribe — ${formatUsdFromCents(price)}/mo`;
+    : `Subscribe now — ${priceLabel}/mo`;
 
   const stepLabel = !isLoaded
     ? "Loading…"
     : isSignedIn
-      ? "Step 2 of 2 — Payment"
+      ? "Step 2 of 2 — Start free or subscribe"
       : "Step 1 of 2 — Create your account";
 
   return (
@@ -166,41 +197,62 @@ export default function CheckoutScaffold() {
           {!isLoaded
             ? "Checkout"
             : isSignedIn
-              ? "Pay with Stripe"
-              : "Create your account to continue"}
+              ? `Start your free ${TRIAL_DAYS}-day trial`
+              : "Create your free account"}
         </h1>
         <p className={styles.intro}>
           {!isLoaded
             ? "Loading your session…"
             : isSignedIn
-              ? "You’ll complete payment on Stripe’s secure checkout. Tax is calculated from the billing address you enter there."
-              : "Create a TradingAgents account, then you’ll return here to pay for the plan below with Stripe."}
+              ? `No credit card needed for the trial. When the ${TRIAL_DAYS} days end, subscribe with Stripe to keep running analyses on the ${plan.name} plan.`
+              : `No credit card needed. Create an account to begin a ${TRIAL_DAYS}-day free trial of ${plan.name}, then return here if you prefer to subscribe right away.`}
         </p>
       </header>
 
       <section className={styles.summary} aria-labelledby="checkout-summary-heading">
-        <h2 id="checkout-summary-heading" className={styles.summaryTitle}>
-          {plan.name}
-          {plan.priceProvisional ? (
-            <span className={pricingStyles.provisional}>Provisional</span>
-          ) : null}
-        </h2>
-        <p className={styles.summaryTagline}>{plan.tagline}</p>
-        <p className={styles.priceRow}>
-          <span className={styles.price}>{formatUsdFromCents(price)}</span>
-          <span className={styles.priceSuffix}>/ month</span>
+        <div className={styles.summaryTop}>
+          <p className={styles.trialBadge}>
+            {TRIAL_DAYS}-day free trial · No credit card needed
+          </p>
+          <div className={styles.planHeading}>
+            <h2 id="checkout-summary-heading" className={styles.summaryTitle}>
+              {plan.name}
+              {plan.priceProvisional ? (
+                <span className={pricingStyles.provisional}>Provisional</span>
+              ) : null}
+            </h2>
+            {plan.recommended ? (
+              <span className={styles.recommendedChip}>Recommended</span>
+            ) : null}
+          </div>
+          <p className={styles.summaryTagline}>{plan.tagline}</p>
+        </div>
+
+        <div className={styles.pricingBlock}>
+          <div className={styles.todayRow}>
+            <span className={styles.todayLabel}>Today</span>
+            <span className={styles.todayValue}>Free for {TRIAL_DAYS} days</span>
+          </div>
+          <div className={styles.thenRow}>
+            <span className={styles.thenLabel}>Then</span>
+            <p className={styles.priceRow}>
+              <span className={styles.price}>{priceLabel}</span>
+              <span className={styles.priceSuffix}>/ month</span>
+            </p>
+          </div>
+          <p className={styles.caption}>{displayPriceCaption(plan, interval)}</p>
+        </div>
+
+        <ul className={styles.highlightList} aria-label={`${plan.name} plan includes`}>
+          {plan.highlights.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+
+        <p className={styles.finePrint}>
+          Trial uses real compute credits against the {plan.name} allowance. Cancel anytime before
+          the trial ends — you only pay if you subscribe.
         </p>
-        <p className={styles.caption}>{displayPriceCaption(plan, interval)}</p>
-        <dl className={styles.meta}>
-          <div>
-            <dt>Plan</dt>
-            <dd>{planId}</dd>
-          </div>
-          <div>
-            <dt>Billing</dt>
-            <dd>{interval}</dd>
-          </div>
-        </dl>
       </section>
 
       <div className={styles.actions}>
@@ -214,34 +266,55 @@ export default function CheckoutScaffold() {
             Loading…
           </button>
         ) : isSignedIn ? (
-          <button
-            type="button"
-            className={styles.primaryButton}
-            aria-label={payLabel}
-            disabled={pending}
-            onClick={() => void handlePayWithStripe(planId, interval)}
-          >
-            {payLabel}
-          </button>
+          <>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              aria-label={trialLabel}
+              disabled={busy}
+              onClick={() => void handleStartTrial(planId)}
+            >
+              {trialLabel}
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              aria-label={payLabel}
+              disabled={busy}
+              onClick={() => void handlePayWithStripe(planId, interval)}
+            >
+              {payLabel}
+            </button>
+          </>
         ) : (
           <>
             <Link
               href={signUpHref}
               className={styles.primaryButton}
-              aria-label="Create account to continue to payment"
+              aria-label="Create free account to start trial"
             >
-              Create account
+              Create free account
             </Link>
             <Link
               href={signInHref}
               className={styles.secondaryButton}
-              aria-label="Sign in to continue to payment"
+              aria-label="Sign in to continue"
             >
               Sign in
             </Link>
           </>
         )}
       </div>
+
+      {isSignedIn ? (
+        <p className={styles.actionsHint}>
+          Prefer to skip the trial? Subscribe now routes you to secure Stripe Checkout.
+        </p>
+      ) : (
+        <p className={styles.actionsHint}>
+          After you sign up, you can start the free trial without a card.
+        </p>
+      )}
 
       {message ? (
         <div className={styles.info} role="status">
