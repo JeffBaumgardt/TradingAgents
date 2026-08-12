@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import type { UsageModelBreakdown, UsageProviderBreakdown } from "@tradingagents/api-types";
+import { AGENTS_MODEL_DISPLAY_NAME } from "@tradingagents/api-types";
 import ProviderCostBadge from "@/components/ProviderCostBadge";
 import {
   formatComputeCredits,
@@ -78,7 +79,7 @@ export default function UsageProviderTree({ byProvider, byModel }: UsageProvider
                     className={styles.modelTreeRow}
                   >
                     <div className={styles.modelTitleRow}>
-                      <strong className={styles.modelId}>{model.modelId}</strong>
+                      <strong className={styles.modelId}>{AGENTS_MODEL_DISPLAY_NAME}</strong>
                       <span
                         className={styles.spendDollars}
                         title={`${creditSpendTierLabel(creditSpendTierFromMultiplier(model.creditMultiplier))} spend`}

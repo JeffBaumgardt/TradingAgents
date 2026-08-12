@@ -20,7 +20,7 @@ function agentsModelRow(tokensTotal: number): UsageModelBreakdown {
   );
   return {
     providerId: AGENTS_MODEL_PROVIDER_ID,
-    providerLabel: "Anthropic",
+    providerLabel: "Agents Model",
     modelId: AGENTS_MODEL_ID,
     tokensTotal,
     computeCredits: Math.round(tokensTotal * creditMultiplier),
@@ -79,7 +79,7 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       byProvider: [
         {
           providerId: AGENTS_MODEL_PROVIDER_ID,
-          providerLabel: "Anthropic",
+          providerLabel: "Agents Model",
           tokensTotal,
           computeCredits: usedComputeCredits,
           selfPayTokens: 0,

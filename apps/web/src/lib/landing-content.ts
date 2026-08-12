@@ -24,7 +24,7 @@ export const LANDING_HERO = {
     "AI assistant surrounded by floating market data, news, and chart panels",
   eyebrow: "14-day free trial · No credit card needed",
   headline: "Multi-agent research on one managed Agents Model",
-  copy: "Run a specialist analyst team, bull/bear debate, risk review, and portfolio decision on our managed Agents Model (Claude Sonnet). Start free for 14 days — no credit card required. Then choose Standard or Pro for the credit pool that fits you.",
+  copy: "Run a specialist analyst team, bull/bear debate, risk review, and portfolio decision on our managed Agents Model. Start free for 14 days — no credit card required. Then choose Standard or Pro for the credit pool that fits you.",
   primaryCta: "Start free trial",
   secondaryCta: "Sign in",
 } as const;

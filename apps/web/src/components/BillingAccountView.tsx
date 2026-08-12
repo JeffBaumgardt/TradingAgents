@@ -10,7 +10,6 @@ import { useState } from "react";
 import type { BillingAccountResponse } from "@tradingagents/api-types";
 import {
   AGENTS_MODEL_DISPLAY_NAME,
-  AGENTS_MODEL_ID,
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   getBillingPlan,
 } from "@tradingagents/api-types";
@@ -183,8 +182,8 @@ export default function BillingAccountView({
           Agents Model
         </h2>
         <p className={styles.breakdownIntro}>
-          All analyses use <strong>{modelName}</strong> ({AGENTS_MODEL_ID}). There is no provider
-          or model picker — compute credits meter solely against this model.
+          All analyses use our managed <strong>{modelName}</strong>. There is no provider or model
+          picker — compute credits meter solely against this model.
         </p>
         <ul className={styles.breakdownIntro}>
           <li>
@@ -261,7 +260,7 @@ export default function BillingAccountView({
               <ul className={styles.breakdownIntro}>
                 {usage.byModel.map((row) => (
                   <li key={`${row.providerId}-${row.modelId}`}>
-                    {row.modelId}: {formatComputeCredits(row.computeCredits)} credits (
+                    {AGENTS_MODEL_DISPLAY_NAME}: {formatComputeCredits(row.computeCredits)} credits (
                     {formatTokenCount(row.tokensTotal)} tokens, ×{row.creditMultiplier})
                   </li>
                 ))}

@@ -67,7 +67,7 @@ export const PRICING_SHARED_FEATURES = [
   {
     title: "Agents Model included",
     description:
-      "Every run uses our managed Claude Sonnet Agents Model — no provider keys to set up.",
+      "Every run uses our managed Agents Model — no provider keys to set up.",
   },
   {
     title: "Multi-agent research pipeline",
@@ -85,7 +85,7 @@ const PLAN_MARKETING: Record<
     bestFor: "Traders getting started with multi-agent research and tighter budgets.",
     highlights: [
       `${STANDARD_CREDIT_LABEL} compute credits per month (1/3 of Pro)`,
-      "Agents Model (Claude Sonnet) — managed for you",
+      "Agents Model — managed for you",
       "Research depth + efficiency controls",
       "Sharing by link available on Pro",
     ],
@@ -97,7 +97,7 @@ const PLAN_MARKETING: Record<
     recommended: true,
     highlights: [
       `${PRO_CREDIT_LABEL} compute credits per month`,
-      "Agents Model (Claude Sonnet) — managed for you",
+      "Agents Model — managed for you",
       "Share finished reports by link",
       "Research depth + efficiency controls",
     ],
@@ -116,7 +116,7 @@ export const PRICING_PAGE = {
   eyebrow: "14-day free trial · No credit card needed",
   title: "One Agents Model. Two clear plans.",
   intro:
-    "Start free for 14 days — no credit card required. Every plan includes our managed Agents Model (Claude Sonnet). Pick Standard for a lighter credit pool, or Pro for full credits and report sharing by link.",
+    "Start free for 14 days — no credit card required. Every plan includes our managed Agents Model. Pick Standard for a lighter credit pool, or Pro for full credits and report sharing by link.",
   annualNote: `Annual billing saves ${ANNUAL_DISCOUNT_PERCENT}% versus paying month to month.`,
   provisionalNote:
     "Credits meter against Agents Model token usage. We only ask for a card when you subscribe after the free trial.",

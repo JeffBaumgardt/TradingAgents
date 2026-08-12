@@ -1,6 +1,6 @@
 /**
  * @file packages/api-types/src/hosted-model-catalog.ts
- * Product inference catalog — single Agents Model (Anthropic Claude Sonnet 5).
+ * Product inference catalog — single Agents Model entry (provider/id internal only).
  *
  * Keep in sync with:
  * - public.model_credit_multipliers (Supabase migrations)
@@ -31,7 +31,7 @@ export const AGENTS_MODEL_DISPLAY_NAME = "Agents Model";
 /** Fixed product LLM provider. */
 export const AGENTS_MODEL_PROVIDER_ID: HostedModelProviderId = "anthropic";
 
-/** Fixed product model id (Claude Sonnet 5). */
+/** Fixed product model id (internal; never display to end users). */
 export const AGENTS_MODEL_ID = "claude-sonnet-5";
 
 /**
@@ -55,12 +55,12 @@ export const HOSTED_MODEL_CATALOG_PRICED_AS_OF = "2026-07-21";
 
 /**
  * Product model catalog — Agents Model only.
- * Anthropic introductory pricing on Sonnet 5 (see provider docs).
+ * Pricing inputs are for metering; end-user UI should only show displayName.
  */
 export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
   {
     providerId: "anthropic",
-    providerLabel: "Anthropic",
+    providerLabel: AGENTS_MODEL_DISPLAY_NAME,
     modelId: AGENTS_MODEL_ID,
     displayName: AGENTS_MODEL_DISPLAY_NAME,
     modes: ["quick", "deep"],

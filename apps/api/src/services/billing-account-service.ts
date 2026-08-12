@@ -43,10 +43,10 @@ export class BillingAccountError extends Error {
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: "Anthropic",
+  anthropic: "Agents Model",
 };
 
-/** Providers available through platform keys (Anthropic only). */
+/** Providers available through platform keys (Agents Model product path). */
 export const HOSTED_PROVIDER_IDS = [AGENTS_MODEL_PROVIDER_ID] as const;
 
 interface UsageEventRow {
@@ -104,7 +104,7 @@ const scaffoldSubscriptions = new Map<string, ScaffoldSubscription>();
 const scaffoldUsage = new Map<string, UsageEventRow[]>();
 
 function providerLabel(providerId: string): string {
-  return PROVIDER_LABELS[providerId] ?? providerId;
+  return PROVIDER_LABELS[providerId] ?? AGENTS_MODEL_DISPLAY_NAME;
 }
 
 function startOfUtcMonth(date = new Date()): Date {

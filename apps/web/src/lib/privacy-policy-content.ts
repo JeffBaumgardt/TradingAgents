@@ -48,7 +48,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
       {
         title: "Platform LLM processing",
         description:
-          "When you run an analysis, requests are sent to Anthropic (our Agents Model) using platform API keys that we manage. You do not supply provider API keys in the product.",
+          "When you run an analysis, requests are processed through our managed Agents Model using platform API keys we operate. You do not supply provider API keys in the product.",
       },
       {
         title: "Analysis and session data",
@@ -90,7 +90,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
       "Authenticate you and maintain your session.",
       "Store your profile and subscription/credit metering data.",
       "Run, persist, and display multi-agent analysis sessions and reports.",
-      "Send analysis requests to Anthropic using platform API keys.",
+      "Send analysis requests to our managed Agents Model using platform API keys.",
       "Protect the service, investigate incidents, and enforce acceptable use.",
       "Respond to support and privacy requests.",
     ],
@@ -128,7 +128,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacySection[] = [
     bullets: [
       "Clerk — authentication and account management.",
       "Supabase — application database.",
-      "Anthropic — the platform Agents Model (Claude) used to run multi-agent analysis on your behalf with our API keys.",
+      "LLM infrastructure providers — the hosted model capacity behind Agents Model, used to run multi-agent analysis on your behalf with our API keys.",
       "Stripe — payment processing when you convert a trial or subscribe to a paid plan.",
       "Hosting and infrastructure providers — to serve the web app, API, and agents service (for example Vercel, Railway, or equivalent in your deployment).",
     ],

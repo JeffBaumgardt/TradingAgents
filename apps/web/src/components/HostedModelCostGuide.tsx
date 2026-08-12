@@ -50,7 +50,6 @@ export default function HostedModelCostGuide() {
           <thead>
             <tr>
               <th scope="col">Model</th>
-              <th scope="col">Provider</th>
               <th scope="col">× credits</th>
               <th scope="col">Spend</th>
               <th scope="col">~Analyses / mo</th>
@@ -62,7 +61,6 @@ export default function HostedModelCostGuide() {
               return (
                 <tr key={`${model.providerId}:${model.modelId}`}>
                   <th scope="row">{model.displayName}</th>
-                  <td>{model.providerId}</td>
                   <td>{formatCreditMultiplier(model.creditMultiplier)}</td>
                   <td title={creditSpendTierLabel(tier)}>
                     <span aria-label={creditSpendTierLabel(tier)}>

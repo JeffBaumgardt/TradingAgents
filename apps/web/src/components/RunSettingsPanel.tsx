@@ -7,7 +7,7 @@
 
 import type { KeyboardEvent } from "react";
 import type { CreateSessionRequest, ResearchDepth, Session } from "@tradingagents/api-types";
-import { ANALYST_AGENT_NAMES, resolveThinkLlm } from "@tradingagents/api-types";
+import { ANALYST_AGENT_NAMES } from "@tradingagents/api-types";
 import styles from "./RunSettingsPanel.module.css";
 
 const RESEARCH_DEPTH_LABELS: Record<ResearchDepth, string> = {
@@ -129,8 +129,8 @@ export default function RunSettingsPanel({
             <dd>{RESEARCH_DEPTH_LABELS[config.researchDepth]}</dd>
           </div>
           <div className={styles.row}>
-            <dt>Agents Model</dt>
-            <dd>{resolveThinkLlm(config) || "claude-sonnet-5"}</dd>
+            <dt>Model</dt>
+            <dd>Agents Model</dd>
           </div>
           {extraProviderRows.map((row) => (
             <div key={row.label} className={styles.row}>

@@ -1,7 +1,7 @@
 /**
  * @file apps/web/src/components/Wizard.tsx
  * Multi-step configuration wizard for starting a new analysis run.
- * Product always uses Agents Model (Claude Sonnet); user chooses research depth + efficiency.
+ * Product always uses Agents Model; user chooses research depth + efficiency.
  */
 
 "use client";
