@@ -10,7 +10,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "dev:web": "turbo dev --filter=@trading-agents/web",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "test": "turbo test --filter=@trading-agents/web"
   },
   "devDependencies": {
     "turbo": "^2.3.3"

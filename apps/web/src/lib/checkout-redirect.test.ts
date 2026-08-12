@@ -2,8 +2,7 @@
  * @file apps/web/src/lib/checkout-redirect.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   buildCheckoutSignInHref,
   buildCheckoutSignUpHref,
@@ -12,23 +11,14 @@ import {
 
 describe("checkout-redirect", () => {
   it("builds auth URLs that return to checkout", () => {
-    assert.equal(
-      buildCheckoutSignUpHref("pro", "monthly"),
-      "/sign-up?redirect_url=%2Fcheckout%3Fplan%3Dpro%26interval%3Dmonthly",
-    );
-    assert.equal(
-      buildCheckoutSignInHref("standard", "annual"),
-      "/sign-in?redirect_url=%2Fcheckout%3Fplan%3Dstandard%26interval%3Dannual",
-    );
+    expect(buildCheckoutSignUpHref("pro", "monthly")).toBe("/sign-up?redirect_url=%2Fcheckout%3Fplan%3Dpro%26interval%3Dmonthly");
+    expect(buildCheckoutSignInHref("standard", "annual")).toBe("/sign-in?redirect_url=%2Fcheckout%3Fplan%3Dstandard%26interval%3Dannual");
   });
 
   it("rejects open redirects", () => {
-    assert.equal(
-      sanitizeAppRedirectPath("/checkout?plan=pro", "/dashboard"),
-      "/checkout?plan=pro",
-    );
-    assert.equal(sanitizeAppRedirectPath("https://evil.example", "/dashboard"), "/dashboard");
-    assert.equal(sanitizeAppRedirectPath("//evil.example", "/dashboard"), "/dashboard");
-    assert.equal(sanitizeAppRedirectPath(null, "/dashboard"), "/dashboard");
+    expect(sanitizeAppRedirectPath("/checkout?plan=pro", "/dashboard")).toBe("/checkout?plan=pro");
+    expect(sanitizeAppRedirectPath("https://evil.example", "/dashboard")).toBe("/dashboard");
+    expect(sanitizeAppRedirectPath("//evil.example", "/dashboard")).toBe("/dashboard");
+    expect(sanitizeAppRedirectPath(null, "/dashboard")).toBe("/dashboard");
   });
 });

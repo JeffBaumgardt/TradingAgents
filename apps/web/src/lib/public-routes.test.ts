@@ -2,47 +2,46 @@
  * @file apps/web/src/lib/public-routes.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { isPublicPath, PUBLIC_ROUTE_MATCHERS, PUBLIC_ROUTE_PREFIXES } from "./public-routes";
 
 describe("isPublicPath", () => {
   it("treats the landing page as public", () => {
-    assert.equal(isPublicPath("/"), true);
+    expect(isPublicPath("/")).toBe(true);
   });
 
   it("treats marketing and auth routes as public", () => {
-    assert.equal(isPublicPath("/privacy"), true);
-    assert.equal(isPublicPath("/license"), true);
-    assert.equal(isPublicPath("/pricing"), true);
-    assert.equal(isPublicPath("/billing-preview"), true);
-    assert.equal(isPublicPath("/checkout"), true);
-    assert.equal(isPublicPath("/sign-in"), true);
-    assert.equal(isPublicPath("/sign-in/factor-one"), true);
-    assert.equal(isPublicPath("/sign-up"), true);
-    assert.equal(isPublicPath("/sign-up/verify-email"), true);
-    assert.equal(isPublicPath("/api/webhooks/clerk"), true);
+    expect(isPublicPath("/privacy")).toBe(true);
+    expect(isPublicPath("/license")).toBe(true);
+    expect(isPublicPath("/pricing")).toBe(true);
+    expect(isPublicPath("/billing-preview")).toBe(true);
+    expect(isPublicPath("/checkout")).toBe(true);
+    expect(isPublicPath("/sign-in")).toBe(true);
+    expect(isPublicPath("/sign-in/factor-one")).toBe(true);
+    expect(isPublicPath("/sign-up")).toBe(true);
+    expect(isPublicPath("/sign-up/verify-email")).toBe(true);
+    expect(isPublicPath("/api/webhooks/clerk")).toBe(true);
   });
 
   it("treats shared run links as public", () => {
-    assert.equal(isPublicPath("/run"), true);
-    assert.equal(isPublicPath("/run/session-123"), true);
+    expect(isPublicPath("/run")).toBe(true);
+    expect(isPublicPath("/run/session-123")).toBe(true);
   });
 
   it("requires authentication for app routes", () => {
-    assert.equal(isPublicPath("/dashboard"), false);
-    assert.equal(isPublicPath("/onboarding"), false);
-    assert.equal(isPublicPath("/settings/billing"), false);
+    expect(isPublicPath("/dashboard")).toBe(false);
+    expect(isPublicPath("/onboarding")).toBe(false);
+    expect(isPublicPath("/settings/billing")).toBe(false);
   });
 
   it("does not treat other paths as public by prefix accident", () => {
-    assert.equal(isPublicPath("/dashboard/sign-in"), false);
-    assert.equal(isPublicPath("/sign-in-attempt"), false);
-    assert.equal(isPublicPath("/runner"), false);
+    expect(isPublicPath("/dashboard/sign-in")).toBe(false);
+    expect(isPublicPath("/sign-in-attempt")).toBe(false);
+    expect(isPublicPath("/runner")).toBe(false);
   });
 
   it("exports the expected public route prefixes", () => {
-    assert.deepEqual(PUBLIC_ROUTE_PREFIXES, [
+    expect(PUBLIC_ROUTE_PREFIXES).toEqual([
       "/",
       "/privacy",
       "/license",
@@ -57,11 +56,11 @@ describe("isPublicPath", () => {
   });
 
   it("keeps the landing matcher exact for middleware", () => {
-    assert.equal(PUBLIC_ROUTE_MATCHERS[0], "/");
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/pricing(/.*)?"));
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/billing-preview(/.*)?"));
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/checkout(/.*)?"));
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/sign-in(.*)"));
-    assert.ok(PUBLIC_ROUTE_MATCHERS.includes("/run(.*)"));
+    expect(PUBLIC_ROUTE_MATCHERS[0]).toBe("/");
+    expect(PUBLIC_ROUTE_MATCHERS.includes("/pricing(/.*)?")).toBeTruthy();
+    expect(PUBLIC_ROUTE_MATCHERS.includes("/billing-preview(/.*)?")).toBeTruthy();
+    expect(PUBLIC_ROUTE_MATCHERS.includes("/checkout(/.*)?")).toBeTruthy();
+    expect(PUBLIC_ROUTE_MATCHERS.includes("/sign-in(.*)")).toBeTruthy();
+    expect(PUBLIC_ROUTE_MATCHERS.includes("/run(.*)")).toBeTruthy();
   });
 });

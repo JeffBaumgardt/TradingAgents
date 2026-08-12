@@ -2,8 +2,7 @@
  * @file apps/web/src/lib/cookie-ack.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   buildCookieAcknowledgmentCookie,
   COOKIE_ACK_MAX_AGE_SECONDS,
@@ -18,23 +17,17 @@ describe("hasCookieAcknowledgment", () => {
       get: (name) => (name === COOKIE_ACK_NAME ? { value: COOKIE_ACK_VALUE } : undefined),
     });
 
-    assert.equal(acknowledged, true);
+    expect(acknowledged).toBe(true);
   });
 
   it("returns false when the cookie is missing or invalid", () => {
-    assert.equal(
-      hasCookieAcknowledgment({
+    expect(hasCookieAcknowledgment({
         get: () => undefined,
-      }),
-      false,
-    );
+      })).toBe(false);
 
-    assert.equal(
-      hasCookieAcknowledgment({
+    expect(hasCookieAcknowledgment({
         get: () => ({ value: "0" }),
-      }),
-      false,
-    );
+      })).toBe(false);
   });
 });
 
@@ -42,9 +35,9 @@ describe("buildCookieAcknowledgmentCookie", () => {
   it("sets a one-year SameSite=Lax cookie scoped to the site root", () => {
     const cookie = buildCookieAcknowledgmentCookie();
 
-    assert.match(cookie, new RegExp(`${COOKIE_ACK_NAME}=${COOKIE_ACK_VALUE}`));
-    assert.match(cookie, /Path=\//);
-    assert.match(cookie, new RegExp(`Max-Age=${COOKIE_ACK_MAX_AGE_SECONDS}`));
-    assert.match(cookie, /SameSite=Lax/);
+    expect(cookie).toMatch(new RegExp(`${COOKIE_ACK_NAME}=${COOKIE_ACK_VALUE}`));
+    expect(cookie).toMatch(/Path=\//);
+    expect(cookie).toMatch(new RegExp(`Max-Age=${COOKIE_ACK_MAX_AGE_SECONDS}`));
+    expect(cookie).toMatch(/SameSite=Lax/);
   });
 });

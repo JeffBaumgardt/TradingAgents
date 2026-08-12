@@ -59,3 +59,22 @@ jobs:
         # The repo is fully clean under the strict select, so we lint everything
         # (results/ and worklog/ are excluded via pyproject extend-exclude).
         run: ruff check .
+
+  web-test:
+    name: web (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace packages
+        run: pnpm turbo build --filter=@trading-agents/web^...
+      - name: Run web tests
+        run: pnpm --filter @trading-agents/web test

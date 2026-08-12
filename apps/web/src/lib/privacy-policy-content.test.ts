@@ -2,8 +2,7 @@
  * @file apps/web/src/lib/privacy-policy-content.test.ts
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   PRIVACY_CONTACT,
   PRIVACY_CONTACT_EMAIL,
@@ -13,28 +12,28 @@ import {
 describe("privacy-policy-content", () => {
   it("includes GDPR-relevant sections", () => {
     const ids = PRIVACY_POLICY_SECTIONS.map((section) => section.id);
-    assert.ok(ids.includes("legal-bases"));
-    assert.ok(ids.includes("your-rights"));
-    assert.ok(ids.includes("processors"));
-    assert.ok(ids.includes("retention"));
-    assert.ok(ids.includes("transfers"));
-    assert.ok(ids.includes("cookies-storage"));
+    expect(ids.includes("legal-bases")).toBeTruthy();
+    expect(ids.includes("your-rights")).toBeTruthy();
+    expect(ids.includes("processors")).toBeTruthy();
+    expect(ids.includes("retention")).toBeTruthy();
+    expect(ids.includes("transfers")).toBeTruthy();
+    expect(ids.includes("cookies-storage")).toBeTruthy();
   });
 
   it("documents cookies and browser storage explicitly", () => {
     const storageSection = PRIVACY_POLICY_SECTIONS.find(
       (section) => section.id === "cookies-storage",
     );
-    assert.ok(storageSection?.items);
+    expect(storageSection?.items).toBeTruthy();
     const titles = storageSection.items.map((item) => item.title);
-    assert.ok(titles.some((title) => title.includes("Clerk")));
-    assert.ok(titles.some((title) => title.includes("tradingagents-cookie-ack")));
-    assert.ok(titles.some((title) => title.includes("tradingagents-theme")));
+    expect(titles.some((title) => title.includes("Clerk"))).toBeTruthy();
+    expect(titles.some((title) => title.includes("tradingagents-cookie-ack"))).toBeTruthy();
+    expect(titles.some((title) => title.includes("tradingagents-theme"))).toBeTruthy();
   });
 
   it("provides the privacy contact email", () => {
-    assert.equal(PRIVACY_CONTACT_EMAIL, "admin@bugfoot.net");
-    assert.equal(PRIVACY_CONTACT.href, "mailto:admin@bugfoot.net");
-    assert.equal(PRIVACY_CONTACT.label, "admin@bugfoot.net");
+    expect(PRIVACY_CONTACT_EMAIL).toBe("admin@bugfoot.net");
+    expect(PRIVACY_CONTACT.href).toBe("mailto:admin@bugfoot.net");
+    expect(PRIVACY_CONTACT.label).toBe("admin@bugfoot.net");
   });
 });
