@@ -21,10 +21,10 @@ importers:
         version: 3.9.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@hono/node-server':
         specifier: ^2.0.10
-        version: 2.0.10(hono@4.12.27)
+        version: 2.0.10(hono@4.12.34)
       '@supabase/server':
         specifier: ^1.2.0
-        version: 1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.27)
+        version: 1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.34)
       '@tradingagents/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
@@ -35,8 +35,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/utils
       hono:
-        specifier: ^4.7.11
-        version: 4.12.27
+        specifier: ^4.12.34
+        version: 4.12.34
       resend:
         specifier: ^6.17.2
         version: 6.17.2
@@ -146,7 +146,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: ^1.2.0
-        version: 1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.27)
+        version: 1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.34)
       '@supabase/supabase-js':
         specifier: ^2.110.0
         version: 2.110.0
@@ -158,8 +158,8 @@ importers:
         specifier: workspace:*
         version: link:../typescript-config
       hono:
-        specifier: ^4.7.11
-        version: 4.12.27
+        specifier: ^4.12.34
+        version: 4.12.34
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -1198,8 +1198,8 @@ packages:
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
 
-  hono@4.12.27:
-    resolution: {integrity: sha512-1yrb/+w6HWQJrUCLkJ2IF5jNIPvvFkblV5RNOYl6bV+OA6p9GLcMpHFFGTosSvHvcAUibuUukRqhlYI4z32C7Q==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@6.0.0:
@@ -2078,9 +2078,9 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
-  '@hono/node-server@2.0.10(hono@4.12.27)':
+  '@hono/node-server@2.0.10(hono@4.12.34)':
     dependencies:
-      hono: 4.12.27
+      hono: 4.12.34
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -2242,12 +2242,12 @@ snapshots:
       '@supabase/phoenix': 0.4.4
       tslib: 2.8.1
 
-  '@supabase/server@1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.27)':
+  '@supabase/server@1.2.0(@supabase/supabase-js@2.110.0)(hono@4.12.34)':
     dependencies:
       '@supabase/supabase-js': 2.110.0
       jose: 6.2.3
     optionalDependencies:
-      hono: 4.12.27
+      hono: 4.12.34
 
   '@supabase/storage-js@2.110.0':
     dependencies:
@@ -2720,7 +2720,7 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.5
 
-  hono@4.12.27: {}
+  hono@4.12.34: {}
 
   html-encoding-sniffer@6.0.0:
     dependencies:
