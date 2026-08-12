@@ -7,13 +7,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useUserSession } from "@/context/UserSessionContext";
 import { fetchBillingAccount } from "@/lib/api-client";
 import { hasActiveSubscription } from "@/lib/subscription-access";
 import styles from "./SiteHeader.module.css";
 
 export default function SiteHeaderNav() {
-  const { credentialsReady } = useUserSession();
   const [showPricing, setShowPricing] = useState(true);
 
   useEffect(() => {

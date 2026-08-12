@@ -6,11 +6,14 @@
  */
 
 import {
-  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
-  getModelCreditMultiplier,
+  AGENTS_MODEL_OUTPUT_USD_PER_1M,
+  computeAgentsModelCredits,
+  estimateAgentsModelCreditsFromTokenVolume,
+  getAgentsModelCreditRates,
+  monthlyCreditAllowanceForPlan,
+  isBillingPlanId,
   resolveThinkLlm,
   type CreateSessionRequest,
-  type ProviderCostSource,
 } from "@tradingagents/api-types";
 import type {
   AppSupabaseClient,
@@ -20,10 +23,21 @@ import type {
   UserSubscriptionRow,
 } from "@tradingagents/supabase";
 
+/**
+ * Preflight token guesses by research depth (not measured usage).
+ * Also stored on plan_credit_configs.estimated_tokens_by_depth.
+ *
+ * credits ≈ estimateAgentsModelCreditsFromTokenVolume(
+ *   estimatedTokens[depth] × max(1, analystCount / 4)
+ * )
+ *
+ * Depth 1 calibrated from a live shallow run: 71.6k in + 16.6k out ≈ 88.2k
+ * tokens. 100k leaves ~13% headroom so preflight does not under-reserve.
+ */
 const DEFAULT_ESTIMATED_TOKENS: Record<string, number> = {
-  "1": 80_000,
-  "3": 250_000,
-  "5": 500_000,
+  "1": 100_000,
+  "3": 280_000,
+  "5": 550_000,
 };
 
 export interface CreditBalance {
@@ -56,13 +70,35 @@ export interface MeterStatsResult {
   exhausted: boolean;
   shouldWarn: boolean;
   warnMessage?: string;
-  costSource: ProviderCostSource;
 }
 
 function asNumber(value: unknown, fallback = 0): number {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
+
+function firstRpcRow<T extends Record<string, unknown>>(data: unknown): T | null {
+  if (Array.isArray(data) && data[0] && typeof data[0] === "object") {
+    return data[0] as T;
+  }
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    return data as T;
+  }
+  return null;
+}
+
+type MeterRpcRow = {
+  charged_credits?: number;
+  session_credits?: number;
+  credits_charged?: number;
+  remaining_credits?: number | null;
+  remaining?: number | null;
+  total_allowance?: number | null;
+  used_ratio?: number | null;
+  exhausted?: boolean;
+  should_warn?: boolean;
+  warn_message?: string | null;
+};
 
 function periodTotal(period: UserCreditPeriodRow): number {
   return period.base_allowance + period.rollover_credits;
@@ -167,7 +203,10 @@ export async function getPlanCreditConfig(
       low_balance_block_ratio: asNumber(row.low_balance_block_ratio, 0.03),
       low_balance_warn_ratio: asNumber(row.low_balance_warn_ratio, 0.1),
       max_rollover_periods: asNumber(row.max_rollover_periods, 1),
-      reference_output_usd_per_1m: asNumber(row.reference_output_usd_per_1m, 0.266667),
+      reference_output_usd_per_1m: asNumber(
+        row.reference_output_usd_per_1m,
+        AGENTS_MODEL_OUTPUT_USD_PER_1M,
+      ),
       estimated_tokens_by_depth:
         row.estimated_tokens_by_depth && typeof row.estimated_tokens_by_depth === "object"
           ? row.estimated_tokens_by_depth
@@ -179,48 +218,22 @@ export async function getPlanCreditConfig(
   return {
     plan_id: planId,
     monthly_credit_allowance:
-      planId === "hosted" ? HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE : 0,
+      isBillingPlanId(planId) ? monthlyCreditAllowanceForPlan(planId) : 0,
     low_balance_block_ratio: 0.03,
     low_balance_warn_ratio: 0.1,
-    max_rollover_periods: planId === "hosted" ? 1 : 0,
+    max_rollover_periods: isBillingPlanId(planId) ? 1 : 0,
     estimated_tokens_by_depth: DEFAULT_ESTIMATED_TOKENS,
-    reference_output_usd_per_1m: 0.266667,
+    reference_output_usd_per_1m: AGENTS_MODEL_OUTPUT_USD_PER_1M,
     updated_at: new Date().toISOString(),
   };
 }
 
-async function loadMultiplier(
-  client: AppSupabaseClient,
-  providerId: string,
-  modelId: string,
-): Promise<number> {
-  const { data, error } = await client
-    .from("model_credit_multipliers")
-    .select("credit_multiplier")
-    .eq("provider_id", providerId.toLowerCase())
-    .eq("model_id", modelId)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!error && data) {
-    const multiplier = asNumber(
-      (data as { credit_multiplier?: number }).credit_multiplier,
-      NaN,
-    );
-    if (Number.isFinite(multiplier) && multiplier > 0) {
-      return multiplier;
-    }
-  }
-
-  return getModelCreditMultiplier(providerId, modelId);
-}
-
 export async function resolveCreditMultiplier(
-  client: AppSupabaseClient,
-  providerId: string,
-  modelId: string,
+  _client: AppSupabaseClient,
+  _providerId: string,
+  _modelId: string,
 ): Promise<number> {
-  return loadMultiplier(client, providerId, modelId);
+  return getAgentsModelCreditRates().outputCreditsPerToken;
 }
 
 /**
@@ -365,40 +378,41 @@ export async function getCreditBalance(
 export async function estimateRunCredits(
   client: AppSupabaseClient,
   body: CreateSessionRequest,
-  costSource: ProviderCostSource,
 ): Promise<number> {
-  if (costSource === "self_pay") {
-    return 0;
-  }
-
-  const config = await getPlanCreditConfig(client, "hosted");
+  const config = await getPlanCreditConfig(client, "pro");
   const depthKey = String(body.researchDepth);
   const tokensByDepth = config.estimated_tokens_by_depth ?? DEFAULT_ESTIMATED_TOKENS;
   const baseTokens = asNumber(tokensByDepth[depthKey], DEFAULT_ESTIMATED_TOKENS[depthKey] ?? 250_000);
   const analystFactor = Math.max(1, (body.analysts?.length ?? 4) / 4);
 
   const thinkLlm = resolveThinkLlm(body);
-  const thinkMult = await loadMultiplier(client, body.llmProvider, thinkLlm);
+  const estimatedCredits = estimateAgentsModelCreditsFromTokenVolume(
+    baseTokens * analystFactor,
+  );
 
-  return Math.round(baseTokens * analystFactor * thinkMult);
+  console.info("[credits] preflight estimate", {
+    researchDepth: body.researchDepth,
+    analysts: body.analysts?.length ?? 0,
+    thinkLlm,
+    baseTokens,
+    analystFactor,
+    estimatedCredits,
+  });
+
+  return estimatedCredits;
 }
 
-/** Typical follow-up chat turn (~8k tokens) × model multiplier. */
+/** Typical follow-up chat turn (~8k tokens) at the usual in/out mix. */
 const DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE = 8_000;
 
 export async function estimateFollowUpCredits(
-  client: AppSupabaseClient,
-  input: {
+  _client: AppSupabaseClient,
+  _input: {
     llmProvider: string;
     thinkLlm: string;
-    costSource: ProviderCostSource;
   },
 ): Promise<number> {
-  if (input.costSource === "self_pay") {
-    return 0;
-  }
-  const thinkMult = await loadMultiplier(client, input.llmProvider, input.thinkLlm);
-  return Math.round(DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE * thinkMult);
+  return estimateAgentsModelCreditsFromTokenVolume(DEFAULT_FOLLOW_UP_TOKEN_ESTIMATE);
 }
 
 /**
@@ -414,10 +428,9 @@ export async function assertHostedCreditsForFollowUp(
   input: {
     llmProvider: string;
     thinkLlm: string;
-    costSource: ProviderCostSource;
   },
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted" || input.costSource !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id)) {
     return { allowed: true, code: "not_hosted" };
   }
 
@@ -482,7 +495,7 @@ export async function assertHostedFollowUpInFlightWithinBalance(
   >,
   input: { llmProvider: string; thinkLlm: string },
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id)) {
     return { allowed: true, code: "not_hosted" };
   }
 
@@ -546,9 +559,8 @@ async function sumInFlightHostedCreditReservations(
   const sessionIds = new Set(sessions.map((session) => session.id));
   const { data: cursors, error: cursorError } = await client
     .from("session_usage_cursors")
-    .select("session_id, cost_source, credits_charged")
-    .eq("user_id", userId)
-    .eq("cost_source", "hosted");
+    .select("session_id, credits_charged")
+    .eq("user_id", userId);
 
   if (cursorError) {
     throw new Error(`session_usage_cursors in-flight read failed: ${cursorError.message}`);
@@ -557,7 +569,6 @@ async function sumInFlightHostedCreditReservations(
   const hostedBySession = new Map(
     ((cursors ?? []) as Array<{
       session_id: string;
-      cost_source: string;
       credits_charged: number;
     }>)
       .filter((row) => sessionIds.has(row.session_id))
@@ -570,7 +581,7 @@ async function sumInFlightHostedCreditReservations(
     if (charged == null) {
       continue;
     }
-    const estimated = await estimateRunCredits(client, session.config, "hosted");
+    const estimated = await estimateRunCredits(client, session.config);
     reserved += Math.max(0, estimated - charged);
   }
   return reserved;
@@ -611,9 +622,8 @@ async function sumInFlightFollowUpReservations(
 
   const { data: cursors, error: cursorError } = await client
     .from("session_usage_cursors")
-    .select("session_id, cost_source, credits_charged, usage_kind")
-    .eq("user_id", userId)
-    .eq("cost_source", "hosted");
+    .select("session_id, credits_charged, usage_kind")
+    .eq("user_id", userId);
 
   if (cursorError) {
     throw new Error(`session_usage_cursors follow-up read failed: ${cursorError.message}`);
@@ -622,7 +632,6 @@ async function sumInFlightFollowUpReservations(
   const estimate = await estimateFollowUpCredits(client, {
     llmProvider: input.llmProvider,
     thinkLlm: input.thinkLlm,
-    costSource: "hosted",
   });
 
   const hostedFollowUp = new Map(
@@ -643,7 +652,6 @@ async function sumInFlightFollowUpReservations(
   for (const sessionId of sessionIds) {
     const charged = hostedFollowUp.get(sessionId);
     if (charged == null) {
-      // Streaming chat without a hosted cursor is self_pay / not our reservation.
       continue;
     }
     reserved += Math.max(0, estimate - charged);
@@ -663,7 +671,7 @@ export async function assertHostedInFlightWithinBalance(
     "plan_id" | "current_period_start" | "current_period_end"
   >,
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id)) {
     return { allowed: true, code: "not_hosted" };
   }
 
@@ -700,14 +708,13 @@ export async function assertHostedCreditsForNewRun(
     "plan_id" | "current_period_start" | "current_period_end"
   >,
   body: CreateSessionRequest,
-  costSource: ProviderCostSource,
 ): Promise<CreditGateResult> {
-  if (subscription.plan_id !== "hosted" || costSource !== "hosted") {
+  if (!isBillingPlanId(subscription.plan_id)) {
     return { allowed: true, code: "not_hosted" };
   }
 
   const balance = await getCreditBalance(client, userId, subscription);
-  const estimatedCredits = await estimateRunCredits(client, body, costSource);
+  const estimatedCredits = await estimateRunCredits(client, body);
   const inFlightReserved = await sumInFlightHostedCreditReservations(client, userId);
   const { period, remaining, totalAllowance, blockRatio } = balance;
   const available = Math.max(0, remaining - inFlightReserved);
@@ -873,6 +880,64 @@ async function chargeCredits(
   };
 }
 
+/**
+ * After the background meter deletes the in-flight cursor, later stats frames
+ * (and completed-run replays) must still report the credits already written to
+ * usage_events — not 0.
+ */
+export async function getRecordedSessionMeter(
+  client: AppSupabaseClient,
+  input: {
+    sessionId: string;
+    userId: string;
+    subscription: Pick<
+      UserSubscriptionRow,
+      "plan_id" | "current_period_start" | "current_period_end"
+    > | null;
+  },
+): Promise<MeterStatsResult | null> {
+  const { data, error } = await client
+    .from("usage_events")
+    .select("billable_units")
+    .eq("session_id", input.sessionId)
+    .eq("user_id", input.userId);
+
+  if (error) {
+    throw new Error(`usage_events read failed: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as Array<{
+    billable_units: number;
+  }>;
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const sessionCredits = rows.reduce(
+    (sum, row) => sum + asNumber(row.billable_units),
+    0,
+  );
+  let remaining: number | null = null;
+  let totalAllowance: number | null = null;
+  let usedRatio: number | null = null;
+  if (input.subscription) {
+    const balance = await getCreditBalance(client, input.userId, input.subscription);
+    remaining = balance.remaining;
+    totalAllowance = balance.totalAllowance;
+    usedRatio = balance.usedRatio;
+  }
+
+  return {
+    chargedCredits: 0,
+    sessionCredits,
+    remaining,
+    totalAllowance,
+    usedRatio,
+    exhausted: false,
+    shouldWarn: false,
+  };
+}
+
 export async function initSessionUsageCursor(
   client: AppSupabaseClient,
   input: {
@@ -881,7 +946,6 @@ export async function initSessionUsageCursor(
     providerId: string;
     quickModelId: string;
     deepModelId: string;
-    costSource: ProviderCostSource;
     usageKind?: "analysis_run" | "follow_up";
   },
 ): Promise<void> {
@@ -893,7 +957,6 @@ export async function initSessionUsageCursor(
       provider_id: input.providerId.toLowerCase(),
       quick_model_id: input.quickModelId,
       deep_model_id: input.deepModelId,
-      cost_source: input.costSource,
       usage_kind: input.usageKind ?? "analysis_run",
       last_tokens_in: 0,
       last_tokens_out: 0,
@@ -937,6 +1000,10 @@ export async function meterSessionStats(
     throw new Error(`session_usage_cursors read failed: ${cursorError.message}`);
   }
   if (!cursorData) {
+    const recorded = await getRecordedSessionMeter(client, input);
+    if (recorded) {
+      return recorded;
+    }
     return {
       chargedCredits: 0,
       sessionCredits: 0,
@@ -945,33 +1012,24 @@ export async function meterSessionStats(
       usedRatio: null,
       exhausted: false,
       shouldWarn: false,
-      costSource: "self_pay",
     };
   }
 
   const cursor = cursorData as SessionUsageCursorRow;
-  const costSource = (
-    cursor.cost_source === "hosted" ? "hosted" : "self_pay"
-  ) as ProviderCostSource;
 
   const tokensIn = Math.max(0, Math.floor(input.tokensIn));
   const tokensOut = Math.max(0, Math.floor(input.tokensOut));
-  const modelId = cursor.deep_model_id || cursor.quick_model_id;
-  const multiplier = await loadMultiplier(client, cursor.provider_id, modelId);
+  const rates = getAgentsModelCreditRates();
 
-  let periodId: number | null = null;
-  let warnRatio = 0.1;
-  if (costSource === "hosted") {
-    if (!input.subscription) {
-      throw new Error("hosted metering requires an active subscription period");
-    }
-    const balance = await getCreditBalance(client, input.userId, input.subscription);
-    if (balance.period.user_id !== input.userId) {
-      throw new Error("credit period user mismatch");
-    }
-    periodId = balance.period.id;
-    warnRatio = balance.warnRatio;
+  if (!input.subscription) {
+    throw new Error("metering requires an active subscription period");
   }
+  const balance = await getCreditBalance(client, input.userId, input.subscription);
+  if (balance.period.user_id !== input.userId) {
+    throw new Error("credit period user mismatch");
+  }
+  const periodId = balance.period.id;
+  const warnRatio = balance.warnRatio;
 
   const { data: rpcData, error: rpcError } = await client.rpc("meter_session_usage", {
     p_session_id: input.sessionId,
@@ -979,32 +1037,23 @@ export async function meterSessionStats(
     p_tokens_in: tokensIn,
     p_tokens_out: tokensOut,
     p_period_id: periodId,
-    p_credit_multiplier: multiplier,
+    p_input_credits_per_token: rates.inputCreditsPerToken,
+    p_output_credits_per_token: rates.outputCreditsPerToken,
     p_warn_ratio: warnRatio,
   });
 
-  if (!rpcError && Array.isArray(rpcData) && rpcData[0]) {
-    const row = rpcData[0] as {
-      charged_credits: number;
-      session_credits: number;
-      remaining_credits: number | null;
-      total_allowance: number | null;
-      used_ratio: number | null;
-      exhausted: boolean;
-      should_warn: boolean;
-      warn_message: string | null;
-      cost_source: string;
-    };
+  const rpcRow = !rpcError ? firstRpcRow<MeterRpcRow>(rpcData) : null;
+  if (rpcRow) {
+    const remainingRaw = rpcRow.remaining_credits ?? rpcRow.remaining;
     return {
-      chargedCredits: asNumber(row.charged_credits),
-      sessionCredits: asNumber(row.session_credits),
-      remaining: row.remaining_credits == null ? null : asNumber(row.remaining_credits),
-      totalAllowance: row.total_allowance == null ? null : asNumber(row.total_allowance),
-      usedRatio: row.used_ratio == null ? null : asNumber(row.used_ratio),
-      exhausted: Boolean(row.exhausted),
-      shouldWarn: Boolean(row.should_warn),
-      warnMessage: row.warn_message ?? undefined,
-      costSource: row.cost_source === "hosted" ? "hosted" : "self_pay",
+      chargedCredits: asNumber(rpcRow.charged_credits),
+      sessionCredits: asNumber(rpcRow.session_credits ?? rpcRow.credits_charged),
+      remaining: remainingRaw == null ? null : asNumber(remainingRaw),
+      totalAllowance: rpcRow.total_allowance == null ? null : asNumber(rpcRow.total_allowance),
+      usedRatio: rpcRow.used_ratio == null ? null : asNumber(rpcRow.used_ratio),
+      exhausted: Boolean(rpcRow.exhausted),
+      shouldWarn: Boolean(rpcRow.should_warn),
+      warnMessage: rpcRow.warn_message ?? undefined,
     };
   }
 
@@ -1017,10 +1066,10 @@ export async function meterSessionStats(
   // Test-only non-atomic path (in-memory without the SQL function).
   return meterSessionStatsLegacyFallback(client, {
     cursor,
-    costSource,
     tokensIn,
     tokensOut,
-    multiplier,
+    inputCreditsPerToken: rates.inputCreditsPerToken,
+    outputCreditsPerToken: rates.outputCreditsPerToken,
     periodId,
     warnRatio,
     userId: input.userId,
@@ -1034,11 +1083,11 @@ async function meterSessionStatsLegacyFallback(
   client: AppSupabaseClient,
   input: {
     cursor: SessionUsageCursorRow;
-    costSource: ProviderCostSource;
     tokensIn: number;
     tokensOut: number;
-    multiplier: number;
-    periodId: number | null;
+    inputCreditsPerToken: number;
+    outputCreditsPerToken: number;
+    periodId: number;
     warnRatio: number;
     userId: string;
     sessionId: string;
@@ -1048,7 +1097,7 @@ async function meterSessionStatsLegacyFallback(
     > | null;
   },
 ): Promise<MeterStatsResult> {
-  const { cursor, costSource } = input;
+  const { cursor } = input;
   const deltaIn = Math.max(0, input.tokensIn - cursor.last_tokens_in);
   const deltaOut = Math.max(0, input.tokensOut - cursor.last_tokens_out);
   const modelId = cursor.deep_model_id || cursor.quick_model_id;
@@ -1057,7 +1106,7 @@ async function meterSessionStatsLegacyFallback(
     let remaining: number | null = null;
     let totalAllowance: number | null = null;
     let usedRatio: number | null = null;
-    if (costSource === "hosted" && input.subscription) {
+    if (input.subscription) {
       const balance = await getCreditBalance(client, input.userId, input.subscription);
       remaining = balance.remaining;
       totalAllowance = balance.totalAllowance;
@@ -1071,12 +1120,12 @@ async function meterSessionStatsLegacyFallback(
       usedRatio,
       exhausted: false,
       shouldWarn: false,
-      costSource,
     };
   }
 
-  const deltaCredits =
-    costSource === "hosted" ? Math.round((deltaIn + deltaOut) * input.multiplier) : 0;
+  const deltaCredits = Math.round(
+    deltaIn * input.inputCreditsPerToken + deltaOut * input.outputCreditsPerToken,
+  );
 
   let remaining: number | null = null;
   let totalAllowance: number | null = null;
@@ -1086,49 +1135,46 @@ async function meterSessionStatsLegacyFallback(
   let warnMessage: string | undefined;
   let chargedCredits = 0;
 
-  if (costSource === "hosted" && input.periodId != null) {
-    const charge = await chargeCredits(client, input.periodId, deltaCredits);
-    remaining = charge.remaining_credits;
-    totalAllowance = charge.total_allowance;
-    usedRatio =
-      charge.total_allowance > 0
-        ? Math.min(1, charge.used_credits / charge.total_allowance)
-        : 1;
-    chargedCredits = charge.allowed
-      ? deltaCredits
-      : Math.max(0, charge.total_allowance - (charge.used_credits - 0));
-    // Soft overshoot: if not allowed, charge remaining via a second call of 0 — already rejected.
-    if (!charge.allowed) {
-      const leftover = charge.remaining_credits;
-      if (leftover > 0) {
-        const partial = await chargeCredits(client, input.periodId, leftover);
-        chargedCredits = partial.allowed ? leftover : 0;
-        remaining = partial.remaining_credits;
-        totalAllowance = partial.total_allowance;
-        usedRatio =
-          partial.total_allowance > 0
-            ? Math.min(1, partial.used_credits / partial.total_allowance)
-            : 1;
-      } else {
-        chargedCredits = 0;
-      }
-      exhausted = true;
+  const charge = await chargeCredits(client, input.periodId, deltaCredits);
+  remaining = charge.remaining_credits;
+  totalAllowance = charge.total_allowance;
+  usedRatio =
+    charge.total_allowance > 0
+      ? Math.min(1, charge.used_credits / charge.total_allowance)
+      : 1;
+  chargedCredits = charge.allowed
+    ? deltaCredits
+    : Math.max(0, charge.total_allowance - (charge.used_credits - 0));
+  if (!charge.allowed) {
+    const leftover = charge.remaining_credits;
+    if (leftover > 0) {
+      const partial = await chargeCredits(client, input.periodId, leftover);
+      chargedCredits = partial.allowed ? leftover : 0;
+      remaining = partial.remaining_credits;
+      totalAllowance = partial.total_allowance;
+      usedRatio =
+        partial.total_allowance > 0
+          ? Math.min(1, partial.used_credits / partial.total_allowance)
+          : 1;
     } else {
-      exhausted = charge.remaining_credits <= 0;
+      chargedCredits = 0;
     }
+    exhausted = true;
+  } else {
+    exhausted = charge.remaining_credits <= 0;
+  }
 
-    if (exhausted) {
-      await markPeriodBlocked(client, input.periodId);
-    } else if (
-      !cursor.low_credit_warned &&
-      totalAllowance != null &&
-      totalAllowance > 0 &&
-      remaining != null &&
-      remaining / totalAllowance <= input.warnRatio
-    ) {
-      shouldWarn = true;
-      warnMessage = `Compute credits are running low — ${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()} remaining this period.`;
-    }
+  if (exhausted) {
+    await markPeriodBlocked(client, input.periodId);
+  } else if (
+    !cursor.low_credit_warned &&
+    totalAllowance != null &&
+    totalAllowance > 0 &&
+    remaining != null &&
+    remaining / totalAllowance <= input.warnRatio
+  ) {
+    shouldWarn = true;
+    warnMessage = `Compute credits are running low — ${remaining.toLocaleString()} of ${totalAllowance.toLocaleString()} remaining this period.`;
   }
 
   const { error: eventError } = await client.from("usage_events").insert({
@@ -1138,8 +1184,7 @@ async function meterSessionStatsLegacyFallback(
     model_id: modelId,
     tokens_in: deltaIn,
     tokens_out: deltaOut,
-    billable_units: costSource === "hosted" ? chargedCredits : 0,
-    cost_source: costSource,
+    billable_units: chargedCredits,
     usage_kind: cursor.usage_kind ?? "analysis_run",
     credit_period_id: input.periodId,
     created_at: new Date().toISOString(),
@@ -1174,25 +1219,18 @@ async function meterSessionStatsLegacyFallback(
     exhausted,
     shouldWarn,
     warnMessage,
-    costSource,
   };
 }
 
-/** Billable units helper that prefers DB multipliers when available. */
+/** Billable units helper. Product traffic always uses Agents Model rates. */
 export async function computeCreditsWithDbMultiplier(
-  client: AppSupabaseClient,
+  _client: AppSupabaseClient,
   input: {
     tokensIn: number;
     tokensOut: number;
     providerId: string;
     modelId: string;
-    costSource: ProviderCostSource;
   },
 ): Promise<number> {
-  if (input.costSource === "self_pay") {
-    return 0;
-  }
-  const multiplier = await loadMultiplier(client, input.providerId, input.modelId);
-  const raw = Math.max(0, input.tokensIn) + Math.max(0, input.tokensOut);
-  return Math.round(raw * multiplier);
+  return computeAgentsModelCredits(input.tokensIn, input.tokensOut);
 }

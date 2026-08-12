@@ -12,7 +12,6 @@ import PaperThemeLock from "@/components/PaperThemeLock";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import SiteShell, { SiteShellMain } from "@/components/SiteShell";
-import { UserSessionProvider } from "@/context/UserSessionContext";
 import { applyThemeToDocument, readStoredThemeId } from "@/lib/theme-store";
 
 interface MarketingLayoutChromeProps {
@@ -32,13 +31,11 @@ export default function MarketingLayoutChrome({ children }: MarketingLayoutChrom
 
   if (useAppChrome) {
     return (
-      <UserSessionProvider>
-        <SiteShell>
-          <SiteHeader />
-          <SiteShellMain>{children}</SiteShellMain>
-          <SiteFooter />
-        </SiteShell>
-      </UserSessionProvider>
+      <SiteShell>
+        <SiteHeader />
+        <SiteShellMain>{children}</SiteShellMain>
+        <SiteFooter />
+      </SiteShell>
     );
   }
 

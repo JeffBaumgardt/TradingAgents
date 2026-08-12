@@ -29,7 +29,7 @@ function sessionFixture(
     // Omit subscription id so unit tests do not call Stripe to load period dates.
     subscription: null,
     metadata: {
-      planId: "byok",
+      planId: "standard",
       interval: "monthly",
       userId: "user_abc",
     },
@@ -45,7 +45,7 @@ describe("stripe-webhook-service", () => {
     assert.equal(result.activated, true);
     const account = await getBillingAccount(client, "user_abc");
     assert.equal(account.subscription.status, "active");
-    assert.equal(account.subscription.planId, "byok");
+    assert.equal(account.subscription.planId, "standard");
     assert.equal(account.subscription.interval, "monthly");
   });
 
@@ -75,7 +75,7 @@ describe("stripe-webhook-service", () => {
       client,
       sessionFixture({
         client_reference_id: null,
-        metadata: { planId: "byok", interval: "monthly" },
+        metadata: { planId: "standard", interval: "monthly" },
       }),
     );
     assert.equal(missingUser.activated, false);
@@ -93,7 +93,7 @@ describe("stripe-webhook-service", () => {
     const client = createInMemorySupabase();
     await activatePaidSubscription(client, {
       userId: "user_abc",
-      planId: "byok",
+      planId: "standard",
       interval: "monthly",
       status: "active",
       currentPeriodStart: "2026-07-01T00:00:00.000Z",
@@ -113,7 +113,7 @@ describe("stripe-webhook-service", () => {
           status: "canceled",
           customer: "cus_abc",
           cancel_at_period_end: false,
-          metadata: { planId: "byok", interval: "monthly" },
+          metadata: { planId: "standard", interval: "monthly" },
           items: { data: [] },
         },
       },
@@ -130,7 +130,7 @@ describe("stripe-webhook-service", () => {
     const client = createInMemorySupabase();
     await activatePaidSubscription(client, {
       userId: "user_abc",
-      planId: "byok",
+      planId: "standard",
       interval: "monthly",
       status: "active",
       currentPeriodStart: "2026-07-01T00:00:00.000Z",
@@ -150,7 +150,7 @@ describe("stripe-webhook-service", () => {
           status: "active",
           customer: "cus_abc",
           cancel_at_period_end: true,
-          metadata: { planId: "byok", interval: "monthly" },
+          metadata: { planId: "standard", interval: "monthly" },
           items: {
             data: [
               {
@@ -178,7 +178,7 @@ describe("stripe-webhook-service", () => {
     const client = createInMemorySupabase();
     await activatePaidSubscription(client, {
       userId: "user_abc",
-      planId: "hosted",
+      planId: "pro",
       interval: "monthly",
       status: "active",
       currentPeriodStart: "2026-07-01T00:00:00.000Z",

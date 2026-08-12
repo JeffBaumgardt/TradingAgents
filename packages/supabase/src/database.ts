@@ -22,6 +22,11 @@ export interface SessionRow {
   trade_check_json?: Record<string, unknown> | null;
   /** Set when soft-deleted; null means the session is visible. */
   deleted_on?: string | null;
+  /**
+   * Set when a Standard-plan report is soft-hidden after retention.
+   * Present for schema parity with the pivot migration; list filtering ships later.
+   */
+  archived_on?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -125,7 +130,6 @@ export interface UsageEventRow {
   tokens_in: number;
   tokens_out: number;
   billable_units: number;
-  cost_source: string;
   usage_kind?: string;
   credit_period_id: number | null;
   created_at: string;
@@ -137,7 +141,6 @@ export interface SessionUsageCursorRow {
   provider_id: string;
   quick_model_id: string;
   deep_model_id: string;
-  cost_source: string;
   usage_kind?: string;
   last_tokens_in: number;
   last_tokens_out: number;

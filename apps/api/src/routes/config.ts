@@ -2,12 +2,13 @@
  * apps/api/src/routes/config.ts
  *
  * Configuration discovery routes proxied to the Python agents-service.
- * Hosted-plan users may have no personal keys — mark hosted providers as
- * available in resolve responses without ever forwarding platform API keys.
- * Model catalogs use the public static list when the user has no BYOK key.
+ * Product plans use the platform Agents Model — provider availability is
+ * enriched for signed-in subscribers without forwarding platform API keys.
+ * Model catalogs use the public static list.
  */
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type {
   ModelMode,
   ProviderModelsResponse,
@@ -17,14 +18,11 @@ import { getModelCreditMultiplier } from "@tradingagents/api-types";
 import { getSupabaseAdmin } from "@tradingagents/supabase";
 import {
   fetchConfigOptions,
-  fetchCredentialsSchema,
-  fetchProviderModels,
   fetchProviderModelsPublic,
   resolveConfig,
 } from "../services/agents-client.js";
 import { getBillingAccount } from "../services/billing-account-service.js";
 import { getRequestUserId, requireUserId } from "../middleware/user-context.js";
-import { resolveRequestCredentials } from "../services/request-credentials.js";
 import { resolveCreditMultiplier } from "../services/credit-service.js";
 import { canonicalBackendUrlForProvider } from "../lib/provider-backend-urls.js";
 
@@ -40,10 +38,10 @@ function parseModelMode(value: unknown): ModelMode | null {
 }
 
 /**
- * Hosted subscribers can run without BYOK. Enrich resolve so the wizard sees
- * those providers — without decrypting or forwarding platform keys.
+ * Subscribers can run on the platform Agents Model. Enrich resolve so the
+ * wizard sees those providers — without decrypting or forwarding platform keys.
  */
-function enrichResolvedConfigForHostedPlan(
+function enrichResolvedConfigForProductPlan(
   resolved: ResolvedConfigResponse,
   hostedProviderIds: readonly string[],
 ): ResolvedConfigResponse {
@@ -89,7 +87,7 @@ function enrichResolvedConfigForHostedPlan(
 }
 
 async function enrichModelsWithCreditMultipliers(
-  c: Parameters<typeof resolveRequestCredentials>[0],
+  c: Context,
   provider: string,
   response: ProviderModelsResponse,
 ): Promise<ProviderModelsResponse> {
@@ -111,28 +109,25 @@ async function enrichModelsWithCreditMultipliers(
   return { ...response, models };
 }
 
-configRoutes.get("/config/credentials/schema", async (c) => {
-  const schema = await fetchCredentialsSchema();
-  return c.json(schema);
-});
-
 configRoutes.post("/config/resolve", requireUserId(), async (c) => {
   try {
-    // User BYOK only — never merge platform keys into this internal hop.
-    const userCredentials = (await resolveRequestCredentials(c)) ?? {};
+    // Never load personal keys. Resolve with empty credentials, then surface
+    // platform Agents Model providers for active product plans.
     const userId = getRequestUserId(c);
     const client = getSupabaseAdmin(c);
     const billing = await getBillingAccount(client, userId);
-    const isHostedPlan =
-      billing.subscription.planId === "hosted" &&
-      billing.subscription.status === "active";
+    const isProductPlan =
+      (billing.subscription.planId === "pro" ||
+        billing.subscription.planId === "standard") &&
+      (billing.subscription.status === "active" ||
+        billing.subscription.status === "trialing");
 
-    const resolved = await resolveConfig(userCredentials);
-    if (!isHostedPlan) {
+    const resolved = await resolveConfig({});
+    if (!isProductPlan) {
       return c.json(resolved);
     }
     return c.json(
-      enrichResolvedConfigForHostedPlan(resolved, billing.hostedProviderIds),
+      enrichResolvedConfigForProductPlan(resolved, billing.hostedProviderIds),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request";
@@ -159,26 +154,9 @@ configRoutes.post("/config/providers/:provider/models", requireUserId(), async (
   }
 
   try {
-    // Static catalogs do not need keys. Only forward the user's own BYOK —
-    // never decrypt platform keys just to list models.
-    const userCredentials = (await resolveRequestCredentials(c)) ?? {};
-    const providerKey = provider.toLowerCase();
-    const hasUserKey = Boolean(userCredentials[providerKey]?.apiKey?.trim());
-
-    const raw = hasUserKey
-      ? await fetchProviderModels(provider, mode, userCredentials)
-      : await fetchProviderModelsPublic(provider, mode);
+    const raw = await fetchProviderModelsPublic(provider, mode);
     return c.json(await enrichModelsWithCreditMultipliers(c, provider, raw));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed";
-    if (message.includes("403") || message.includes("No credentials")) {
-      try {
-        const raw = await fetchProviderModelsPublic(provider, mode);
-        return c.json(await enrichModelsWithCreditMultipliers(c, provider, raw));
-      } catch {
-        return c.json({ error: "No credentials for this provider" }, 403);
-      }
-    }
+  } catch {
     return c.json({ error: `Unknown provider: ${provider}` }, 404);
   }
 });

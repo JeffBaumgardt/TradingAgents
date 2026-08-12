@@ -7,7 +7,7 @@
 
 import type { KeyboardEvent } from "react";
 import type { CreateSessionRequest, ResearchDepth, Session } from "@tradingagents/api-types";
-import { ANALYST_AGENT_NAMES, resolveThinkLlm } from "@tradingagents/api-types";
+import { ANALYST_AGENT_NAMES } from "@tradingagents/api-types";
 import styles from "./RunSettingsPanel.module.css";
 
 const RESEARCH_DEPTH_LABELS: Record<ResearchDepth, string> = {
@@ -28,34 +28,16 @@ function formatAnalysisDate(dateStr: string): string {
   });
 }
 
-function formatProviderLabel(provider: string): string {
-  const labels: Record<string, string> = {
-    openai: "OpenAI",
-    google: "Google",
-    anthropic: "Anthropic",
-    xai: "xAI",
-  };
-  return labels[provider.toLowerCase()] ?? provider;
+function formatProviderLabel(_provider: string): string {
+  return "Agents Model";
 }
 
 function providerConfigRows(config: CreateSessionRequest): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = [];
 
-  if (config.googleThinkingLevel) {
-    rows.push({
-      label: "Gemini thinking",
-      value: config.googleThinkingLevel === "high" ? "Enabled" : "Minimal",
-    });
-  }
-  if (config.openaiReasoningEffort) {
-    rows.push({
-      label: "OpenAI reasoning effort",
-      value: config.openaiReasoningEffort,
-    });
-  }
   if (config.anthropicEffort) {
     rows.push({
-      label: "Claude effort",
+      label: "Efficiency",
       value: config.anthropicEffort,
     });
   }
@@ -147,12 +129,8 @@ export default function RunSettingsPanel({
             <dd>{RESEARCH_DEPTH_LABELS[config.researchDepth]}</dd>
           </div>
           <div className={styles.row}>
-            <dt>LLM provider</dt>
-            <dd>{formatProviderLabel(config.llmProvider)}</dd>
-          </div>
-          <div className={styles.row}>
             <dt>Model</dt>
-            <dd>{resolveThinkLlm(config) || "—"}</dd>
+            <dd>Agents Model</dd>
           </div>
           {extraProviderRows.map((row) => (
             <div key={row.label} className={styles.row}>

@@ -45,6 +45,7 @@ import {
   truncateText,
 } from "@tradingagents/utils";
 import {
+  fetchBillingAccount,
   fetchSession,
   fetchSessionEvents,
   fetchSessionReport,
@@ -80,6 +81,20 @@ interface RunStats {
   computeCredits: number | null;
   remainingComputeCredits: number | null;
   elapsedSeconds: number;
+}
+
+/** Session credits only increase. A late 0 after the meter cursor is deleted must not wipe the total. */
+function nextSessionComputeCredits(
+  previous: number | null,
+  incoming: number | undefined,
+): number | null {
+  if (typeof incoming !== "number" || !Number.isFinite(incoming)) {
+    return previous;
+  }
+  if (previous == null) {
+    return incoming;
+  }
+  return Math.max(previous, incoming);
 }
 
 interface RunErrorState {
@@ -243,6 +258,8 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
   const [connected, setConnected] = useState(false);
   /** Owner-only sections (pipeline, messages, stats, feedback) after events load. */
   const [hasPrivateAccess, setHasPrivateAccess] = useState(false);
+  /** Pro (and Pro trial) may share report links; Standard cannot. */
+  const [canShareLink, setCanShareLink] = useState(false);
   const [usesLiveStream, setUsesLiveStream] = useState(
     initialSession ? isLiveSessionStatus(initialSession.status) : true,
   );
@@ -356,6 +373,29 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasPrivateAccess) {
+      setCanShareLink(false);
+      return;
+    }
+    let cancelled = false;
+    void fetchBillingAccount()
+      .then((account) => {
+        if (cancelled) {
+          return;
+        }
+        setCanShareLink(Boolean(account.features?.shareReports));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCanShareLink(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPrivateAccess]);
 
   function touchActivity() {
     setLastActivityAt(Date.now());
@@ -527,10 +567,10 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           toolCalls: payload.tool_calls,
           tokensIn: payload.tokens_in,
           tokensOut: payload.tokens_out,
-          computeCredits:
-            typeof payload.compute_credits === "number"
-              ? payload.compute_credits
-              : prev.computeCredits,
+          computeCredits: nextSessionComputeCredits(
+            prev.computeCredits,
+            payload.compute_credits,
+          ),
           remainingComputeCredits:
             typeof payload.remaining_compute_credits === "number"
               ? payload.remaining_compute_credits
@@ -1235,6 +1275,7 @@ export default function RunView({ sessionId, initialSession }: RunViewProps) {
           sessionId={sessionId}
           ticker={sessionMeta?.config.ticker ?? "Analysis"}
           canShareDigest={Boolean(tradeCheckReport)}
+          canShareLink={canShareLink}
         />
       ) : null}
 

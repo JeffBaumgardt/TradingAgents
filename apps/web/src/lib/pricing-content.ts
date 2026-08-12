@@ -5,10 +5,12 @@
  * Plan cents / names come from `@tradingagents/api-types` (BILLING_CATALOG) so
  * the API and UI cannot drift.
  *
- * Model (industry hybrid pattern):
- * - BYOK + flat platform fee covers app infra (compute, storage, orchestration).
- * - Hosted keys is a higher all-in tier with a curated multi-model catalog.
- * - Annual billing is 20% off the monthly rate (billed up front).
+ * Model:
+ * - Standard ($9) — Agents Model, 1/3 Pro credits, no public report sharing
+ * - Pro ($19) — Agents Model, full credits, share by link
+ * - Both include a 14-day no-card free trial (default: Pro)
+ * - Annual billing is 20% off the monthly rate (billed up front)
+ * - Report retention automation for Standard is schema-ready, not enforced yet
  */
 
 import {
@@ -17,7 +19,9 @@ import {
   billingAnnualMonthlyEquivalentCents,
   billingAnnualTotalCents,
   getBillingPlan,
-  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  STANDARD_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  TRIAL_DAYS,
   isBillingInterval,
   isBillingPlanId,
   type BillingInterval,
@@ -36,6 +40,7 @@ export interface PricingPlan {
   ctaLabel: string;
   highlights: string[];
   bestFor: string;
+  recommended?: boolean;
 }
 
 export const ANNUAL_DISCOUNT_PERCENT = BILLING_ANNUAL_DISCOUNT_PERCENT;
@@ -49,52 +54,52 @@ export function formatUsdFromCents(cents: number): string {
   }).format(cents / 100);
 }
 
-/** Shared product capabilities available on every paid plan. */
+const STANDARD_CREDIT_LABEL = formatComputeCredits(
+  STANDARD_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+);
+const PRO_CREDIT_LABEL = formatComputeCredits(PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE);
+
 export const PRICING_SHARED_FEATURES = [
   {
-    title: "Detailed charts",
-    description: "Richer technical and market visuals inside every research run.",
+    title: "14-day free trial",
+    description: "No credit card required. Full access to the Agents Model while you try the product.",
   },
   {
-    title: "Share reports by link",
-    description: "Send a direct link so collaborators can review a completed report.",
+    title: "Agents Model included",
+    description:
+      "Every run uses our managed Agents Model — no provider keys to set up.",
   },
   {
-    title: "In-product feedback",
-    description: "Tell us what to improve without leaving the workspace.",
+    title: "Multi-agent research pipeline",
+    description: "Analysts, debate, risk, and portfolio management in one research run.",
   },
 ] as const;
 
-const BYOK_MONTHLY_LABEL = formatUsdFromCents(getBillingPlan("byok").monthlyPriceCents);
-const HOSTED_CREDIT_ALLOWANCE_LABEL = formatComputeCredits(
-  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
-);
-
 const PLAN_MARKETING: Record<
   BillingPlanId,
-  Pick<PricingPlan, "tagline" | "ctaLabel" | "bestFor" | "highlights">
+  Pick<PricingPlan, "tagline" | "ctaLabel" | "bestFor" | "highlights" | "recommended">
 > = {
-  byok: {
-    tagline: "Use your provider keys. We keep the research workspace online.",
-    ctaLabel: "Start with your keys",
-    bestFor: "Traders who already have OpenAI, Anthropic, or another provider account.",
+  standard: {
+    tagline: "Full research pipeline on a lighter monthly credit pool.",
+    ctaLabel: "Start free trial",
+    bestFor: "Traders getting started with multi-agent research and tighter budgets.",
     highlights: [
-      `Flat ${BYOK_MONTHLY_LABEL}/month platform fee — helps cover hosting and app infrastructure`,
-      "You pay model usage directly to your provider (no token markup from us)",
-      "Full multi-agent research pipeline",
-      ...PRICING_SHARED_FEATURES.map((feature) => feature.title),
+      `${STANDARD_CREDIT_LABEL} compute credits per month (1/3 of Pro)`,
+      "Agents Model — managed for you",
+      "Research depth + efficiency controls",
+      "Sharing by link available on Pro",
     ],
   },
-  hosted: {
-    tagline: "Skip key setup and pick from a wide catalog of models we operate.",
-    ctaLabel: "Start with hosted models",
-    bestFor: "Anyone who wants model choice without managing API keys.",
+  pro: {
+    tagline: "Full credit pool and share finished reports by link.",
+    ctaLabel: "Start free Pro trial",
+    bestFor: "Active traders who share reports and run deeper research regularly.",
+    recommended: true,
     highlights: [
-      `${HOSTED_CREDIT_ALLOWANCE_LABEL} compute credits per month for hosted model runs`,
-      "Wide array of models to choose from — no provider keys required",
-      "We handle routing, quotas, and provider credentials",
-      "Full multi-agent research pipeline",
-      ...PRICING_SHARED_FEATURES.map((feature) => feature.title),
+      `${PRO_CREDIT_LABEL} compute credits per month`,
+      "Agents Model — managed for you",
+      "Share finished reports by link",
+      "Research depth + efficiency controls",
     ],
   },
 };
@@ -108,54 +113,82 @@ export const PRICING_PLANS: PricingPlan[] = BILLING_CATALOG.map((plan) => ({
 }));
 
 export const PRICING_PAGE = {
-  eyebrow: "Simple pricing",
-  title: "Pay for the platform. Choose how models are billed.",
+  eyebrow: "14-day free trial · No credit card needed",
+  title: "One Agents Model. Two clear plans.",
   intro:
-    "Most AI tools either hide model costs in a high flat fee or force you to manage keys alone. We offer both: a low infrastructure fee when you bring your own key, or a hosted-models plan when you want a ready-made catalog.",
+    "Start free for 14 days — no credit card required. Every plan includes our managed Agents Model. Pick Standard for a lighter credit pool, or Pro for full credits and report sharing by link.",
   annualNote: `Annual billing saves ${ANNUAL_DISCOUNT_PERCENT}% versus paying month to month.`,
   provisionalNote:
-    "Hosted models includes a monthly compute credit allowance for platform-operated models. Payments run through Stripe Managed Payments Checkout.",
-  infraFraming: `The ${BYOK_MONTHLY_LABEL} Bring your own key plan is a platform fee — it helps pay for the servers, databases, and orchestration that run TradingAgents. Model tokens still bill to your provider.`,
+    "Credits combine prompt and response usage into one monthly balance. We only ask for a card when you subscribe after the free trial.",
+  infraFraming: `Both plans include a ${TRIAL_DAYS}-day free trial with no credit card (we default new users to Pro). Trial credits count toward your monthly allowance; subscribe with Stripe when the trial ends to keep running analyses.`,
 } as const;
 
 export function getPricingPlan(planId: BillingPlanId): PricingPlan {
-  const catalog = getBillingPlan(planId);
+  const plan = PRICING_PLANS.find((entry) => entry.id === planId);
+  if (!plan) {
+    throw new Error(`Unknown plan: ${planId}`);
+  }
+  return plan;
+}
+
+export function getPlanDisplayPrice(
+  planId: BillingPlanId,
+  interval: BillingInterval,
+): { label: string; sublabel: string | null } {
+  const plan = getBillingPlan(planId);
+  if (interval === "monthly") {
+    return {
+      label: formatUsdFromCents(plan.monthlyPriceCents),
+      sublabel: "per month",
+    };
+  }
+  const monthly = billingAnnualMonthlyEquivalentCents(plan.monthlyPriceCents);
+  const annual = billingAnnualTotalCents(plan.monthlyPriceCents);
   return {
-    id: catalog.id,
-    name: catalog.name,
-    monthlyPriceCents: catalog.monthlyPriceCents,
-    priceProvisional: catalog.priceProvisional,
-    ...PLAN_MARKETING[planId],
+    label: formatUsdFromCents(monthly),
+    sublabel: `per month, billed ${formatUsdFromCents(annual)} yearly`,
   };
 }
 
-export const annualTotalCents = billingAnnualTotalCents;
-export const annualMonthlyEquivalentCents = billingAnnualMonthlyEquivalentCents;
-
-export function buildCheckoutHref(planId: BillingPlanId, interval: BillingInterval): string {
-  const params = new URLSearchParams({
-    plan: planId,
-    interval,
-  });
-  return `/checkout?${params.toString()}`;
+export function annualTotalCents(monthlyPriceCents: number): number {
+  return billingAnnualTotalCents(monthlyPriceCents);
 }
 
-export { isBillingInterval, isBillingPlanId };
+export function annualMonthlyEquivalentCents(monthlyPriceCents: number): number {
+  return billingAnnualMonthlyEquivalentCents(monthlyPriceCents);
+}
 
-export function isPricingPlanId(value: string | null | undefined): value is BillingPlanId {
+export function displayPriceCents(
+  plan: { monthlyPriceCents: number },
+  interval: BillingInterval,
+): number {
+  if (interval === "monthly") {
+    return plan.monthlyPriceCents;
+  }
+  return annualMonthlyEquivalentCents(plan.monthlyPriceCents);
+}
+
+export function displayPriceCaption(
+  plan: { monthlyPriceCents: number },
+  interval: BillingInterval,
+): string {
+  if (interval === "monthly") {
+    return "Billed monthly";
+  }
+  return `Billed yearly (${formatUsdFromCents(annualTotalCents(plan.monthlyPriceCents))}/yr)`;
+}
+
+export function buildCheckoutHref(
+  planId: BillingPlanId,
+  interval: BillingInterval,
+): string {
+  return `/checkout?plan=${encodeURIComponent(planId)}&interval=${encodeURIComponent(interval)}`;
+}
+
+export function isPricingPlanId(
+  value: string | null | undefined,
+): value is BillingPlanId {
   return isBillingPlanId(value);
 }
 
-export function displayPriceCents(plan: PricingPlan, interval: BillingInterval): number {
-  if (interval === "annual") {
-    return annualMonthlyEquivalentCents(plan.monthlyPriceCents);
-  }
-  return plan.monthlyPriceCents;
-}
-
-export function displayPriceCaption(plan: PricingPlan, interval: BillingInterval): string {
-  if (interval === "annual") {
-    return `${formatUsdFromCents(annualTotalCents(plan.monthlyPriceCents))} billed yearly`;
-  }
-  return "Billed monthly";
-}
+export { isBillingInterval, isBillingPlanId, TRIAL_DAYS };

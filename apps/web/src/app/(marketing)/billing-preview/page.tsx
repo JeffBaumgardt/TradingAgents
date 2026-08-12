@@ -10,7 +10,7 @@ import { buildSampleBillingAccount } from "@/lib/billing-sample";
 
 export const metadata: Metadata = {
   title: "Billing UI preview — TradingAgents",
-  description: "Sample hosted billing and usage UI for design review.",
+  description: "Sample Standard/Pro billing and usage UI for design review.",
 };
 
 export default function BillingPreviewPage() {
@@ -23,12 +23,12 @@ export default function BillingPreviewPage() {
         Billing & usage (preview)
       </h1>
       <p className="muted pageIntro">
-        Public preview with sample hosted-plan data so reviewers can inspect the progress bar,
-        period reset, and provider/model breakdown without signing in.
+        Public preview with sample Pro-plan data so reviewers can inspect the progress bar, period
+        reset, and Agents Model usage without signing in.
       </p>
       <BillingAccountView
         account={buildSampleBillingAccount()}
-        previewBanner="Preview only — signed-in users see live scaffold data at /settings/billing."
+        previewBanner="Preview only — signed-in users see live data at /settings/billing."
       />
     </div>
   );

@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/app/(app)/settings/billing/page.tsx
- * Signed-in subscription and hosted usage profile.
+ * Signed-in subscription and Agents Model usage profile.
  */
 
 import type { Metadata } from "next";
@@ -9,7 +9,7 @@ import BillingPageContent from "@/components/BillingPageContent";
 
 export const metadata: Metadata = {
   title: "Billing — TradingAgents",
-  description: "View your TradingAgents subscription and hosted model usage.",
+  description: "View your TradingAgents subscription and Agents Model credit usage.",
 };
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,8 @@ export default function BillingSettingsPage() {
       </div>
       <h1 className="pageTitle">Billing & usage</h1>
       <p className="muted pageIntro">
-        See your plan, when the billing period resets, and how hosted model usage compares to runs
-        on your own API keys.
+        See your plan, trial or billing period reset, and how Agents Model usage counts against your
+        monthly compute credits.
       </p>
       <BillingPageContent />
     </>

@@ -9,7 +9,7 @@ import { ENCRYPTED_VALUE_PREFIX } from "../lib/credentials-encryption.js";
 import { TEST_CREDENTIALS_ENCRYPTION_KEY } from "../lib/test-credentials-encryption-key.js";
 import {
   getPlatformApiKeyPlaintext,
-  mergeHostedPlatformCredentials,
+  loadPlatformCredentials,
   resolveRunProviderCredentials,
   upsertPlatformApiKey,
 } from "./platform-keys-service.js";
@@ -52,69 +52,37 @@ describe("platform-keys-service", () => {
     assert.equal(await getPlatformApiKeyPlaintext(client, "openai"), "sk-platform-secret");
   });
 
-  it("prefers user BYOK keys (self_pay) over platform keys", async () => {
-    const client = createInMemorySupabase();
-    await upsertPlatformApiKey(client, {
-      providerId: "anthropic",
-      apiKey: "sk-platform",
-    });
-
-    const resolved = await resolveRunProviderCredentials(
-      client,
-      { anthropic: { apiKey: "sk-user" } },
-      {
-        isHostedPlan: true,
-        hostedProviderIds: ["anthropic"],
-        selectedProviderId: "anthropic",
-      },
-    );
-
-    assert.equal(resolved.costSource, "self_pay");
-    assert.equal(resolved.usedPlatformKey, false);
-    assert.equal(resolved.credentials.anthropic?.apiKey, "sk-user");
-  });
-
-  it("injects platform keys for hosted providers without user keys", async () => {
+  it("injects platform keys for product providers", async () => {
     const client = createInMemorySupabase();
     await upsertPlatformApiKey(client, {
       providerId: "openai",
       apiKey: "sk-platform-openai",
     });
 
-    const resolved = await resolveRunProviderCredentials(
-      client,
-      {},
-      {
-        isHostedPlan: true,
-        hostedProviderIds: ["openai"],
-        selectedProviderId: "openai",
-      },
-    );
+    const resolved = await resolveRunProviderCredentials(client, {
+      isHostedPlan: true,
+      hostedProviderIds: ["openai"],
+      selectedProviderId: "openai",
+    });
 
-    assert.equal(resolved.costSource, "hosted");
     assert.equal(resolved.usedPlatformKey, true);
     assert.equal(resolved.credentials.openai?.apiKey, "sk-platform-openai");
   });
 
-  it("does not mark costSource hosted when the platform key row is missing", async () => {
+  it("does not inject credentials when the platform key row is missing", async () => {
     const client = createInMemorySupabase();
 
-    const resolved = await resolveRunProviderCredentials(
-      client,
-      {},
-      {
-        isHostedPlan: true,
-        hostedProviderIds: ["openai"],
-        selectedProviderId: "openai",
-      },
-    );
+    const resolved = await resolveRunProviderCredentials(client, {
+      isHostedPlan: true,
+      hostedProviderIds: ["openai"],
+      selectedProviderId: "openai",
+    });
 
-    assert.equal(resolved.costSource, "self_pay");
     assert.equal(resolved.usedPlatformKey, false);
     assert.equal(resolved.credentials.openai?.apiKey, undefined);
   });
 
-  it("merges platform keys across hosted providers for config resolve", async () => {
+  it("loads platform keys across providers for internal resolve", async () => {
     const client = createInMemorySupabase();
     await upsertPlatformApiKey(client, {
       providerId: "openai",
@@ -125,17 +93,14 @@ describe("platform-keys-service", () => {
       apiKey: "sk-platform-anthropic",
     });
 
-    const merged = await mergeHostedPlatformCredentials(
-      client,
-      { openai: { apiKey: "sk-user-openai" } },
-      {
-        isHostedPlan: true,
-        hostedProviderIds: ["openai", "anthropic", "google"],
-      },
-    );
+    const loaded = await loadPlatformCredentials(client, [
+      "openai",
+      "anthropic",
+      "google",
+    ]);
 
-    assert.equal(merged.openai?.apiKey, "sk-user-openai");
-    assert.equal(merged.anthropic?.apiKey, "sk-platform-anthropic");
-    assert.equal(merged.google, undefined);
+    assert.equal(loaded.openai?.apiKey, "sk-platform-openai");
+    assert.equal(loaded.anthropic?.apiKey, "sk-platform-anthropic");
+    assert.equal(loaded.google, undefined);
   });
 });

@@ -15,12 +15,15 @@ interface RunExportBarProps {
   sessionId: string;
   ticker: string;
   canShareDigest?: boolean;
+  /** When false, hide link sharing and show Pro upgrade CTA. */
+  canShareLink?: boolean;
 }
 
 export default function RunExportBar({
   sessionId,
   ticker,
   canShareDigest = false,
+  canShareLink = true,
 }: RunExportBarProps) {
   const { getToken } = useAuth();
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -103,9 +106,19 @@ export default function RunExportBar({
   return (
     <div className={styles.bar} data-print-hide="true">
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryButton} onClick={handleCopyLink}>
-          Copy link
-        </button>
+        {canShareLink ? (
+          <button type="button" className={styles.secondaryButton} onClick={handleCopyLink}>
+            Copy link
+          </button>
+        ) : (
+          <a
+            href="/checkout?plan=pro&interval=monthly"
+            className={styles.secondaryButton}
+            aria-label="Upgrade to Pro to share reports by link"
+          >
+            Share is Pro — upgrade
+          </a>
+        )}
         <button
           type="button"
           className={styles.secondaryButton}
@@ -132,8 +145,9 @@ export default function RunExportBar({
         </p>
       ) : (
         <p className={styles.hint}>
-          Download .md for a full prompt-ready export (research + chat). Share PNG
-          for the Trade Check digest.
+          {canShareLink
+            ? "Download .md for a full prompt-ready export (research + chat). Share PNG for the Trade Check digest."
+            : "Link sharing is a Pro feature. Download .md still works for owners. Upgrade to Pro to share by link."}
         </p>
       )}
     </div>

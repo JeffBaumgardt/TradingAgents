@@ -31,58 +31,18 @@ class ProviderDefinition(TypedDict):
     apiKeyUrl: str | None
 
 
-# Product-supported providers only (matches hosted catalog / HOSTED_PROVIDER_IDS).
+# Product-supported providers only (Anthropic Agents Model).
 PROVIDER_ENV_VARS: dict[str, dict[str, str]] = {
-    "openai": {"apiKey": "OPENAI_API_KEY"},
-    "google": {"apiKey": "GOOGLE_API_KEY"},
     "anthropic": {"apiKey": "ANTHROPIC_API_KEY"},
-    "xai": {"apiKey": "XAI_API_KEY"},
 }
 
 
 PROVIDER_API_KEY_URLS: dict[str, str] = {
-    "openai": "https://platform.openai.com/api-keys",
-    "google": "https://aistudio.google.com/apikey",
     "anthropic": "https://console.anthropic.com/settings/keys",
-    "xai": "https://console.x.ai/team/default/api-keys",
 }
 
 
 PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
-    {
-        "id": "openai",
-        "label": "OpenAI",
-        "backendUrl": "https://api.openai.com/v1",
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["openai"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "OpenAI API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": "sk-...",
-            },
-        ],
-    },
-    {
-        "id": "google",
-        "label": "Google (Gemini)",
-        "backendUrl": None,
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["google"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "Google API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": "AIza...",
-            },
-        ],
-    },
     {
         "id": "anthropic",
         "label": "Anthropic",
@@ -100,23 +60,6 @@ PROVIDER_DEFINITIONS: list[ProviderDefinition] = [
             },
         ],
     },
-    {
-        "id": "xai",
-        "label": "xAI",
-        "backendUrl": "https://api.x.ai/v1",
-        "requiresApiKey": True,
-        "modelSource": "static",
-        "apiKeyUrl": PROVIDER_API_KEY_URLS["xai"],
-        "credentialFields": [
-            {
-                "name": "apiKey",
-                "label": "xAI API Key",
-                "secret": True,
-                "required": True,
-                "placeholder": "xai-...",
-            },
-        ],
-    },
 ]
 
 
@@ -125,8 +68,8 @@ def get_credentials_schema() -> dict[str, Any]:
     return {
         "providers": PROVIDER_DEFINITIONS,
         "modelCatalogNote": (
-            "Supported providers use a curated static model list "
-            "(model_catalog.py) updated with releases."
+            "Product runs use the Agents Model (claude-sonnet-5) on Anthropic. "
+            "Platform credentials are injected by the API gateway."
         ),
     }
 

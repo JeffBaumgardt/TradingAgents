@@ -5,7 +5,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  costSourceLabel,
   creditSpendTierFromMultiplier,
   estimateTypicalRunsPerMonth,
   formatComputeCredits,
@@ -36,12 +35,9 @@ describe("billing-display", () => {
   });
 
   it("estimates typical monthly runs from a multiplier", () => {
-    assert.equal(estimateTypicalRunsPerMonth(2.3), 84);
-    assert.equal(estimateTypicalRunsPerMonth(16.5), 11);
+    assert.equal(estimateTypicalRunsPerMonth(2.3), 46);
+    assert.equal(estimateTypicalRunsPerMonth(16.5), 6);
   });
 
-  it("labels cost sources clearly", () => {
-    assert.equal(costSourceLabel("hosted"), "Hosted");
-    assert.equal(costSourceLabel("self_pay"), "Your key");
-  });
 });
+

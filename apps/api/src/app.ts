@@ -15,7 +15,6 @@ import { withSupabaseContext } from "./middleware/with-supabase.js";
 import { billingRoutes } from "./routes/billing.js";
 import { healthRoutes } from "./routes/health.js";
 import { configRoutes } from "./routes/config.js";
-import { credentialsRoutes } from "./routes/credentials.js";
 import { feedbackRoutes } from "./routes/feedback.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { userRoutes } from "./routes/users.js";
@@ -56,7 +55,6 @@ export function createApp() {
   // historically used use("*", requireUserId()) when mounted at "/".
   app.route("/", sessionRoutes);
   app.route("/", billingRoutes);
-  app.route("/", credentialsRoutes);
   app.route("/", userRoutes);
   app.route("/", feedbackRoutes);
 

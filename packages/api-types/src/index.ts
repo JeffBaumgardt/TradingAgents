@@ -3,7 +3,7 @@
  * TypeScript types aligned with packages/api-types/openapi.yaml.
  */
 
-/** Placeholder returned for stored secret credential fields (never the real value). */
+/** @deprecated Personal-key masking placeholder; product runs use platform keys only. */
 export const SECRET_CREDENTIAL_PLACEHOLDER = "********";
 
 export type AnalystType = "market" | "social" | "news" | "fundamentals";
@@ -192,10 +192,11 @@ export interface ProviderCredentialDefinition {
 }
 
 export interface StoredCredentialsResponse {
+  /** @deprecated Personal credentials storage removed. */
   providerCredentials: ProviderCredentials;
 }
 
-/** Per-provider credential values supplied for the current browser session. */
+/** Provider credential bags used on the API → agents-service hop only. */
 export type ProviderCredentials = Partial<
   Record<string, Record<string, string>>
 >;
@@ -221,7 +222,7 @@ export interface ResolvedConfigResponse extends ConfigOptions {
 export interface ModelOption {
   id: string;
   label: string;
-  /** Hosted compute-credit multiplier (tokens × this ≈ credits). */
+  /** @deprecated Product bills weighted input/output credits, not a single multiplier. */
   creditMultiplier?: number;
   capabilities?: {
     anthropicEffort?: boolean;
@@ -261,7 +262,7 @@ export interface CreateSessionRequest {
   openaiReasoningEffort?: "low" | "medium" | "high";
   anthropicEffort?: "low" | "medium" | "high";
   checkpointEnabled?: boolean;
-  /** Loaded server-side from stored user credentials; not accepted from clients. */
+  /** Injected server-side from platform keys for agents-service; never accepted from clients. */
   providerCredentials?: ProviderCredentials;
 }
 
@@ -496,7 +497,7 @@ export interface FeedbackResponse {
   ok: true;
 }
 
-export type BillingPlanId = "byok" | "hosted";
+export type BillingPlanId = "standard" | "pro";
 
 export type BillingInterval = "monthly" | "annual";
 
@@ -511,21 +512,27 @@ export interface BillingPlan {
 /** Shared annual discount applied to monthly list prices when billed yearly. */
 export const BILLING_ANNUAL_DISCOUNT_PERCENT = 20;
 
+/** Length of the no-card free trial for Standard and Pro. */
+export const TRIAL_DAYS = 14;
+
+/** Default plan used when auto-starting a trial. */
+export const DEFAULT_TRIAL_PLAN_ID: BillingPlanId = "pro";
+
 /**
  * Canonical subscription catalog — consumed by the API and marketing UI so
  * plan cents cannot drift between surfaces.
  */
 export const BILLING_CATALOG: readonly BillingPlan[] = [
   {
-    id: "byok",
-    name: "Bring your own key",
-    monthlyPriceCents: 300,
+    id: "standard",
+    name: "Standard",
+    monthlyPriceCents: 900,
     priceProvisional: false,
     annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
   },
   {
-    id: "hosted",
-    name: "Hosted models",
+    id: "pro",
+    name: "Pro",
     monthlyPriceCents: 1900,
     priceProvisional: false,
     annualDiscountPercent: BILLING_ANNUAL_DISCOUNT_PERCENT,
@@ -556,8 +563,20 @@ export interface CheckoutResponse {
   subscriptionActivated?: boolean;
 }
 
+/** Request body for POST /billing/trial/start. */
+export interface StartTrialRequest {
+  /** Defaults to {@link DEFAULT_TRIAL_PLAN_ID} when omitted. */
+  planId?: BillingPlanId;
+}
+
+export interface StartTrialResponse {
+  subscription: UserSubscription;
+  /** ISO timestamp when the free trial ends. */
+  trialEndsAt: string;
+}
+
 export function isBillingPlanId(value: string | null | undefined): value is BillingPlanId {
-  return value === "byok" || value === "hosted";
+  return value === "standard" || value === "pro";
 }
 
 export function isBillingInterval(
@@ -589,20 +608,57 @@ export function billingAnnualMonthlyEquivalentCents(
 }
 
 /**
- * Monthly hosted allowance in compute credits.
- * One credit ≈ one token at the margin-adjusted reference rate
- * (~$0.2667/1M output = $0.28/1.05).
- * Sized for ~15% of net revenue at the $19 hosted list price after Stripe fees.
+ * Monthly Pro compute-credit allowance.
+ * 10M credits ≈ 2M output tokens (1 input token = 1 credit, 1 output token = 5,
+ * then 5% platform margin). $19/mo is positioned 1:1 with a direct Anthropic
+ * monthly sub, with margin covering platform cost.
  */
-export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
+export const PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 10_000_000;
 
-/** @deprecated Use {@link HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE}. */
-export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
+/**
+ * Monthly Standard compute-credit allowance — exactly 1/3 of Pro.
+ */
+export const STANDARD_MONTHLY_COMPUTE_CREDIT_ALLOWANCE = 3_333_333;
 
-export type SubscriptionStatus = "none" | "active" | "canceled" | "past_due";
+/** @deprecated Use {@link PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE}. */
+export const HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE =
+  PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
 
-/** Who pays for model inference for a provider on a given run. */
-export type ProviderCostSource = "hosted" | "self_pay";
+/** @deprecated Use {@link PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE}. */
+export const HOSTED_MONTHLY_BILLABLE_ALLOWANCE = PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
+
+export function monthlyCreditAllowanceForPlan(planId: BillingPlanId): number {
+  return planId === "pro"
+    ? PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE
+    : STANDARD_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
+}
+
+/** Plan feature flags (sharing, retention messaging). */
+export interface PlanFeatures {
+  shareReports: boolean;
+  /** Days reports stay visible on this plan; null means full history. */
+  reportRetentionDays: number | null;
+}
+
+export function planFeaturesFor(planId: BillingPlanId | null): PlanFeatures {
+  if (planId === "pro") {
+    return { shareReports: true, reportRetentionDays: null };
+  }
+  // Standard soft-hide (archived_on) is schema-ready but not enforced yet;
+  // keep reportRetentionDays null so UI/marketing do not overpromise.
+  if (planId === "standard") {
+    return { shareReports: false, reportRetentionDays: null };
+  }
+  return { shareReports: false, reportRetentionDays: null };
+}
+
+export type SubscriptionStatus =
+  | "none"
+  | "trialing"
+  | "active"
+  | "canceled"
+  | "past_due"
+  | "expired";
 
 export interface UserSubscription {
   planId: BillingPlanId | null;
@@ -615,6 +671,10 @@ export interface UserSubscription {
    * Status stays `active` until the period ends; new runs remain allowed until then.
    */
   cancelAtPeriodEnd: boolean;
+  /** True when the current entitlement is a no-card free trial. */
+  isTrial?: boolean;
+  /** ISO timestamp when a free trial ends (same as period end while trialing). */
+  trialEndsAt?: string | null;
 }
 
 /** Response from POST /billing/subscription/cancel. */
@@ -630,18 +690,14 @@ export interface UsageModelBreakdown {
   modelId: string;
   /** Raw prompt + completion tokens observed. */
   tokensTotal: number;
-  /**
-   * Normalized compute credits that count toward the hosted allowance.
-   * Self-pay traffic is tracked in tokensTotal but contributes 0 here.
-   */
+  /** Normalized compute credits that count toward the plan allowance. */
   computeCredits: number;
   /**
-   * Output-cost multiplier vs the margin-adjusted credit reference rate
-   * (~$0.2667/1M output). Applied as: credits ≈ tokens × creditMultiplier.
+   * @deprecated Unused in product UI. Credits are input×1 + output×5 × margin,
+   * not tokens × a single multiplier.
    */
   creditMultiplier: number;
-  costSource: ProviderCostSource;
-  /** Share of hosted compute credits in the period (0–1). */
+  /** Share of compute credits in the period (0–1). */
   shareOfCredits: number;
 }
 
@@ -650,8 +706,6 @@ export interface UsageProviderBreakdown {
   providerLabel: string;
   tokensTotal: number;
   computeCredits: number;
-  selfPayTokens: number;
-  hostedTokens: number;
   shareOfCredits: number;
 }
 
@@ -676,24 +730,37 @@ export interface BillingUsageSummary {
    */
   blockedLowBalance: boolean;
   tokensTotal: number;
-  selfPayTokens: number;
-  hostedTokens: number;
   byProvider: UsageProviderBreakdown[];
   byModel: UsageModelBreakdown[];
 }
 
 export type {
+  AgentsModelCreditRates,
   HostedModelCostEntry,
   HostedModelProviderId,
 } from "./hosted-model-catalog.js";
 
 export {
+  AGENTS_MODEL_CREDIT_MULTIPLIER,
+  AGENTS_MODEL_DISPLAY_NAME,
+  AGENTS_MODEL_ID,
+  AGENTS_MODEL_INPUT_CREDITS_PER_TOKEN,
+  AGENTS_MODEL_INPUT_USD_PER_1M,
+  AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN,
+  AGENTS_MODEL_OUTPUT_USD_PER_1M,
+  AGENTS_MODEL_PROVIDER_ID,
+  AGENTS_MODEL_TYPICAL_OUTPUT_SHARE,
   COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M,
   COMPUTE_CREDIT_MARGIN,
   COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
   HOSTED_MODEL_CATALOG,
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,
+  PRODUCT_MODEL_CATALOG,
+  PRO_MONTHLY_OUTPUT_TOKEN_EQUIVALENT,
+  computeAgentsModelCredits,
   creditMultiplierFromOutputUsdPer1M,
+  estimateAgentsModelCreditsFromTokenVolume,
+  getAgentsModelCreditRates,
   getHostedModelCostEntry,
   getModelCreditMultiplier,
   listHostedModelCatalog,
@@ -703,8 +770,15 @@ export {
 export interface BillingAccountResponse {
   subscription: UserSubscription;
   usage: BillingUsageSummary | null;
-  /** Providers the user can run via platform keys when on hosted. */
+  /**
+   * Providers available via platform keys (always Anthropic for product runs).
+   * @deprecated Prefer Agents Model constants; retained for response shape stability.
+   */
   hostedProviderIds: string[];
+  /** Entitlements derived from the current plan (sharing, retention). */
+  features: PlanFeatures;
+  /** Product display name for the sole inference model. */
+  agentsModelDisplayName: string;
 }
 
 export interface AgentStatusEvent {
@@ -734,7 +808,7 @@ export interface StreamStatsEvent {
   tool_calls: number;
   tokens_in: number;
   tokens_out: number;
-  /** Hosted compute credits charged for this run so far (0 when self-pay). */
+  /** Compute credits charged for this run so far. */
   compute_credits?: number;
   /** Remaining hosted credits in the current billing period (hosted only). */
   remaining_compute_credits?: number;

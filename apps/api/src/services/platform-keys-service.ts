@@ -1,8 +1,8 @@
 /**
  * apps/api/src/services/platform-keys-service.ts
  *
- * Hosted (platform) provider API keys. Ciphertext never leaves the server;
- * there is no public HTTP route to list or read these rows.
+ * Platform provider API keys for product runs. Ciphertext never leaves the
+ * server; there is no public HTTP route to list or read these rows.
  */
 
 import type { ProviderCredentials } from "@tradingagents/api-types";
@@ -41,57 +41,38 @@ export async function getPlatformApiKeyPlaintext(
 }
 
 /**
- * Inject platform API keys for hosted-plan providers the user did not supply.
- * User BYOK keys always win. Used by config resolve / model catalog routes.
+ * Load platform API keys for the given providers (product runs never use
+ * personal keys).
  */
-export async function mergeHostedPlatformCredentials(
+export async function loadPlatformCredentials(
   client: AppSupabaseClient,
-  userCredentials: ProviderCredentials,
-  options: {
-    isHostedPlan: boolean;
-    hostedProviderIds: readonly string[];
-    /** Limit injection to these providers; defaults to all hostedProviderIds. */
-    providerIds?: readonly string[];
-  },
+  providerIds: readonly string[],
 ): Promise<ProviderCredentials> {
-  if (!options.isHostedPlan) {
-    return userCredentials;
-  }
+  const targets = [
+    ...new Set(providerIds.map((id) => id.toLowerCase().trim()).filter(Boolean)),
+  ];
 
-  const hostedSet = new Set(
-    options.hostedProviderIds.map((id) => id.toLowerCase().trim()).filter(Boolean),
-  );
-  const targets = (options.providerIds ?? options.hostedProviderIds)
-    .map((id) => id.toLowerCase().trim())
-    .filter((id) => id && hostedSet.has(id));
-
-  let merged: ProviderCredentials = userCredentials;
+  let credentials: ProviderCredentials = {};
   for (const providerId of targets) {
-    if (merged[providerId]?.apiKey?.trim()) {
-      continue;
-    }
     const platformKey = await getPlatformApiKeyPlaintext(client, providerId);
     if (!platformKey) {
       continue;
     }
-    merged = {
-      ...merged,
+    credentials = {
+      ...credentials,
       [providerId]: {
-        ...(merged[providerId] ?? {}),
         apiKey: platformKey,
       },
     };
   }
-  return merged;
+  return credentials;
 }
 
 /**
- * Merge user BYOK credentials with platform keys for hosted providers the user
- * did not supply. User keys always win (self_pay path).
+ * Resolve provider credentials for a product run from platform keys only.
  */
 export async function resolveRunProviderCredentials(
   client: AppSupabaseClient,
-  userCredentials: ProviderCredentials,
   options: {
     isHostedPlan: boolean;
     hostedProviderIds: readonly string[];
@@ -99,23 +80,12 @@ export async function resolveRunProviderCredentials(
   },
 ): Promise<{
   credentials: ProviderCredentials;
-  costSource: "hosted" | "self_pay";
   usedPlatformKey: boolean;
 }> {
   const selected = options.selectedProviderId.toLowerCase().trim();
-  const userKey = userCredentials[selected]?.apiKey?.trim();
-  if (userKey) {
+  if (!selected || !options.isHostedPlan) {
     return {
-      credentials: userCredentials,
-      costSource: "self_pay",
-      usedPlatformKey: false,
-    };
-  }
-
-  if (!options.isHostedPlan) {
-    return {
-      credentials: userCredentials,
-      costSource: "self_pay",
+      credentials: {},
       usedPlatformKey: false,
     };
   }
@@ -125,25 +95,16 @@ export async function resolveRunProviderCredentials(
     .includes(selected);
   if (!hostedOk) {
     return {
-      credentials: userCredentials,
-      costSource: "self_pay",
+      credentials: {},
       usedPlatformKey: false,
     };
   }
 
-  const credentials = await mergeHostedPlatformCredentials(client, userCredentials, {
-    isHostedPlan: true,
-    hostedProviderIds: options.hostedProviderIds,
-    providerIds: [selected],
-  });
+  const credentials = await loadPlatformCredentials(client, [selected]);
   const usedPlatformKey = Boolean(credentials[selected]?.apiKey?.trim());
 
-  // Fail closed: never mark traffic as hosted (or bill credits) unless we
-  // actually injected a platform key. Missing rows must not fall through to
-  // agents-service process-env keys as an unpaid/shared sidecar.
   return {
     credentials,
-    costSource: usedPlatformKey ? "hosted" : "self_pay",
     usedPlatformKey,
   };
 }

@@ -15,22 +15,23 @@ import {
 } from "./billing-service.js";
 
 describe("billing-service", () => {
-  it("lists the shared BYOK and hosted catalog", () => {
+  it("lists the shared Standard and Pro catalog", () => {
     const { plans } = listBillingPlans();
     assert.deepEqual(plans, [...BILLING_CATALOG]);
     assert.equal(BILLING_ANNUAL_DISCOUNT_PERCENT, 20);
-    assert.equal(plans[0]?.monthlyPriceCents, 300);
+    assert.equal(plans[0]?.monthlyPriceCents, 900);
+    assert.equal(plans[1]?.monthlyPriceCents, 1900);
     assert.equal(plans[1]?.priceProvisional, false);
   });
 
   it("returns a not_configured checkout response without activating by default", async () => {
     const result = await createCheckoutSession({
-      planId: "byok",
+      planId: "standard",
       interval: "annual",
     });
 
     assert.equal(result.status, "not_configured");
-    assert.equal(result.planId, "byok");
+    assert.equal(result.planId, "standard");
     assert.equal(result.interval, "annual");
     assert.equal(result.checkoutUrl, null);
     assert.equal(result.subscriptionActivated, false);
@@ -46,7 +47,7 @@ describe("billing-service", () => {
       );
       const client = createInMemorySupabase();
       const result = await createCheckoutSession(
-        { planId: "hosted", interval: "monthly" },
+        { planId: "pro", interval: "monthly" },
         { userId: "user_scaffold", client },
       );
       assert.equal(result.subscriptionActivated, true);
@@ -64,7 +65,7 @@ describe("billing-service", () => {
     await assert.rejects(
       () =>
         createCheckoutSession({
-          planId: "byok",
+          planId: "standard",
           interval: "monthly",
           successUrl: "https://evil.example/phish",
         }),
@@ -80,7 +81,7 @@ describe("billing-service", () => {
         error instanceof BillingServiceError && error.status === 400,
     );
     await assert.rejects(
-      () => createCheckoutSession({ planId: "byok", interval: "weekly" }),
+      () => createCheckoutSession({ planId: "standard", interval: "weekly" }),
       (error: unknown) =>
         error instanceof BillingServiceError && error.status === 400,
     );

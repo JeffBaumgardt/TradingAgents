@@ -17,7 +17,7 @@ import {
 export const metadata: Metadata = {
   title: "TradingAgents — AI market research",
   description:
-    "AI-powered market research with multi-agent analysis. Plans from $3/month — bring your own provider API key or use hosted models.",
+    "AI-powered multi-agent market research on one managed Agents Model. Free 14-day trial — no credit card needed. Standard or Pro plans when you’re ready.",
 };
 
 export default async function LandingPage() {

@@ -1,29 +1,26 @@
 /**
  * @file apps/web/src/lib/billing-sample.ts
- * Sample hosted billing account for UI previews and screenshots.
+ * Sample billing account for UI previews and screenshots.
  */
 
 import type { BillingAccountResponse, UsageModelBreakdown } from "@tradingagents/api-types";
 import {
-  HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
-  getModelCreditMultiplier,
+  AGENTS_MODEL_DISPLAY_NAME,
+  AGENTS_MODEL_ID,
+  AGENTS_MODEL_PROVIDER_ID,
+  PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+  computeAgentsModelCredits,
+  planFeaturesFor,
 } from "@tradingagents/api-types";
 
-function hostedModelRow(
-  providerId: string,
-  providerLabel: string,
-  modelId: string,
-  tokensTotal: number,
-): UsageModelBreakdown {
-  const creditMultiplier = getModelCreditMultiplier(providerId, modelId);
+function agentsModelRow(tokensIn: number, tokensOut: number): UsageModelBreakdown {
   return {
-    providerId,
-    providerLabel,
-    modelId,
-    tokensTotal,
-    computeCredits: Math.round(tokensTotal * creditMultiplier),
-    creditMultiplier,
-    costSource: "hosted",
+    providerId: AGENTS_MODEL_PROVIDER_ID,
+    providerLabel: "Agents Model",
+    modelId: AGENTS_MODEL_ID,
+    tokensTotal: tokensIn + tokensOut,
+    computeCredits: computeAgentsModelCredits(tokensIn, tokensOut),
+    creditMultiplier: 0,
     shareOfCredits: 0,
   };
 }
@@ -35,25 +32,9 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
   const periodEnd = new Date(periodStart);
   periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
-  // Token volumes sized so weighted compute credits land ~40–60% of the 10M allowance.
   const byModel: UsageModelBreakdown[] = [
-    hostedModelRow("openai", "OpenAI", "gpt-5.4-mini", 44_000),
-    hostedModelRow("openai", "OpenAI", "gpt-5.5", 8_000),
-    hostedModelRow("anthropic", "Anthropic", "claude-opus-4-8", 12_000),
-    hostedModelRow("anthropic", "Anthropic", "claude-haiku-4-5", 36_000),
-    {
-      providerId: "anthropic",
-      providerLabel: "Anthropic",
-      modelId: "claude-sonnet-4-6",
-      tokensTotal: 56_000,
-      computeCredits: 0,
-      creditMultiplier: getModelCreditMultiplier("anthropic", "claude-sonnet-4-6"),
-      costSource: "self_pay",
-      shareOfCredits: 0,
-    },
-    hostedModelRow("google", "Google", "gemini-3.5-flash", 36_000),
-    hostedModelRow("xai", "xAI", "grok-4.3", 28_000),
-    hostedModelRow("openai", "OpenAI", "gpt-4o-mini", 90_000),
+    agentsModelRow(160_000, 40_000),
+    agentsModelRow(60_000, 15_000),
   ];
 
   const usedComputeCredits = byModel.reduce((sum, row) => sum + row.computeCredits, 0);
@@ -62,64 +43,45 @@ export function buildSampleBillingAccount(): BillingAccountResponse {
       usedComputeCredits > 0 ? row.computeCredits / usedComputeCredits : 0;
   }
 
-  const providerIds = ["openai", "anthropic", "google", "xai"] as const;
-  const byProvider = providerIds
-    .map((providerId) => {
-      const rows = byModel.filter((row) => row.providerId === providerId);
-      if (rows.length === 0) {
-        return null;
-      }
-      const computeCredits = rows.reduce((sum, row) => sum + row.computeCredits, 0);
-      const tokensTotal = rows.reduce((sum, row) => sum + row.tokensTotal, 0);
-      const selfPayTokens = rows
-        .filter((row) => row.costSource === "self_pay")
-        .reduce((sum, row) => sum + row.tokensTotal, 0);
-      return {
-        providerId,
-        providerLabel: rows[0]?.providerLabel ?? providerId,
-        tokensTotal,
-        computeCredits,
-        selfPayTokens,
-        hostedTokens: tokensTotal - selfPayTokens,
-        shareOfCredits: usedComputeCredits > 0 ? computeCredits / usedComputeCredits : 0,
-      };
-    })
-    .filter((row): row is NonNullable<typeof row> => row !== null)
-    .sort((a, b) => b.computeCredits - a.computeCredits || b.tokensTotal - a.tokensTotal);
-
-  const hostedTokens = byModel
-    .filter((row) => row.costSource === "hosted")
-    .reduce((sum, row) => sum + row.tokensTotal, 0);
-  const selfPayTokens = byModel
-    .filter((row) => row.costSource === "self_pay")
-    .reduce((sum, row) => sum + row.tokensTotal, 0);
+  const tokensTotal = byModel.reduce((sum, row) => sum + row.tokensTotal, 0);
+  const allowance = PRO_MONTHLY_COMPUTE_CREDIT_ALLOWANCE;
 
   return {
     subscription: {
-      planId: "hosted",
+      planId: "pro",
       interval: "monthly",
       status: "active",
       currentPeriodStart: periodStart.toISOString(),
       currentPeriodEnd: periodEnd.toISOString(),
       cancelAtPeriodEnd: false,
+      isTrial: false,
+      trialEndsAt: null,
     },
     usage: {
       isSample: true,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
-      baseAllowanceComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+      baseAllowanceComputeCredits: allowance,
       rolloverComputeCredits: 0,
-      allowanceComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE,
+      allowanceComputeCredits: allowance,
       usedComputeCredits,
-      remainingComputeCredits: HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE - usedComputeCredits,
-      usedRatio: Math.min(1, usedComputeCredits / HOSTED_MONTHLY_COMPUTE_CREDIT_ALLOWANCE),
+      remainingComputeCredits: Math.max(0, allowance - usedComputeCredits),
+      usedRatio: Math.min(1, usedComputeCredits / allowance),
       blockedLowBalance: false,
-      tokensTotal: hostedTokens + selfPayTokens,
-      selfPayTokens,
-      hostedTokens,
-      byProvider,
+      tokensTotal,
+      byProvider: [
+        {
+          providerId: AGENTS_MODEL_PROVIDER_ID,
+          providerLabel: "Agents Model",
+          tokensTotal,
+          computeCredits: usedComputeCredits,
+          shareOfCredits: 1,
+        },
+      ],
       byModel,
     },
-    hostedProviderIds: ["openai", "anthropic", "google", "xai"],
+    hostedProviderIds: [AGENTS_MODEL_PROVIDER_ID],
+    features: planFeaturesFor("pro"),
+    agentsModelDisplayName: AGENTS_MODEL_DISPLAY_NAME,
   };
 }

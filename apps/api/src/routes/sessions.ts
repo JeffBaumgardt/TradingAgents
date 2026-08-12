@@ -20,6 +20,7 @@ import { requireUserId, getRequestUserId, optionalUserId, getOptionalRequestUser
 import { cancelChatTurn, cancelRun, getChatTurnStreamUrl, getRunStreamUrl, fetchRunStatus, agentsServiceAuthHeaders } from "../services/agents-client.js";
 import {
   getBillingAccount,
+  userCanShareReports,
   userHasActiveSubscription,
 } from "../services/billing-account-service.js";
 import * as chatService from "../services/chat-service.js";
@@ -65,7 +66,6 @@ async function relayAgentsFrame(
   dataLine: string,
   options?: {
     runId?: string | null;
-    costSource?: "hosted" | "self_pay" | null;
     subscription?: {
       plan_id: string;
       current_period_start: string;
@@ -114,7 +114,7 @@ async function relayAgentsFrame(
         await sessionService.persistEvent(client, sessionId, "credit.warning", warning);
       }
 
-      if (meter.exhausted && meter.costSource === "hosted") {
+      if (meter.exhausted) {
         const exhausted = {
           remainingComputeCredits: meter.remaining ?? 0,
           message: "Compute credits exhausted — this run has been stopped.",
@@ -143,22 +143,17 @@ async function relayAgentsFrame(
 
       return false;
     } catch (error) {
-      // Fail closed only when this run is spending platform credits.
-      const isHostedSpend = options?.costSource === "hosted";
-      if (isHostedSpend) {
-        const message = "Run stopped because credit metering failed.";
-        const hint = error instanceof Error ? error.message : "Unknown metering error";
-        if (options?.runId) {
-          try {
-            await cancelRun(options.runId, { message, hint });
-          } catch {
-            // Best-effort.
-          }
+      const message = "Run stopped because credit metering failed.";
+      const hint = error instanceof Error ? error.message : "Unknown metering error";
+      if (options?.runId) {
+        try {
+          await cancelRun(options.runId, { message, hint });
+        } catch {
+          // Best-effort.
         }
-        await relayRunError(stream, client, sessionId, message, hint);
-        return true;
       }
-      // Self-pay: relay the raw stats frame without enrichment.
+      await relayRunError(stream, client, sessionId, message, hint);
+      return true;
     }
   }
 
@@ -223,7 +218,9 @@ sessionRoutes.get("/sessions", requireUserId(), async (c) => {
 });
 
 sessionRoutes.post("/sessions", requireUserId(), async (c) => {
-  const body = (await c.req.json()) as CreateSessionRequest;
+  const rawBody = (await c.req.json()) as CreateSessionRequest;
+  // Clients never supply provider keys; ignore any spoofed field.
+  const { providerCredentials: _ignored, ...body } = rawBody;
   const userId = getRequestUserId(c);
   const client = getSupabaseAdmin(c);
 
@@ -253,6 +250,28 @@ sessionRoutes.post("/sessions", requireUserId(), async (c) => {
   }
 });
 
+/** Public share-by-link: session UUID is the capability (no ownership check).
+ *  Standard-plan owners cannot share publicly — non-owners receive 404.
+ */
+async function assertShareAllowed(
+  client: ReturnType<typeof getSupabaseAdmin>,
+  session: { userId?: string | null },
+  requesterId: string | null | undefined,
+): Promise<boolean> {
+  if (requesterId && session.userId === requesterId) {
+    return true;
+  }
+  if (!session.userId) {
+    return false;
+  }
+  try {
+    const account = await getBillingAccount(client, session.userId);
+    return userCanShareReports(account.subscription);
+  } catch {
+    return false;
+  }
+}
+
 /** Public share-by-link: session UUID is the capability (no ownership check). */
 sessionRoutes.get("/sessions/:id", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
@@ -264,6 +283,10 @@ sessionRoutes.get("/sessions/:id", optionalUserId(), async (c) => {
   const requesterId = getOptionalRequestUserId(c);
   if (requesterId && session.userId === requesterId) {
     return c.json(session);
+  }
+
+  if (!(await assertShareAllowed(client, session, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
   }
 
   return c.json(sessionService.toShareSession(session));
@@ -294,6 +317,15 @@ sessionRoutes.get("/sessions/:id/report", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
+
+  const parent = await sessionService.getSession(client, id);
+  if (!parent) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, parent, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
   const report = await sessionService.getSessionReport(client, id, undefined, {
     allowSideEffects: false,
     ...(requesterId ? { requesterId } : {}),
@@ -314,6 +346,15 @@ sessionRoutes.get("/sessions/:id/trade-check", optionalUserId(), async (c) => {
   const id = sessionIdParam(c);
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
+
+  const parent = await sessionService.getSession(client, id);
+  if (!parent) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, parent, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
   const tradeCheck = await sessionService.getSessionTradeCheck(client, id, undefined, {
     allowSideEffects: false,
     ...(requesterId ? { requesterId } : {}),
@@ -373,25 +414,15 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
 
     const account = await getBillingAccount(client, userId);
     const creditSubscription =
-      account.subscription.planId === "hosted" &&
+      (account.subscription.planId === "pro" || account.subscription.planId === "standard") &&
       account.subscription.currentPeriodStart &&
       account.subscription.currentPeriodEnd
         ? {
-            plan_id: "hosted",
+            plan_id: account.subscription.planId ?? "pro",
             current_period_start: account.subscription.currentPeriodStart,
             current_period_end: account.subscription.currentPeriodEnd,
           }
         : null;
-
-    const { data: cursorRow } = await client
-      .from("session_usage_cursors")
-      .select("cost_source")
-      .eq("session_id", id)
-      .maybeSingle();
-    const costSource =
-      (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
-        ? ("hosted" as const)
-        : ("self_pay" as const);
 
     if (!liveOnly) {
       const stored = await sessionService.getStoredEvents(client, id);
@@ -451,8 +482,7 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
     let buffer = "";
     const frameOptions = {
       runId: session.runId,
-      costSource,
-      subscription: costSource === "hosted" ? creditSubscription : null,
+      subscription: creditSubscription,
     };
 
     while (true) {
@@ -558,7 +588,16 @@ sessionRoutes.get("/sessions/:id/stream", requireUserId(), async (c) => {
 sessionRoutes.get("/sessions/:id/chat", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
-  const result = await chatService.listChatMessages(client, sessionIdParam(c), {
+  const id = sessionIdParam(c);
+  const parent = await sessionService.getSession(client, id);
+  if (!parent) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, parent, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  const result = await chatService.listChatMessages(client, id, {
     requesterId: requesterId ?? null,
   });
   if (result === "not_found") {
@@ -617,25 +656,15 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
 
   const account = await getBillingAccount(client, userId);
   const creditSubscription =
-    account.subscription.planId === "hosted" &&
+    (account.subscription.planId === "pro" || account.subscription.planId === "standard") &&
     account.subscription.currentPeriodStart &&
     account.subscription.currentPeriodEnd
       ? {
-          plan_id: "hosted",
+          plan_id: account.subscription.planId ?? "pro",
           current_period_start: account.subscription.currentPeriodStart,
           current_period_end: account.subscription.currentPeriodEnd,
         }
       : null;
-
-  const { data: cursorRow } = await client
-    .from("session_usage_cursors")
-    .select("cost_source")
-    .eq("session_id", id)
-    .maybeSingle();
-  const costSource =
-    (cursorRow as { cost_source?: string } | null)?.cost_source === "hosted"
-      ? ("hosted" as const)
-      : ("self_pay" as const);
 
   return streamSSE(c, async (stream) => {
     async function failStream(message: string) {
@@ -744,7 +773,7 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
               });
             }
 
-            if (meter.exhausted && costSource === "hosted") {
+            if (meter.exhausted) {
               const exhausted = {
                 remainingComputeCredits: meter.remaining ?? 0,
                 message: "Compute credits exhausted — this chat turn has been stopped.",
@@ -765,8 +794,16 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
               return;
             }
             continue;
-          } catch {
-            // Fall through and relay raw stats for self-pay.
+          } catch (error) {
+            const message = "Chat stopped because credit metering failed.";
+            const hint = error instanceof Error ? error.message : "Unknown metering error";
+            try {
+              await cancelChatTurn(turnId, { message, hint });
+            } catch {
+              // Best-effort.
+            }
+            await failStream(message);
+            return;
           }
         }
 
@@ -805,6 +842,14 @@ sessionRoutes.get("/sessions/:id/chat/stream", requireUserId(), async (c) => {
 sessionRoutes.get("/sessions/:id/export.md", optionalUserId(), async (c) => {
   const client = getSupabaseAdmin(c);
   const requesterId = getOptionalRequestUserId(c);
+  const session = await sessionService.getSession(client, sessionIdParam(c));
+  if (!session) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+  if (!(await assertShareAllowed(client, session, requesterId))) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
   const markdown = await chatService.buildSessionExportMarkdown(
     client,
     sessionIdParam(c),
@@ -814,8 +859,7 @@ sessionRoutes.get("/sessions/:id/export.md", optionalUserId(), async (c) => {
     return c.json({ error: "Session not found" }, 404);
   }
 
-  const session = await sessionService.getSession(client, sessionIdParam(c));
-  const ticker = session?.ticker ?? "session";
+  const ticker = session.ticker ?? "session";
   const filename = `${ticker.toLowerCase()}-tradingagents-export.md`;
 
   return new Response(markdown, {

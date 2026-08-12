@@ -11,7 +11,6 @@ servers:
 tags:
   - name: health
   - name: config
-  - name: credentials
   - name: users
   - name: sessions
   - name: feedback
@@ -42,70 +41,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConfigOptions"
-  /config/credentials/schema:
-    get:
-      tags: [config]
-      summary: Provider credential field definitions
-      operationId: getCredentialsSchema
-      responses:
-        "200":
-          description: Credential schema for the setup UI
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CredentialsSchemaResponse"
-  /credentials:
-    get:
-      tags: [credentials]
-      summary: Get stored credentials for the current user
-      description: |
-        Returns provider credential fields with secret values replaced by a
-        fixed placeholder. Real API keys are never included in the response.
-      operationId: getUserCredentials
-      parameters:
-        - $ref: "#/components/parameters/UserIdHeader"
-      responses:
-        "200":
-          description: Masked stored credentials
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StoredCredentialsResponse"
-        "401":
-          description: Missing user id
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    put:
-      tags: [credentials]
-      summary: Save provider credentials for the current user
-      description: |
-        Writes credential values to the database. Submitting the secret
-        placeholder leaves an existing key unchanged. Responses always mask
-        secret fields.
-      operationId: saveUserCredentials
-      parameters:
-        - $ref: "#/components/parameters/UserIdHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SaveCredentialsRequest"
-      responses:
-        "200":
-          description: Saved credentials (masked)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StoredCredentialsResponse"
-        "401":
-          description: Missing user id
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /billing/plans:
     get:
       tags: [billing]
@@ -181,6 +116,41 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Invalid checkout payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /billing/trial/start:
+    post:
+      tags: [billing]
+      summary: Start a no-card free trial
+      description: |
+        One free trial per account (defaults to Pro / 14 days). Rejects when a
+        subscription or prior trial row already exists for the user.
+      operationId: startBillingTrial
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartTrialRequest"
+      responses:
+        "200":
+          description: Trial activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartTrialResponse"
+        "400":
+          description: Trial already used or active plan present
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid auth
           content:
             application/json:
               schema:
@@ -352,11 +322,11 @@ paths:
   /config/resolve:
     post:
       tags: [config]
-      summary: Resolve config filtered by user credentials
+      summary: Resolve config for the product plan
       description: |
-        Returns analysts, languages, and only the LLM providers for which
-        the user has stored valid credentials. Secret keys are loaded
-        server-side and never returned.
+        Returns analysts, languages, and LLM providers available for the signed-in
+        user. Product plans surface the platform Agents Model without personal keys.
+        Platform API keys are never returned.
       operationId: resolveConfig
       parameters:
         - $ref: "#/components/parameters/UserIdHeader"
@@ -368,7 +338,7 @@ paths:
               $ref: "#/components/schemas/ResolveConfigRequest"
       responses:
         "200":
-          description: Filtered configuration
+          description: Configuration available to the user
           content:
             application/json:
               schema:
@@ -376,8 +346,8 @@ paths:
   /config/providers/{provider}/models:
     post:
       tags: [config]
-      summary: List models for a provider (credential-aware)
-      operationId: getProviderModelsWithCredentials
+      summary: List models for a provider (public catalog)
+      operationId: getProviderModelsAuthenticated
       parameters:
         - name: provider
           in: path
@@ -397,12 +367,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProviderModelsResponse"
-        "403":
-          description: No credentials for provider
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Unknown provider
           content:
@@ -760,7 +724,7 @@ components:
           enum: [true]
     BillingPlanId:
       type: string
-      enum: [byok, hosted]
+      enum: [standard, pro]
     BillingInterval:
       type: string
       enum: [monthly, annual]
@@ -820,9 +784,27 @@ components:
           type: string
         subscriptionActivated:
           type: boolean
+    StartTrialRequest:
+      type: object
+      properties:
+        planId:
+          $ref: "#/components/schemas/BillingPlanId"
+          description: Defaults to Pro when omitted.
+    StartTrialResponse:
+      type: object
+      required: [subscription, trialEndsAt]
+      properties:
+        subscription:
+          type: object
+          additionalProperties: true
+          description: User subscription snapshot after trial activation.
+        trialEndsAt:
+          type: string
+          format: date-time
+          description: When the free trial ends (current period end while trialing).
     BillingAccountResponse:
       type: object
-      required: [subscription, usage, hostedProviderIds]
+      required: [subscription, usage, hostedProviderIds, features, agentsModelDisplayName]
       properties:
         subscription:
           type: object
@@ -835,6 +817,11 @@ components:
           type: array
           items:
             type: string
+        features:
+          type: object
+          additionalProperties: true
+        agentsModelDisplayName:
+          type: string
     CancelSubscriptionResponse:
       type: object
       required: [subscription, accessEndsAt]
@@ -896,7 +883,10 @@ components:
           type: string
         creditMultiplier:
           type: number
-          description: Hosted compute-credit multiplier (tokens × this ≈ credits).
+          deprecated: true
+          description: |
+            Deprecated. Product bills weighted credits (input × 1.05 + output × 5.25),
+            not tokens × a single multiplier.
         capabilities:
           type: object
           additionalProperties:
@@ -1013,50 +1003,21 @@ components:
           type: object
           readOnly: true
           description: |
-            Loaded server-side from stored user credentials. Clients must not
-            send secret API keys on session creation.
-          additionalProperties:
-            type: object
-            additionalProperties:
-              type: string
-    SaveCredentialsRequest:
-      type: object
-      required: [providerCredentials]
-      properties:
-        providerCredentials:
-          type: object
-          additionalProperties:
-            type: object
-            additionalProperties:
-              type: string
-    StoredCredentialsResponse:
-      type: object
-      required: [providerCredentials]
-      properties:
-        providerCredentials:
-          type: object
-          description: |
-            Secret fields contain a fixed placeholder (********) when a value
-            is stored. The real key is never returned.
+            Injected server-side from platform keys for the agents-service hop only.
+            Never stored or returned on session reads; clients must not send keys.
           additionalProperties:
             type: object
             additionalProperties:
               type: string
     ResolveConfigRequest:
       type: object
-      description: Credentials are loaded from server storage; body is ignored.
+      description: Empty body; product config is resolved from plan + platform catalog.
     ProviderModelsRequest:
       type: object
       required: [mode]
       properties:
         mode:
           $ref: "#/components/schemas/ModelMode"
-        providerCredentials:
-          type: object
-          additionalProperties:
-            type: object
-            additionalProperties:
-              type: string
     CredentialField:
       type: object
       required: [name, label, secret, required]
@@ -1095,7 +1056,7 @@ components:
         apiKeyUrl:
           type: string
           nullable: true
-          description: Official URL where users can sign up and create an API key.
+          description: Official provider docs URL (legacy schema field).
     CredentialsSchemaResponse:
       type: object
       required: [providers, modelCatalogNote]

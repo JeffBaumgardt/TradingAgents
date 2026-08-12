@@ -9,14 +9,10 @@ import Link from "next/link";
 import { useState } from "react";
 import type { BillingAccountResponse } from "@tradingagents/api-types";
 import {
-  COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
-  HOSTED_MODEL_CATALOG_PRICED_AS_OF,
+  AGENTS_MODEL_DISPLAY_NAME,
   getBillingPlan,
 } from "@tradingagents/api-types";
 import CancelSubscriptionDialog from "@/components/CancelSubscriptionDialog";
-import HostedModelCostGuide from "@/components/HostedModelCostGuide";
-import ProviderCostBadge from "@/components/ProviderCostBadge";
-import UsageProviderTree from "@/components/UsageProviderTree";
 import { ApiClientError, cancelSubscription } from "@/lib/api-client";
 import { formatComputeCredits, formatPeriodEnd } from "@/lib/billing-display";
 import { formatUsdFromCents } from "@/lib/pricing-content";
@@ -34,17 +30,23 @@ export default function BillingAccountView({
   previewBanner,
   onAccountChange,
 }: BillingAccountViewProps) {
-  const { subscription, usage } = account;
+  const { subscription, usage, features, agentsModelDisplayName } = account;
   const plan =
     subscription.planId &&
-    (subscription.status === "active" || subscription.status === "past_due")
+    (subscription.status === "active" ||
+      subscription.status === "trialing" ||
+      subscription.status === "past_due")
       ? getBillingPlan(subscription.planId)
       : null;
-  const isHosted = plan?.id === "hosted";
+  const isPro = plan?.id === "pro";
+  const isTrial =
+    subscription.status === "trialing" || Boolean(subscription.isTrial);
   const canCancel =
     Boolean(onAccountChange) &&
     Boolean(plan) &&
-    (subscription.status === "active" || subscription.status === "past_due") &&
+    (subscription.status === "active" ||
+      subscription.status === "past_due" ||
+      subscription.status === "trialing") &&
     !subscription.cancelAtPeriodEnd;
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -89,6 +91,12 @@ export default function BillingAccountView({
     setCancelError(null);
   }
 
+  const modelName = agentsModelDisplayName ?? AGENTS_MODEL_DISPLAY_NAME;
+  const planFeatures = features ?? {
+    shareReports: isPro,
+    reportRetentionDays: null,
+  };
+
   return (
     <div className={styles.page}>
       {previewBanner ? (
@@ -97,41 +105,47 @@ export default function BillingAccountView({
         </p>
       ) : null}
 
-      <section className={styles.planCard} aria-labelledby="current-plan-heading">
+      <section
+        className={styles.planCard}
+        aria-labelledby="current-plan-heading"
+      >
         <div className={styles.planHeader}>
           <div>
             <p className={styles.eyebrow}>Current plan</p>
             <h2 id="current-plan-heading" className={styles.planTitle}>
-              {plan ? plan.name : "No active subscription"}
+              {plan ? plan.name : "No active plan"}
+              {isTrial ? " (trial)" : ""}
             </h2>
             <p className={styles.planMeta}>
               {subscription.status === "past_due" && plan
                 ? "Payment past due — new analyses are paused until payment succeeds. You can still cancel to stop renewals."
-                : plan
-                  ? `${formatUsdFromCents(plan.monthlyPriceCents)}/mo · billed ${subscription.interval ?? "monthly"}`
-                  : "Start with Bring your own key for infrastructure, or Hosted models for a wide catalog."}
+                : subscription.status === "expired"
+                  ? "Your free trial has ended. Subscribe to keep running analyses."
+                  : plan
+                    ? `${formatUsdFromCents(plan.monthlyPriceCents)}/mo · billed ${subscription.interval ?? "monthly"}`
+                    : "Start a free 14-day Pro trial (no card), or subscribe to Standard or Pro."}
             </p>
           </div>
           <div className={styles.planActions}>
-            {isHosted ? (
+            {isPro ? (
               <Link href="/pricing" className={styles.secondaryButton}>
                 View plans
               </Link>
             ) : (
               <Link
-                href="/checkout?plan=hosted&interval=monthly"
+                href="/checkout?plan=pro&interval=monthly"
                 className={styles.primaryButton}
-                aria-label="Upgrade to hosted models"
+                aria-label="Upgrade to Pro"
               >
-                Upgrade to Hosted
+                Upgrade to Pro
               </Link>
             )}
             {!plan ? (
               <Link
-                href="/checkout?plan=byok&interval=monthly"
+                href="/checkout?plan=standard&interval=monthly"
                 className={styles.secondaryButton}
               >
-                Start BYOK plan
+                Subscribe to Standard
               </Link>
             ) : null}
             {canCancel ? (
@@ -141,44 +155,38 @@ export default function BillingAccountView({
                 onClick={handleOpenCancel}
                 aria-label="Cancel subscription"
               >
-                Cancel subscription
+                Cancel {isTrial ? "trial" : "subscription"}
               </button>
             ) : null}
           </div>
         </div>
-        {subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd ? (
+        {isTrial && subscription.currentPeriodEnd ? (
           <p className={styles.periodNote} role="status">
-            {subscription.status === "active" ? (
-              <>
-                Cancellation scheduled. Access continues until{" "}
-                <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>. After
-                that you can still open existing reports; new analyses require a new
-                subscription.
-              </>
-            ) : (
-              <>
-                Cancellation scheduled. Renewals stop after{" "}
-                <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>.
-                Outstanding invoices may still be collected. Existing reports stay
-                available; new analyses require an active subscription.
-              </>
-            )}
+            Free trial ends{" "}
+            <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>.
+            Credit usage still counts during the trial. We’ll ask for a payment
+            method only when you subscribe.
+          </p>
+        ) : subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd ? (
+          <p className={styles.periodNote} role="status">
+            Cancellation scheduled. Access continues until{" "}
+            <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>.
           </p>
         ) : subscription.currentPeriodEnd ? (
           <p className={styles.periodNote}>
             Current billing period ends{" "}
             <strong>{formatPeriodEnd(subscription.currentPeriodEnd)}</strong>
-            {isHosted ? " — compute credit allowance resets then." : "."}
+            {" — compute credit allowance resets then."}
           </p>
         ) : null}
       </section>
 
-      {isHosted && usage ? (
+      {usage ? (
         <>
           <section className={styles.usageCard} aria-labelledby="usage-heading">
             <div className={styles.usageHeader}>
               <h2 id="usage-heading" className={styles.sectionTitle}>
-                Compute credit allowance
+                Credit usage
               </h2>
               <p className={styles.periodChip}>
                 Resets {formatPeriodEnd(usage.periodEnd)}
@@ -186,45 +194,35 @@ export default function BillingAccountView({
             </div>
             {usage.isSample ? (
               <p className={styles.sampleNote} role="note">
-                Sample usage for review — live metering uses the curated cost catalog. Hosted
-                plans include {formatComputeCredits(usage.baseAllowanceComputeCredits)} compute
-                credits per month
-                {usage.rolloverComputeCredits > 0
-                  ? ` plus ${formatComputeCredits(usage.rolloverComputeCredits)} rolled over from last period`
-                  : ""}
-                .
+                Sample usage for review — live metering charges{" "}
+                {formatComputeCredits(usage.baseAllowanceComputeCredits)}{" "}
+                compute credits per month on this plan.
               </p>
             ) : null}
             {usage.blockedLowBalance ? (
               <p className={styles.sampleNote} role="alert">
-                Hosted runs are blocked for the rest of this billing period because your remaining
-                credits fell below the low-balance threshold (about 3% of your allowance). Allowance
-                resets {formatPeriodEnd(usage.periodEnd)}; unused base credits from this period may
-                roll over once into the next month.
+                New runs are blocked for the rest of this billing period because
+                remaining credits fell below the low-balance threshold (about 3%
+                of your allowance). Allowance resets{" "}
+                {formatPeriodEnd(usage.periodEnd)}.
               </p>
             ) : null}
             <div className={styles.progressMeta}>
               <span>
-                {formatComputeCredits(usage.usedComputeCredits)} /{" "}
-                {formatComputeCredits(usage.allowanceComputeCredits)} compute credits
+                {formatComputeCredits(usage.usedComputeCredits)} used (≈
+                {formatComputeCredits(usage.remainingComputeCredits)} remaining)
+                of {formatComputeCredits(usage.allowanceComputeCredits)}{" "}
+                available
               </span>
-              <span>{Math.round(usage.usedRatio * 100)}% used</span>
+              <span>{Math.round(usage.usedRatio * 100)}% of allowance</span>
             </div>
-            {usage.rolloverComputeCredits > 0 || usage.baseAllowanceComputeCredits > 0 ? (
-              <p className={styles.breakdownIntro}>
-                Base allowance {formatComputeCredits(usage.baseAllowanceComputeCredits)}
-                {usage.rolloverComputeCredits > 0
-                  ? ` · Rollover from prior period ${formatComputeCredits(usage.rolloverComputeCredits)} (prior-month unused base only)`
-                  : " · No rollover this period"}
-              </p>
-            ) : null}
             <div
               className={styles.progressTrack}
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(usage.usedRatio * 100)}
-              aria-label="Hosted compute credit usage"
+              aria-label="Compute credit usage"
             >
               <div
                 className={styles.progressFill}
@@ -232,68 +230,19 @@ export default function BillingAccountView({
               />
             </div>
           </section>
-
-          <section className={styles.breakdownCard} aria-labelledby="breakdown-heading">
-            <h2 id="breakdown-heading" className={styles.sectionTitle}>
-              Usage by provider
-            </h2>
-            <p className={styles.breakdownIntro}>
-              Expand a provider to see models. Each model shows its{" "}
-              <strong>credit multiplier</strong> (from API output $/1M tokens) plus raw tokens and
-              compute credits.
-            </p>
-
-            <UsageProviderTree byProvider={usage.byProvider} byModel={usage.byModel} />
-          </section>
-
-          <HostedModelCostGuide />
-
-          <section className={styles.helpCard} aria-labelledby="credits-help-heading">
-            <h2 id="credits-help-heading" className={styles.sectionTitle}>
-              What are compute credits?
-            </h2>
-            <p className={styles.breakdownIntro}>
-              Hosted runs spend <strong>compute credits</strong>, not raw tokens, against your
-              monthly allowance. We normalize by each model’s published{" "}
-              <strong>output price per million tokens</strong>, so a cheap model (mini, Flash,
-              Nano) drains the pool slowly and a frontier reasoning model drains it faster.
-            </p>
-            <p className={styles.breakdownIntro}>
-              The 💵 scale is a quick spend guide (budget → frontier). The × multiplier is the
-              exact rate used for metering.{" "}
-              {`Reference rate: $${COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M.toFixed(3)}/1M output tokens = `}
-              <strong>×1</strong>. Catalog prices reviewed {HOSTED_MODEL_CATALOG_PRICED_AS_OF}.
-              Hosted providers are OpenAI, Anthropic, Google, and xAI.
-            </p>
-          </section>
         </>
       ) : (
         <section className={styles.usageCard}>
-          <h2 className={styles.sectionTitle}>Compute credit allowance</h2>
+          <h2 className={styles.sectionTitle}>Credit usage</h2>
           <p className={styles.breakdownIntro}>
-            Usage tracking applies on the Hosted models plan. Bring your own key keeps model spend
-            on your provider account; we only charge the platform fee.
+            Usage appears once you have an active Standard or Pro plan (or
+            trial) and start running analyses.
           </p>
-          <Link
-            href="/checkout?plan=hosted&interval=monthly"
-            className={styles.primaryButton}
-          >
-            See Hosted plan
+          <Link href="/pricing" className={styles.primaryButton}>
+            View plans
           </Link>
         </section>
       )}
-
-      <section className={styles.helpCard}>
-        <h2 className={styles.sectionTitle}>Keys on Hosted</h2>
-        <p className={styles.breakdownIntro}>
-          On Hosted you can still save personal API keys. Those providers show as{" "}
-          <ProviderCostBadge source="self_pay" /> and never consume compute credits. Providers
-          without your key run as <ProviderCostBadge source="hosted" />.
-        </p>
-        <Link href="/settings/credentials" className={styles.secondaryButton}>
-          Manage API keys
-        </Link>
-      </section>
 
       <CancelSubscriptionDialog
         open={confirmOpen}

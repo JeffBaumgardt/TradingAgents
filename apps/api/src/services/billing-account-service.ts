@@ -6,16 +6,20 @@
  */
 
 import {
+  AGENTS_MODEL_DISPLAY_NAME,
+  AGENTS_MODEL_ID,
+  AGENTS_MODEL_PROVIDER_ID,
   BILLING_CATALOG,
   getModelCreditMultiplier,
   isBillingInterval,
   isBillingPlanId,
+  planFeaturesFor,
+  TRIAL_DAYS,
   type BillingAccountResponse,
   type BillingInterval,
   type BillingPlanId,
   type BillingUsageSummary,
   type CancelSubscriptionResponse,
-  type ProviderCostSource,
   type UsageModelBreakdown,
   type UsageProviderBreakdown,
   type UserSubscription,
@@ -38,19 +42,11 @@ export class BillingAccountError extends Error {
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  google: "Google",
-  xai: "xAI",
+  anthropic: "Agents Model",
 };
 
-/** Providers available through platform keys on the hosted plan. */
-export const HOSTED_PROVIDER_IDS = [
-  "openai",
-  "anthropic",
-  "google",
-  "xai",
-] as const;
+/** Providers available through platform keys (Agents Model product path). */
+export const HOSTED_PROVIDER_IDS = [AGENTS_MODEL_PROVIDER_ID] as const;
 
 interface UsageEventRow {
   provider_id: string;
@@ -58,18 +54,23 @@ interface UsageEventRow {
   tokens_in: number;
   tokens_out: number;
   billable_units: number;
-  cost_source: ProviderCostSource;
 }
 
-type StoredSubscriptionStatus = "active" | "past_due" | "canceled";
+type StoredSubscriptionStatus =
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "canceled"
+  | "expired";
 
 function mapStripeStatusToStored(
   status: string,
 ): StoredSubscriptionStatus | null {
   switch (status) {
     case "active":
-    case "trialing":
       return "active";
+    case "trialing":
+      return "trialing";
     case "past_due":
       return "past_due";
     case "canceled":
@@ -84,8 +85,8 @@ function mapStripeStatusToStored(
 
 function isCancellableSubscriptionStatus(
   status: string | undefined,
-): status is "active" | "past_due" {
-  return status === "active" || status === "past_due";
+): status is "active" | "past_due" | "trialing" {
+  return status === "active" || status === "past_due" || status === "trialing";
 }
 
 interface ScaffoldSubscription {
@@ -101,7 +102,7 @@ const scaffoldSubscriptions = new Map<string, ScaffoldSubscription>();
 const scaffoldUsage = new Map<string, UsageEventRow[]>();
 
 function providerLabel(providerId: string): string {
-  return PROVIDER_LABELS[providerId] ?? providerId;
+  return PROVIDER_LABELS[providerId] ?? AGENTS_MODEL_DISPLAY_NAME;
 }
 
 function startOfUtcMonth(date = new Date()): Date {
@@ -119,6 +120,13 @@ function addMonthsIso(startIso: string, months: number): string {
   return end.toISOString();
 }
 
+function addDaysIso(startIso: string, days: number): string {
+  const start = new Date(startIso);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + days);
+  return end.toISOString();
+}
+
 function emptySubscription(): UserSubscription {
   return {
     planId: null,
@@ -127,6 +135,17 @@ function emptySubscription(): UserSubscription {
     currentPeriodStart: null,
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,
+    isTrial: false,
+    trialEndsAt: null,
+  };
+}
+
+function enrichSubscription(sub: UserSubscription): UserSubscription {
+  const isTrial = sub.status === "trialing";
+  return {
+    ...sub,
+    isTrial,
+    trialEndsAt: isTrial ? sub.currentPeriodEnd : null,
   };
 }
 
@@ -147,18 +166,11 @@ function buildUsageSummary(
 
   let usedComputeCreditsFromEvents = 0;
   let tokensTotal = 0;
-  let selfPayTokens = 0;
-  let hostedTokens = 0;
 
   for (const event of events) {
     const tokens = event.tokens_in + event.tokens_out;
     tokensTotal += tokens;
     usedComputeCreditsFromEvents += event.billable_units;
-    if (event.cost_source === "self_pay") {
-      selfPayTokens += tokens;
-    } else {
-      hostedTokens += tokens;
-    }
 
     const modelKey = `${event.provider_id}::${event.model_id}`;
     const existingModel = modelMap.get(modelKey);
@@ -173,7 +185,6 @@ function buildUsageSummary(
         tokensTotal: tokens,
         computeCredits: event.billable_units,
         creditMultiplier: getModelCreditMultiplier(event.provider_id, event.model_id),
-        costSource: event.cost_source,
         shareOfCredits: 0,
       });
     }
@@ -182,19 +193,12 @@ function buildUsageSummary(
     if (existingProvider) {
       existingProvider.tokensTotal += tokens;
       existingProvider.computeCredits += event.billable_units;
-      if (event.cost_source === "self_pay") {
-        existingProvider.selfPayTokens += tokens;
-      } else {
-        existingProvider.hostedTokens += tokens;
-      }
     } else {
       providerMap.set(event.provider_id, {
         providerId: event.provider_id,
         providerLabel: providerLabel(event.provider_id),
         tokensTotal: tokens,
         computeCredits: event.billable_units,
-        selfPayTokens: event.cost_source === "self_pay" ? tokens : 0,
-        hostedTokens: event.cost_source === "hosted" ? tokens : 0,
         shareOfCredits: 0,
       });
     }
@@ -233,8 +237,6 @@ function buildUsageSummary(
     usedRatio,
     blockedLowBalance: allowance.blockedLowBalance,
     tokensTotal,
-    selfPayTokens,
-    hostedTokens,
     byProvider,
     byModel,
   };
@@ -246,63 +248,18 @@ function sampleUsageEvents(): UsageEventRow[] {
     modelId: string;
     tokensIn: number;
     tokensOut: number;
-    costSource: ProviderCostSource;
   }> = [
     {
-      providerId: "anthropic",
-      modelId: "claude-opus-4-8",
-      tokensIn: 3_500,
-      tokensOut: 2_500,
-      costSource: "hosted",
+      providerId: AGENTS_MODEL_PROVIDER_ID,
+      modelId: AGENTS_MODEL_ID,
+      tokensIn: 180_000,
+      tokensOut: 90_000,
     },
     {
-      providerId: "anthropic",
-      modelId: "claude-haiku-4-5",
-      tokensIn: 12_000,
-      tokensOut: 6_000,
-      costSource: "hosted",
-    },
-    {
-      providerId: "openai",
-      modelId: "gpt-5.4-mini",
-      tokensIn: 14_000,
-      tokensOut: 8_000,
-      costSource: "hosted",
-    },
-    {
-      providerId: "openai",
-      modelId: "gpt-5.5",
-      tokensIn: 2_500,
-      tokensOut: 1_500,
-      costSource: "hosted",
-    },
-    {
-      providerId: "google",
-      modelId: "gemini-3.5-flash",
-      tokensIn: 12_000,
-      tokensOut: 6_000,
-      costSource: "hosted",
-    },
-    {
-      providerId: "anthropic",
-      modelId: "claude-sonnet-4-6",
-      tokensIn: 18_000,
-      tokensOut: 10_000,
-      costSource: "self_pay",
-    },
-    {
-      providerId: "xai",
-      modelId: "grok-4.3",
-      tokensIn: 9_000,
-      tokensOut: 5_000,
-      costSource: "hosted",
-    },
-    {
-      providerId: "openai",
-      modelId: "gpt-4o-mini",
-      tokensIn: 30_000,
-      tokensOut: 15_000,
-      costSource: "hosted",
+      providerId: AGENTS_MODEL_PROVIDER_ID,
+      modelId: AGENTS_MODEL_ID,
+      tokensIn: 40_000,
+      tokensOut: 20_000,
     },
   ];
 
@@ -316,9 +273,7 @@ function sampleUsageEvents(): UsageEventRow[] {
       tokensOut: sample.tokensOut,
       providerId: sample.providerId,
       modelId: sample.modelId,
-      costSource: sample.costSource,
     }),
-    cost_source: sample.costSource,
   }));
 }
 
@@ -330,7 +285,7 @@ async function loadUsageEventsForPeriod(
 ): Promise<UsageEventRow[]> {
   const { data, error } = await client
     .from("usage_events")
-    .select("provider_id, model_id, tokens_in, tokens_out, billable_units, cost_source")
+    .select("provider_id, model_id, tokens_in, tokens_out, billable_units")
     .eq("user_id", userId)
     .gte("created_at", periodStart)
     .lte("created_at", periodEnd);
@@ -345,7 +300,6 @@ async function loadUsageEventsForPeriod(
     tokens_in: Number(row.tokens_in) || 0,
     tokens_out: Number(row.tokens_out) || 0,
     billable_units: Number(row.billable_units) || 0,
-    cost_source: row.cost_source === "self_pay" ? "self_pay" : "hosted",
   }));
 }
 
@@ -384,22 +338,48 @@ export interface SyncStripeSubscriptionInput {
   cancelAtPeriodEnd?: boolean | null;
 }
 
+function normalizePlanId(raw: string): BillingPlanId | null {
+  if (isBillingPlanId(raw)) {
+    return raw;
+  }
+  if (raw === "hosted") {
+    return "pro";
+  }
+  if (raw === "byok") {
+    return "standard";
+  }
+  return null;
+}
+
 function rowToUserSubscription(row: StoredSubscriptionRow): UserSubscription {
-  const planId = isBillingPlanId(row.plan_id) ? row.plan_id : null;
+  const planId = normalizePlanId(row.plan_id);
   const interval = isBillingInterval(row.interval) ? row.interval : null;
-  const status =
-    row.status === "active" || row.status === "past_due" || row.status === "canceled"
+  let status: UserSubscription["status"] =
+    row.status === "active" ||
+    row.status === "trialing" ||
+    row.status === "past_due" ||
+    row.status === "canceled" ||
+    row.status === "expired"
       ? row.status
       : "none";
 
-  return {
+  if (
+    status === "trialing" &&
+    row.current_period_end &&
+    Number.isFinite(Date.parse(row.current_period_end)) &&
+    Date.parse(row.current_period_end) < Date.now()
+  ) {
+    status = "expired";
+  }
+
+  return enrichSubscription({
     planId,
     interval,
     status: planId ? status : "none",
     currentPeriodStart: row.current_period_start,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
-  };
+  });
 }
 
 export async function activateScaffoldSubscription(
@@ -422,19 +402,151 @@ export async function activateScaffoldSubscription(
   };
   scaffoldSubscriptions.set(userId, subscription);
 
-  // Seed illustrative usage for hosted so the billing page is reviewable.
-  if (planId === "hosted" && !scaffoldUsage.has(userId)) {
+  if (!scaffoldUsage.has(userId)) {
     scaffoldUsage.set(userId, sampleUsageEvents());
   }
 
-  return {
+  return enrichSubscription({
     planId,
     interval,
     status: "active",
     currentPeriodStart: periodStart,
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: false,
+  });
+}
+
+/**
+ * Start a no-card free trial. One trial per account: rejects if any
+ * subscription row (or in-memory scaffold) already exists.
+ */
+export async function startTrialSubscription(
+  client: AppSupabaseClient,
+  userId: string,
+  planId: BillingPlanId,
+): Promise<UserSubscription> {
+  await ensureUser(client, userId);
+
+  const existing = await loadStoredSubscription(client, userId);
+  const scaffold = scaffoldSubscriptions.get(userId);
+  if (existing || scaffold) {
+    throw new BillingAccountError(
+      userHasActiveSubscription(
+        existing ??
+          enrichSubscription({
+            planId: scaffold!.planId,
+            interval: scaffold!.interval,
+            status: scaffold!.status,
+            currentPeriodStart: scaffold!.currentPeriodStart,
+            currentPeriodEnd: scaffold!.currentPeriodEnd,
+            cancelAtPeriodEnd: scaffold!.cancelAtPeriodEnd,
+          }),
+      )
+        ? "An active plan or trial is already in progress"
+        : "A free trial has already been used for this account",
+      400,
+    );
+  }
+
+  const periodStart = new Date().toISOString();
+  const periodEnd = addDaysIso(periodStart, TRIAL_DAYS);
+
+  const row = {
+    user_id: userId,
+    plan_id: planId,
+    interval: "monthly" as const,
+    status: "trialing" as const,
+    current_period_start: periodStart,
+    current_period_end: periodEnd,
+    cancel_at_period_end: false,
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    stripe_checkout_session_id: null,
+    updated_at: new Date().toISOString(),
   };
+
+  const { error } = await client.from("user_subscriptions").upsert(row, {
+    onConflict: "user_id",
+  });
+
+  if (error) {
+    throw new BillingAccountError(
+      "Unable to start trial right now. Please try again.",
+      503,
+    );
+  }
+
+  scaffoldSubscriptions.set(userId, {
+    planId,
+    interval: "monthly",
+    status: "trialing",
+    currentPeriodStart: periodStart,
+    currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: false,
+  });
+
+  try {
+    await ensureCreditPeriod(client, userId, {
+      plan_id: planId,
+      current_period_start: periodStart,
+      current_period_end: periodEnd,
+    });
+  } catch {
+    // Credit tables may be empty in unit tests; subscription still starts.
+  }
+
+  return enrichSubscription({
+    planId,
+    interval: "monthly",
+    status: "trialing",
+    currentPeriodStart: periodStart,
+    currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: false,
+  });
+}
+
+/** Mark expired trials in the database when period end has passed. */
+export async function expireStaleTrials(
+  client: AppSupabaseClient,
+  userId: string,
+): Promise<void> {
+  const { data, error } = await client
+    .from("user_subscriptions")
+    .select("status, current_period_end")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) {
+    const scaffold = scaffoldSubscriptions.get(userId);
+    if (
+      scaffold?.status === "trialing" &&
+      Date.parse(scaffold.currentPeriodEnd) < Date.now()
+    ) {
+      scaffold.status = "expired";
+      scaffoldSubscriptions.set(userId, scaffold);
+    }
+    return;
+  }
+
+  const status = (data as { status: string; current_period_end: string }).status;
+  const periodEnd = (data as { current_period_end: string }).current_period_end;
+  if (status !== "trialing") {
+    return;
+  }
+  if (!periodEnd || Date.parse(periodEnd) >= Date.now()) {
+    return;
+  }
+
+  await client
+    .from("user_subscriptions")
+    .update({ status: "expired", updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+
+  const scaffold = scaffoldSubscriptions.get(userId);
+  if (scaffold) {
+    scaffold.status = "expired";
+    scaffoldSubscriptions.set(userId, scaffold);
+  }
 }
 
 /** Persist a paid subscription after checkout.session.completed (or equivalent). */
@@ -442,7 +554,6 @@ export async function activatePaidSubscription(
   client: AppSupabaseClient,
   input: ActivatePaidSubscriptionInput,
 ): Promise<UserSubscription> {
-  // Ensure the Clerk user row exists before the FK upsert (webhook race).
   await ensureUser(client, input.userId);
 
   const status = input.status ?? "active";
@@ -465,8 +576,6 @@ export async function activatePaidSubscription(
   });
 
   if (error) {
-    // Fail closed so Stripe retries the webhook instead of granting access
-    // from an in-memory map that other API instances cannot see.
     throw new Error(`user_subscriptions upsert failed: ${error.message}`);
   }
 
@@ -478,18 +587,18 @@ export async function activatePaidSubscription(
     currentPeriodEnd: input.currentPeriodEnd,
     cancelAtPeriodEnd: false,
   });
-  if (input.planId === "hosted" && status === "active" && !scaffoldUsage.has(input.userId)) {
+  if (status === "active" && !scaffoldUsage.has(input.userId)) {
     scaffoldUsage.set(input.userId, sampleUsageEvents());
   }
 
-  return {
+  return enrichSubscription({
     planId: input.planId,
     interval: input.interval,
     status,
     currentPeriodStart: input.currentPeriodStart,
     currentPeriodEnd: input.currentPeriodEnd,
     cancelAtPeriodEnd: false,
-  };
+  });
 }
 
 /**
@@ -521,7 +630,7 @@ export async function syncStripeSubscription(
   const existing = data as StoredSubscriptionRow & { user_id: string };
   const planId =
     input.planId ??
-    (isBillingPlanId(existing.plan_id) ? existing.plan_id : null);
+    normalizePlanId(existing.plan_id);
   const interval =
     input.interval ??
     (isBillingInterval(existing.interval) ? existing.interval : null);
@@ -539,12 +648,16 @@ export async function syncStripeSubscription(
   const cancelAtPeriodEnd =
     input.cancelAtPeriodEnd ?? Boolean(existing.cancel_at_period_end);
 
+  // Local free-trial uses status=trialing without Stripe; Stripe-paid maps trialing -> active access.
+  const status: StoredSubscriptionStatus =
+    input.status === "trialing" ? "active" : input.status;
+
   const { error } = await client.from("user_subscriptions").upsert(
     {
       user_id: existing.user_id,
       plan_id: planId,
       interval,
-      status: input.status,
+      status,
       current_period_start: currentPeriodStart,
       current_period_end: currentPeriodEnd,
       cancel_at_period_end: cancelAtPeriodEnd,
@@ -562,7 +675,7 @@ export async function syncStripeSubscription(
   scaffoldSubscriptions.set(existing.user_id, {
     planId,
     interval,
-    status: input.status,
+    status,
     currentPeriodStart,
     currentPeriodEnd,
     cancelAtPeriodEnd,
@@ -616,36 +729,50 @@ async function loadStoredSubscription(
   return rowToUserSubscription(data as StoredSubscriptionRow);
 }
 
+function planHasCreditMeter(planId: BillingPlanId | null): planId is BillingPlanId {
+  return planId === "standard" || planId === "pro";
+}
+
 export async function getBillingAccount(
   client: AppSupabaseClient,
   userId: string,
 ): Promise<BillingAccountResponse> {
+  await expireStaleTrials(client, userId);
+
   const stored = await loadStoredSubscription(client, userId);
   const scaffold = scaffoldSubscriptions.get(userId);
   const subscription: UserSubscription = stored
     ? stored
     : scaffold
-      ? {
+      ? enrichSubscription({
           planId: scaffold.planId,
           interval: scaffold.interval,
-          status: scaffold.status,
+          status:
+            scaffold.status === "trialing" &&
+            Date.parse(scaffold.currentPeriodEnd) < Date.now()
+              ? "expired"
+              : scaffold.status,
           currentPeriodStart: scaffold.currentPeriodStart,
           currentPeriodEnd: scaffold.currentPeriodEnd,
           cancelAtPeriodEnd: scaffold.cancelAtPeriodEnd,
-        }
+        })
       : emptySubscription();
 
   let usage: BillingUsageSummary | null = null;
-  if (subscription.planId === "hosted" && subscription.status === "active") {
+  if (
+    planHasCreditMeter(subscription.planId) &&
+    (subscription.status === "active" || subscription.status === "trialing")
+  ) {
     const periodStart =
       subscription.currentPeriodStart ?? startOfUtcMonth().toISOString();
     const periodEnd = subscription.currentPeriodEnd ?? endOfUtcMonth().toISOString();
+    const planId = subscription.planId;
 
     const scaffoldEvents = scaffoldUsage.get(userId);
     const useSample = Boolean(scaffoldEvents) && !stored;
 
     if (useSample && scaffoldEvents) {
-      const config = await getPlanCreditConfig(client, "hosted");
+      const config = await getPlanCreditConfig(client, planId);
       const used = scaffoldEvents.reduce((sum, event) => sum + event.billable_units, 0);
       usage = buildUsageSummary(scaffoldEvents, periodStart, periodEnd, true, {
         baseAllowance: config.monthly_credit_allowance,
@@ -659,7 +786,7 @@ export async function getBillingAccount(
         subscriptionPeriodEnd: periodEnd,
       });
       const period = await ensureCreditPeriod(client, userId, {
-        plan_id: "hosted",
+        plan_id: planId,
         current_period_start: periodStart,
         current_period_end: periodEnd,
       });
@@ -682,8 +809,7 @@ export async function getBillingAccount(
         },
       );
     } else {
-      // No stored subscription and no scaffold seed — empty live usage shell.
-      const config = await getPlanCreditConfig(client, "hosted");
+      const config = await getPlanCreditConfig(client, planId);
       usage = buildUsageSummary([], periodStart, periodEnd, false, {
         baseAllowance: config.monthly_credit_allowance,
         rolloverCredits: 0,
@@ -693,10 +819,16 @@ export async function getBillingAccount(
     }
   }
 
+  const activeEntitlement = userHasActiveSubscription(subscription);
   return {
     subscription,
     usage,
     hostedProviderIds: [...HOSTED_PROVIDER_IDS],
+    features: {
+      ...planFeaturesFor(activeEntitlement ? subscription.planId : null),
+      shareReports: userCanShareReports(subscription),
+    },
+    agentsModelDisplayName: AGENTS_MODEL_DISPLAY_NAME,
   };
 }
 
@@ -707,8 +839,8 @@ export function listKnownPlanIds(): BillingPlanId[] {
 /** True when the user may start model runs. */
 export function userHasActiveSubscription(subscription: UserSubscription): boolean {
   if (
-    subscription.status !== "active" ||
-    (subscription.planId !== "byok" && subscription.planId !== "hosted")
+    (subscription.status !== "active" && subscription.status !== "trialing") ||
+    (subscription.planId !== "standard" && subscription.planId !== "pro")
   ) {
     return false;
   }
@@ -721,6 +853,11 @@ export function userHasActiveSubscription(subscription: UserSubscription): boole
   }
 
   return true;
+}
+
+/** True when the account may share reports by public link (active Pro only). */
+export function userCanShareReports(subscription: UserSubscription): boolean {
+  return userHasActiveSubscription(subscription) && subscription.planId === "pro";
 }
 
 /**
@@ -754,6 +891,29 @@ export async function cancelSubscriptionAtPeriodEnd(
   const status = row?.status ?? scaffold?.status;
   if (!isCancellableSubscriptionStatus(status)) {
     throw new BillingAccountError("No active subscription to cancel", 400);
+  }
+
+  if (status === "trialing" && !row?.stripe_subscription_id) {
+    if (row) {
+      await client
+        .from("user_subscriptions")
+        .update({
+          status: "canceled",
+          cancel_at_period_end: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+    }
+    if (scaffold) {
+      scaffold.status = "canceled";
+      scaffold.cancelAtPeriodEnd = true;
+      scaffoldSubscriptions.set(userId, scaffold);
+    }
+    const account = await getBillingAccount(client, userId);
+    return {
+      subscription: account.subscription,
+      accessEndsAt: account.subscription.currentPeriodEnd,
+    };
   }
 
   const alreadyScheduled =
@@ -798,7 +958,7 @@ export async function cancelSubscriptionAtPeriodEnd(
 
     const syncResult = await syncStripeSubscription(client, {
       stripeSubscriptionId,
-      status: mappedStatus,
+      status: mappedStatus === "trialing" ? "active" : mappedStatus,
       cancelAtPeriodEnd: true,
       currentPeriodStart: periodStart,
       currentPeriodEnd: periodEnd,
@@ -815,7 +975,6 @@ export async function cancelSubscriptionAtPeriodEnd(
       );
     }
   } else if (row) {
-    // Local / scaffold subscription without a live Stripe id.
     if (isStripeConfigured() && !isBillingScaffoldEnabled()) {
       throw new BillingAccountError(
         "Subscription is missing a Stripe id and cannot be canceled",
@@ -846,9 +1005,10 @@ export async function cancelSubscriptionAtPeriodEnd(
       );
     }
 
-    if (isBillingPlanId(row.plan_id) && isBillingInterval(row.interval)) {
+    const planId = normalizePlanId(row.plan_id);
+    if (planId && isBillingInterval(row.interval)) {
       scaffoldSubscriptions.set(userId, {
-        planId: row.plan_id,
+        planId,
         interval: row.interval,
         status: row.status as StoredSubscriptionStatus,
         currentPeriodStart: row.current_period_start,

@@ -18,11 +18,11 @@ describe("billing routes", () => {
       plans: Array<{ id: string; monthlyPriceCents: number }>;
     };
     assert.equal(body.plans.length, 2);
-    assert.equal(body.plans[0]?.id, "byok");
-    assert.equal(body.plans[0]?.monthlyPriceCents, 300);
+    assert.equal(body.plans[0]?.id, "standard");
+    assert.equal(body.plans[0]?.monthlyPriceCents, 900);
   });
 
-  it("lists curated hosted models with credit multipliers", async () => {
+  it("lists curated Agents Model catalog with in/out credit rates", async () => {
     const response = await app.request("/billing/models");
     assert.equal(response.status, 200);
     const body = (await response.json()) as {
@@ -31,27 +31,28 @@ describe("billing routes", () => {
       models: Array<{
         providerId: string;
         modelId: string;
-        creditMultiplier: number;
+        inputUsdPer1M: number;
         outputUsdPer1M: number;
+        inputCreditsPerToken: number;
+        outputCreditsPerToken: number;
       }>;
     };
-    assert.ok(body.models.length >= 20);
-    assert.equal(body.referenceOutputUsdPer1M, 0.28 / 1.05);
-    const mini = body.models.find((model) => model.modelId === "gpt-4o-mini");
-    assert.ok(mini);
-    assert.equal(mini?.creditMultiplier, 2.3);
-    assert.ok(
-      body.models.every((model) =>
-        ["openai", "anthropic", "google", "xai"].includes(model.providerId),
-      ),
-    );
+    assert.equal(body.models.length, 1);
+    assert.equal(body.referenceOutputUsdPer1M, 10);
+    const agents = body.models.find((model) => model.modelId === "claude-sonnet-5");
+    assert.ok(agents);
+    assert.equal(agents?.providerId, "anthropic");
+    assert.equal(agents?.inputUsdPer1M, 2);
+    assert.equal(agents?.outputUsdPer1M, 10);
+    assert.equal(agents?.inputCreditsPerToken, 1.05);
+    assert.equal(agents?.outputCreditsPerToken, 5.25);
   });
 
   it("returns 501 scaffold for checkout", async () => {
     const response = await app.request("/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ planId: "hosted", interval: "monthly" }),
+      body: JSON.stringify({ planId: "pro", interval: "monthly" }),
     });
     assert.equal(response.status, 501);
     const body = (await response.json()) as {

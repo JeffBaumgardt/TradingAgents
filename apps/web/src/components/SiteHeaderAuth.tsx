@@ -1,6 +1,6 @@
 /**
  * @file apps/web/src/components/SiteHeaderAuth.tsx
- * Clerk account controls — billing, API keys, and theme live in the UserButton menu.
+ * Clerk account controls — billing and theme live in the UserButton menu.
  */
 
 "use client";
@@ -28,10 +28,6 @@ function MenuIcon({ path }: { path: string }) {
 
 const billingIcon = (
   <MenuIcon path="M1 4.25A2.25 2.25 0 0 1 3.25 2h9.5A2.25 2.25 0 0 1 15 4.25v7.5A2.25 2.25 0 0 1 12.75 14h-9.5A2.25 2.25 0 0 1 1 11.75v-7.5Zm2.25-.75a.75.75 0 0 0-.75.75V6h11V4.25a.75.75 0 0 0-.75-.75h-9.5ZM14 7.5H2v4.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V7.5Z" />
-);
-
-const keysIcon = (
-  <MenuIcon path="M4.5 7a3.5 3.5 0 1 1 6.79 1.152l3.279 3.278a.75.75 0 1 1-1.06 1.06l-.722-.721v1.481a.75.75 0 0 1-1.5 0v-1.48l-.722-.722a.75.75 0 0 1 1.061-1.06l.943.942A3.5 3.5 0 0 1 4.5 7Zm3.5-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
 );
 
 const appearanceIcon = (
@@ -64,7 +60,6 @@ export default function SiteHeaderAuth() {
         <UserButton appearance={clerkAppearance}>
           <UserButton.MenuItems>
             <UserButton.Link label="Billing" labelIcon={billingIcon} href="/settings/billing" />
-            <UserButton.Link label="API keys" labelIcon={keysIcon} href="/settings/credentials" />
             <UserButton.Action label="Appearance" labelIcon={appearanceIcon} open="appearance" />
           </UserButton.MenuItems>
           <UserButton.UserProfilePage

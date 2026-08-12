@@ -1,22 +1,13 @@
 /**
  * @file packages/api-types/src/hosted-model-catalog.ts
- * Curated text/agent models for TradingAgents hosted inference + API list prices.
- *
- * Excludes image/video/audio/embeddings (e.g. Sora, Imagen, Grok Imagine) and
- * ultra-premium BYOK-only SKUs (e.g. gpt-5.5-pro, claude-fable-5) that are a poor
- * fit for multi-agent analysis swarms. Prices are USD per 1M tokens (standard/paid
- * tier, short-context rates). Verify against provider docs before production metering.
+ * Product inference catalog — single Agents Model entry (provider/id internal only).
  *
  * Keep in sync with:
- * - tradingagents/llm_clients/model_catalog.py (OpenAI / Anthropic / Google / xAI)
  * - public.model_credit_multipliers (Supabase migrations)
+ * - docs on platform API keys / credits
  */
 
-export type HostedModelProviderId =
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "xai";
+export type HostedModelProviderId = "anthropic";
 
 export interface HostedModelCostEntry {
   providerId: HostedModelProviderId;
@@ -24,348 +15,132 @@ export interface HostedModelCostEntry {
   modelId: string;
   /** Short label for UI. */
   displayName: string;
-  /** Preferred wizard bucket. */
+  /** Preferred wizard bucket (legacy catalog field). */
   modes: Array<"quick" | "deep">;
-  /** Standard input USD per 1M tokens. */
+  /** Standard input USD per 1M tokens (operator cost; not shown to users). */
   inputUsdPer1M: number;
-  /** Standard output USD per 1M tokens (basis for compute-credit multipliers). */
+  /** Standard output USD per 1M tokens (operator cost; not shown to users). */
   outputUsdPer1M: number;
   /** Optional notes (cache tiers, context surcharges, provisional IDs). */
   notes?: string;
 }
 
+/** Product-facing display name for the sole inference model. */
+export const AGENTS_MODEL_DISPLAY_NAME = "Agents Model";
+
+/** Fixed product LLM provider. */
+export const AGENTS_MODEL_PROVIDER_ID: HostedModelProviderId = "anthropic";
+
+/** Fixed product model id (internal; never display to end users). */
+export const AGENTS_MODEL_ID = "claude-sonnet-5";
+
 /**
- * Operator margin baked into credit metering. Multipliers = list output price
- * ÷ (base reference ÷ margin), so the same 10M credit allowance covers ~5% less
- * provider spend and leaves room for personal/platform costs.
+ * Operator list prices ($/1M tokens). Credits hide the in/out split from users.
+ * Output is 5× input, so 1 output token = 5 credits before margin.
+ */
+export const AGENTS_MODEL_INPUT_USD_PER_1M = 2;
+export const AGENTS_MODEL_OUTPUT_USD_PER_1M = 10;
+
+/**
+ * Platform markup applied when converting tokens → credits.
+ * 10M credits ≈ 1.90M output tokens (~2M advertised); $19 Pro ≈ $19 of
+ * list-price inference (vs $20 of raw 2M output), leaving a little room
+ * for platform cost vs a direct Anthropic monthly sub.
  */
 export const COMPUTE_CREDIT_MARGIN = 1.05;
 
-/** Pass-through output reference before margin ($/1M tokens). */
-export const COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M = 0.28;
+/** 1 input token = 1 credit before margin. */
+export const AGENTS_MODEL_INPUT_CREDITS_PER_TOKEN = 1;
+
+/** 1 output token = 5 credits before margin ($10 / $2). */
+export const AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN =
+  AGENTS_MODEL_OUTPUT_USD_PER_1M / AGENTS_MODEL_INPUT_USD_PER_1M;
 
 /**
- * Credit unit after margin: base ÷ margin (≈ $0.2667/1M output tokens).
- * One compute credit ≈ one token at this rate. Kept stable so allowance math
- * does not jump when the cheapest hosted SKU changes.
+ * Advertised Pro equivalent: 10M credits ≈ 2M output tokens.
+ * Exact math is 10M / (5 × 1.05) ≈ 1.90M; copy uses the round number.
  */
-export const COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M =
-  COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M / COMPUTE_CREDIT_MARGIN;
+export const PRO_MONTHLY_OUTPUT_TOKEN_EQUIVALENT = 2_000_000;
+
+/**
+ * Observed shallow run (depth 1, 2026-08-11): 16.6k out / 88.2k total.
+ * Used only for preflight estimates, not live metering.
+ */
+export const AGENTS_MODEL_TYPICAL_OUTPUT_SHARE = 16_600 / 88_200;
 
 /** ISO date the catalog prices were last reviewed against provider docs. */
 export const HOSTED_MODEL_CATALOG_PRICED_AS_OF = "2026-07-21";
 
 /**
- * Curated hosted catalog for TradingAgents.
- * Hosted plan providers: OpenAI, Anthropic, Google Gemini, and xAI only.
+ * @deprecated Use {@link AGENTS_MODEL_OUTPUT_USD_PER_1M}. Old cheap-model
+ * reference ($0.28/1M) is no longer the credit basis.
+ */
+export const COMPUTE_CREDIT_BASE_OUTPUT_USD_PER_1M = AGENTS_MODEL_OUTPUT_USD_PER_1M;
+
+/**
+ * @deprecated Use {@link AGENTS_MODEL_OUTPUT_USD_PER_1M}. Kept so catalog
+ * helpers still expose a single output list-price field.
+ */
+export const COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M = AGENTS_MODEL_OUTPUT_USD_PER_1M;
+
+/**
+ * @deprecated Product no longer uses a single token multiplier. Billing is
+ * {@link computeAgentsModelCredits} (input × 1 + output × 5, then margin).
+ */
+export const AGENTS_MODEL_CREDIT_MULTIPLIER = AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN;
+
+export interface AgentsModelCreditRates {
+  /** Credits charged per input token (includes margin). */
+  inputCreditsPerToken: number;
+  /** Credits charged per output token (includes margin). */
+  outputCreditsPerToken: number;
+}
+
+/** Margin-inclusive rates passed to metering. */
+export function getAgentsModelCreditRates(): AgentsModelCreditRates {
+  return {
+    inputCreditsPerToken: AGENTS_MODEL_INPUT_CREDITS_PER_TOKEN * COMPUTE_CREDIT_MARGIN,
+    outputCreditsPerToken: AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN * COMPUTE_CREDIT_MARGIN,
+  };
+}
+
+/** Convert observed tokens into compute credits (1 in + 5 out, × margin). */
+export function computeAgentsModelCredits(tokensIn: number, tokensOut: number): number {
+  const rates = getAgentsModelCreditRates();
+  return Math.round(
+    Math.max(0, tokensIn) * rates.inputCreditsPerToken +
+      Math.max(0, tokensOut) * rates.outputCreditsPerToken,
+  );
+}
+
+/** Preflight helper: map a token-volume guess onto credits using the typical mix. */
+export function estimateAgentsModelCreditsFromTokenVolume(tokens: number): number {
+  const volume = Math.max(0, tokens);
+  const tokensOut = volume * AGENTS_MODEL_TYPICAL_OUTPUT_SHARE;
+  const tokensIn = volume - tokensOut;
+  return computeAgentsModelCredits(tokensIn, tokensOut);
+}
+
+/**
+ * Product model catalog — Agents Model only.
+ * USD list prices are operator-only; end-user UI should only show displayName
+ * and compute credits.
  */
 export const HOSTED_MODEL_CATALOG: readonly HostedModelCostEntry[] = [
-  // OpenAI — https://developers.openai.com/api/docs/pricing
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5.4-nano",
-    displayName: "GPT-5.4 Nano",
-    modes: ["quick"],
-    inputUsdPer1M: 0.2,
-    outputUsdPer1M: 1.25,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5.4-mini",
-    displayName: "GPT-5.4 Mini",
-    modes: ["quick"],
-    inputUsdPer1M: 0.75,
-    outputUsdPer1M: 4.5,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5-mini",
-    displayName: "GPT-5 Mini",
-    modes: ["quick"],
-    inputUsdPer1M: 0.25,
-    outputUsdPer1M: 2,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-4.1-mini",
-    displayName: "GPT-4.1 Mini",
-    modes: ["quick"],
-    inputUsdPer1M: 0.4,
-    outputUsdPer1M: 1.6,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-4o-mini",
-    displayName: "GPT-4o Mini",
-    modes: ["quick"],
-    inputUsdPer1M: 0.15,
-    outputUsdPer1M: 0.6,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-4.1",
-    displayName: "GPT-4.1",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 2,
-    outputUsdPer1M: 8,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-4o",
-    displayName: "GPT-4o",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 2.5,
-    outputUsdPer1M: 10,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5",
-    displayName: "GPT-5",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 1.25,
-    outputUsdPer1M: 10,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5.2",
-    displayName: "GPT-5.2",
-    modes: ["deep"],
-    inputUsdPer1M: 1.75,
-    outputUsdPer1M: 14,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5.4",
-    displayName: "GPT-5.4",
-    modes: ["deep"],
-    inputUsdPer1M: 2.5,
-    outputUsdPer1M: 15,
-    notes: "Short-context (<272K) standard tier.",
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "gpt-5.5",
-    displayName: "GPT-5.5",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 5,
-    outputUsdPer1M: 30,
-    notes: "Short-context (<272K) standard tier.",
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "o4-mini",
-    displayName: "o4-mini",
-    modes: ["deep"],
-    inputUsdPer1M: 1.1,
-    outputUsdPer1M: 4.4,
-  },
-  {
-    providerId: "openai",
-    providerLabel: "OpenAI",
-    modelId: "o3",
-    displayName: "o3",
-    modes: ["deep"],
-    inputUsdPer1M: 2,
-    outputUsdPer1M: 8,
-  },
-
-  // Anthropic — https://platform.claude.com/docs/en/about-claude/pricing
   {
     providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-haiku-4-5",
-    displayName: "Claude Haiku 4.5",
-    modes: ["quick"],
-    inputUsdPer1M: 1,
-    outputUsdPer1M: 5,
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-sonnet-4-5",
-    displayName: "Claude Sonnet 4.5",
+    providerLabel: AGENTS_MODEL_DISPLAY_NAME,
+    modelId: AGENTS_MODEL_ID,
+    displayName: AGENTS_MODEL_DISPLAY_NAME,
     modes: ["quick", "deep"],
-    inputUsdPer1M: 3,
-    outputUsdPer1M: 15,
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-sonnet-4-6",
-    displayName: "Claude Sonnet 4.6",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 3,
-    outputUsdPer1M: 15,
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-sonnet-5",
-    displayName: "Claude Sonnet 5",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 2,
-    outputUsdPer1M: 10,
-    notes: "Introductory pricing through 2026-08-31; then $3/$15.",
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-opus-4-5",
-    displayName: "Claude Opus 4.5",
-    modes: ["deep"],
-    inputUsdPer1M: 5,
-    outputUsdPer1M: 25,
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-opus-4-6",
-    displayName: "Claude Opus 4.6",
-    modes: ["deep"],
-    inputUsdPer1M: 5,
-    outputUsdPer1M: 25,
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-opus-4-7",
-    displayName: "Claude Opus 4.7",
-    modes: ["deep"],
-    inputUsdPer1M: 5,
-    outputUsdPer1M: 25,
-  },
-  {
-    providerId: "anthropic",
-    providerLabel: "Anthropic",
-    modelId: "claude-opus-4-8",
-    displayName: "Claude Opus 4.8",
-    modes: ["deep"],
-    inputUsdPer1M: 5,
-    outputUsdPer1M: 25,
-  },
-
-  // Google — https://ai.google.dev/gemini-api/docs/pricing
-  {
-    providerId: "google",
-    providerLabel: "Google",
-    modelId: "gemini-3.1-flash-lite",
-    displayName: "Gemini 3.1 Flash Lite",
-    modes: ["quick"],
-    inputUsdPer1M: 0.25,
-    outputUsdPer1M: 1.5,
-  },
-  {
-    providerId: "google",
-    providerLabel: "Google",
-    modelId: "gemini-3.5-flash-lite",
-    displayName: "Gemini 3.5 Flash-Lite",
-    modes: ["quick"],
-    inputUsdPer1M: 0.3,
-    outputUsdPer1M: 2.5,
-  },
-  {
-    providerId: "google",
-    providerLabel: "Google",
-    modelId: "gemini-3-flash-preview",
-    displayName: "Gemini 3 Flash",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 0.5,
-    outputUsdPer1M: 3,
-  },
-  {
-    providerId: "google",
-    providerLabel: "Google",
-    modelId: "gemini-3.5-flash",
-    displayName: "Gemini 3.5 Flash",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 1.5,
-    outputUsdPer1M: 9,
-  },
-  {
-    providerId: "google",
-    providerLabel: "Google",
-    modelId: "gemini-3.1-pro-preview",
-    displayName: "Gemini 3.1 Pro",
-    modes: ["deep"],
-    inputUsdPer1M: 2,
-    outputUsdPer1M: 12,
-    notes: "≤200K prompt tier; higher rates above 200K.",
-  },
-
-  // xAI — https://docs.x.ai/developers/pricing
-  {
-    providerId: "xai",
-    providerLabel: "xAI",
-    modelId: "grok-build-0.1",
-    displayName: "Grok Build 0.1",
-    modes: ["quick"],
-    inputUsdPer1M: 1,
-    outputUsdPer1M: 2,
-    notes: "≤200K prompt tier.",
-  },
-  {
-    providerId: "xai",
-    providerLabel: "xAI",
-    modelId: "grok-4.20-0309-non-reasoning",
-    displayName: "Grok 4.20 (Non-Reasoning)",
-    modes: ["quick"],
-    inputUsdPer1M: 1.25,
-    outputUsdPer1M: 2.5,
-    notes: "≤200K prompt tier.",
-  },
-  {
-    providerId: "xai",
-    providerLabel: "xAI",
-    modelId: "grok-4.3",
-    displayName: "Grok 4.3",
-    modes: ["quick", "deep"],
-    inputUsdPer1M: 1.25,
-    outputUsdPer1M: 2.5,
-    notes: "≤200K prompt tier.",
-  },
-  {
-    providerId: "xai",
-    providerLabel: "xAI",
-    modelId: "grok-4.20-0309-reasoning",
-    displayName: "Grok 4.20 (Reasoning)",
-    modes: ["deep"],
-    inputUsdPer1M: 1.25,
-    outputUsdPer1M: 2.5,
-    notes: "≤200K prompt tier.",
-  },
-  {
-    providerId: "xai",
-    providerLabel: "xAI",
-    modelId: "grok-4.20-multi-agent-0309",
-    displayName: "Grok 4.20 Multi-Agent",
-    modes: ["deep"],
-    inputUsdPer1M: 1.25,
-    outputUsdPer1M: 2.5,
-    notes: "≤200K prompt tier.",
-  },
-  {
-    providerId: "xai",
-    providerLabel: "xAI",
-    modelId: "grok-4.5",
-    displayName: "Grok 4.5",
-    modes: ["deep"],
-    inputUsdPer1M: 2,
-    outputUsdPer1M: 6,
-    notes: "≤200K prompt tier.",
+    inputUsdPer1M: AGENTS_MODEL_INPUT_USD_PER_1M,
+    outputUsdPer1M: AGENTS_MODEL_OUTPUT_USD_PER_1M,
+    notes: "USD list price is operator-only. Product bills 1 credit per input token and 5 per output token, plus 5% margin.",
   },
 ] as const;
+
+/** Alias for product-facing naming. */
+export const PRODUCT_MODEL_CATALOG = HOSTED_MODEL_CATALOG;
 
 /** Round multiplier for stable UI + metering. */
 export function roundCreditMultiplier(value: number): number {
@@ -373,14 +148,14 @@ export function roundCreditMultiplier(value: number): number {
 }
 
 /**
- * Output-cost multiplier vs {@link COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M}.
- * Cheaper hosted models are near 1×; frontier models are much higher.
+ * @deprecated Output/input list-price ratio (5 for Agents Model). Not a
+ * global token multiplier — use {@link computeAgentsModelCredits}.
  */
 export function creditMultiplierFromOutputUsdPer1M(outputUsdPer1M: number): number {
   if (!Number.isFinite(outputUsdPer1M) || outputUsdPer1M <= 0) {
-    return 1;
+    return AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN;
   }
-  return roundCreditMultiplier(outputUsdPer1M / COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M);
+  return roundCreditMultiplier(outputUsdPer1M / AGENTS_MODEL_INPUT_USD_PER_1M);
 }
 
 export function getHostedModelCostEntry(
@@ -395,39 +170,24 @@ export function getHostedModelCostEntry(
 }
 
 /**
- * Resolve a compute-credit multiplier for a provider/model pair.
- * Exact catalog match first; then substring heuristics; else mid-tier default.
+ * @deprecated Always the output credit weight (5). Live billing uses
+ * {@link computeAgentsModelCredits} instead of tokens × this.
  */
-export function getModelCreditMultiplier(providerId: string, modelId: string): number {
-  const exact = getHostedModelCostEntry(providerId, modelId);
-  if (exact) {
-    return creditMultiplierFromOutputUsdPer1M(exact.outputUsdPer1M);
-  }
-
-  const model = modelId.toLowerCase();
-  if (model.includes("nano") || model.includes("flash-lite")) {
-    return creditMultiplierFromOutputUsdPer1M(1.25);
-  }
-  if (model.includes("haiku") || model.includes("mini") || model.includes("flash")) {
-    return creditMultiplierFromOutputUsdPer1M(5);
-  }
-  if (model.includes("opus") || model.includes("pro") || model.includes("o1") || model.includes("fable")) {
-    return creditMultiplierFromOutputUsdPer1M(25);
-  }
-  if (model.includes("sonnet") || model.includes("gpt-5.5") || model.includes("gpt-4")) {
-    return creditMultiplierFromOutputUsdPer1M(15);
-  }
-  // Mid-tier default (~GPT-5 / Gemini Flash range).
-  return creditMultiplierFromOutputUsdPer1M(10);
+export function getModelCreditMultiplier(_providerId?: string, _modelId?: string): number {
+  return AGENTS_MODEL_OUTPUT_CREDITS_PER_TOKEN;
 }
 
 export function listHostedModelCatalog() {
+  const rates = getAgentsModelCreditRates();
   return {
     pricedAsOf: HOSTED_MODEL_CATALOG_PRICED_AS_OF,
-    referenceOutputUsdPer1M: COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
+    referenceOutputUsdPer1M: AGENTS_MODEL_OUTPUT_USD_PER_1M,
+    inputCreditsPerToken: rates.inputCreditsPerToken,
+    outputCreditsPerToken: rates.outputCreditsPerToken,
     models: HOSTED_MODEL_CATALOG.map((entry) => ({
       ...entry,
-      creditMultiplier: creditMultiplierFromOutputUsdPer1M(entry.outputUsdPer1M),
+      inputCreditsPerToken: rates.inputCreditsPerToken,
+      outputCreditsPerToken: rates.outputCreditsPerToken,
     })),
   };
 }

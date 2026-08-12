@@ -5,15 +5,17 @@
  */
 
 import {
-  COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
+  AGENTS_MODEL_OUTPUT_USD_PER_1M,
   HOSTED_MODEL_CATALOG_PRICED_AS_OF,
+  getAgentsModelCreditRates,
   listHostedModelCatalog,
 } from "@tradingagents/api-types";
 import type { AppSupabaseClient, ModelCreditMultiplierRow } from "@tradingagents/supabase";
 import { getPlanCreditConfig } from "./credit-service.js";
 
 export async function listHostedModelsFromDb(client: AppSupabaseClient) {
-  const config = await getPlanCreditConfig(client, "hosted");
+  // Reference rate is shared across product plans; pro config is representative.
+  const config = await getPlanCreditConfig(client, "pro");
   const { data, error } = await client
     .from("model_credit_multipliers")
     .select("*")
@@ -26,15 +28,15 @@ export async function listHostedModelsFromDb(client: AppSupabaseClient) {
   }
 
   const rows = data as ModelCreditMultiplierRow[];
+  const rates = getAgentsModelCreditRates();
   return {
     pricedAsOf: HOSTED_MODEL_CATALOG_PRICED_AS_OF,
-    referenceOutputUsdPer1M: Number(config.reference_output_usd_per_1m) || COMPUTE_CREDIT_REFERENCE_OUTPUT_USD_PER_1M,
+    referenceOutputUsdPer1M:
+      Number(config.reference_output_usd_per_1m) || AGENTS_MODEL_OUTPUT_USD_PER_1M,
+    inputCreditsPerToken: rates.inputCreditsPerToken,
+    outputCreditsPerToken: rates.outputCreditsPerToken,
     models: rows.map((row) => ({
-      providerId: row.provider_id as
-        | "openai"
-        | "anthropic"
-        | "google"
-        | "xai",
+      providerId: row.provider_id as "anthropic",
       providerLabel: row.provider_label,
       modelId: row.model_id,
       displayName: row.display_name,
@@ -42,7 +44,8 @@ export async function listHostedModelsFromDb(client: AppSupabaseClient) {
       inputUsdPer1M: Number(row.input_usd_per_1m),
       outputUsdPer1M: Number(row.output_usd_per_1m),
       notes: row.notes ?? undefined,
-      creditMultiplier: Number(row.credit_multiplier),
+      inputCreditsPerToken: rates.inputCreditsPerToken,
+      outputCreditsPerToken: rates.outputCreditsPerToken,
     })),
   };
 }

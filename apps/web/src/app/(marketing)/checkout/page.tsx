@@ -10,7 +10,8 @@ import CheckoutScaffold from "@/components/pricing/CheckoutScaffold";
 
 export const metadata: Metadata = {
   title: "Checkout — TradingAgents",
-  description: "Create your account and pay for a TradingAgents plan with Stripe Checkout.",
+  description:
+    "Start a free 14-day TradingAgents trial — no credit card needed. Subscribe with Stripe whenever you’re ready.",
 };
 
 export default function CheckoutPage() {

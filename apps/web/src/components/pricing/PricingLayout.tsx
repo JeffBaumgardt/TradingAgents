@@ -44,7 +44,7 @@ export default function PricingLayout() {
       <section className={styles.cards} aria-label="Pricing plans">
         {PRICING_PLANS.map((plan) => {
           const price = displayPriceCents(plan, interval);
-          const featured = plan.id === "hosted";
+          const featured = plan.id === "pro" || plan.recommended;
 
           return (
             <article
