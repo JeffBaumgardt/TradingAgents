@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "vitest";
 import { createInMemorySupabase } from "@tradingagents/supabase/test";
 import { ENCRYPTED_VALUE_PREFIX } from "../lib/credentials-encryption.js";
 import { TEST_CREDENTIALS_ENCRYPTION_KEY } from "../lib/test-credentials-encryption-key.js";

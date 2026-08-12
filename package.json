@@ -11,7 +11,7 @@
     "build": "turbo build",
     "dev:web": "turbo dev --filter=@trading-agents/web",
     "lint": "turbo lint",
-    "test": "turbo test --filter=@trading-agents/web"
+    "test": "turbo test --filter=@trading-agents/web --filter=@tradingagents/api"
   },
   "devDependencies": {
     "turbo": "^2.10.9"

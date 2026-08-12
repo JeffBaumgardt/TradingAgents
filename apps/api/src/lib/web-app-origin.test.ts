@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "vitest";
 import { getWebAppOrigin, WebAppOriginError } from "./web-app-origin.js";
 
 const ORIGINAL_ENV = {

@@ -78,3 +78,22 @@ jobs:
         run: pnpm turbo build --filter=@trading-agents/web^...
       - name: Run web tests
         run: pnpm --filter @trading-agents/web test
+
+  api-test:
+    name: api (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace packages
+        run: pnpm turbo build --filter=@tradingagents/api^...
+      - name: Run API tests
+        run: pnpm --filter @tradingagents/api test
