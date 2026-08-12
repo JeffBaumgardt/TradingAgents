@@ -1,6 +1,11 @@
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { forwardRef } from "react";
 import { vi } from "vitest";
+
+type MockLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
+  href: string | object;
+  children?: ReactNode;
+};
 
 /** Controllable search params for next/navigation mocks. */
 let searchParams = new URLSearchParams();
@@ -42,10 +47,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: forwardRef<
-    HTMLAnchorElement,
-    { href: string; children: ReactNode; [key: string]: unknown }
-  >(function MockLink({ href, children, ...rest }, ref) {
+  default: forwardRef<HTMLAnchorElement, MockLinkProps>(function MockLink(
+    { href, children, ...rest },
+    ref,
+  ) {
     return (
       <a ref={ref} href={typeof href === "string" ? href : "#"} {...rest}>
         {children}
